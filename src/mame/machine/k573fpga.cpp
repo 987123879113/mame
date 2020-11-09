@@ -8,8 +8,17 @@
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
+	mas3507d(*this, "mpeg"),
 	use_ddrsbm_fpga(false)
 {
+}
+
+void k573fpga_device::device_add_mconfig(machine_config &config)
+{
+	MAS3507D(config, mas3507d);
+	mas3507d->sample_cb().set(*this, FUNC(k573fpga_device::get_decrypted));
+	mas3507d->add_route(0, ":lspeaker", 1.0);
+	mas3507d->add_route(1, ":rspeaker", 1.0);
 }
 
 void k573fpga_device::device_start()
@@ -20,30 +29,152 @@ void k573fpga_device::device_reset()
 {
 	mp3_cur_adr = 0;
 	mp3_end_adr = 0;
+
 	crypto_key1 = 0;
 	crypto_key2 = 0;
 	crypto_key3 = 0;
+
+	is_stream_active = false;
+	timer_was_reset = false;
+
+	frame_count_since_last_update = 0;
+	last_counter = previous_counter = 0;
+}
+
+void k573fpga_device::vblank_callback(int state)
+{
+	if (state == 0) {
+		frame_count_since_last_update++;
+	}
+}
+
+bool k573fpga_device::is_streaming()
+{
+	return is_stream_active && mp3_cur_adr < mp3_end_adr;
+}
+
+void k573fpga_device::reset_counter() {
+	timer_was_reset = true;
+
+	if (is_mp3_playing()) {
+		mas3507d->reg_write(0xaa, 1);
+	}
+}
+
+u32 k573fpga_device::get_counter() {
+	attotime ctr = machine().time();
+
+	if (timer_was_reset) {
+		timer_was_reset = false;
+		base_frame_counter = ctr;
+		last_counter = previous_counter = 0;
+
+		if (!is_stream_active && !is_mp3_playing()) {
+			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
+			// There seems to be a window of roughly about 5 frames of 44.1 KHz MP3 data on real hardware,
+			// where the FPGA is no longer streaming data but the MAS3507D is still in the playing state.
+			// If the counter is reset during that window the counter will reset to 0 and immediately continue
+			// ticking up, and it won't ever stop ticking even after the MAS3507D goes into its idle state.
+			//
+			// As a way to emulate that window, the timer will only be completely stopped when both
+			// the stream and MAS3507D are not in their respective active states when the counter is reset.
+			is_timer_active = false;
+		}
+	}
+
+	if (!is_timer_active) {
+		return 0;
+	}
+
+	if (ctr < base_frame_counter) {
+		last_counter = previous_counter = 0;
+	} else if (frame_count_since_last_update > 0) {
+		// DDR Extreme's sound options menu has logic like such:
+		// 	If frame changed...
+		// 		If counter is 0, mark song as ended
+		// 		If counter is not 0, reset counter to 0
+		//
+		//	If the counter increments before the next frame occurs and the game can read
+		// 	read the counter, the game never sees that the song ended.
+		previous_counter = last_counter;
+		last_counter += (int)((ctr - base_frame_counter).as_double() * (double)mas3507d->get_current_rate());
+		last_frame_diff = last_counter - previous_counter;
+		base_frame_counter = ctr;
+		frame_count_since_last_update = 0;
+	}
+
+	return last_counter;
+}
+
+u32 k573fpga_device::get_counter_diff() {
+	// On real hardware, this seems to reset the counter back to the previous frame's counter
+	// as well as returns the difference from the last update.
+	last_counter = previous_counter;
+	return last_frame_diff;
+}
+
+uint16_t k573fpga_device::mas_i2c_r()
+{
+	int scl = mas3507d->i2c_scl_r() << 13;
+	int sda = mas3507d->i2c_sda_r() << 12;
+
+	return scl | sda;
+}
+
+void k573fpga_device::mas_i2c_w(uint16_t data)
+{
+	mas3507d->i2c_scl_w(data & 0x2000);
+	mas3507d->i2c_sda_w(data & 0x1000);
 }
 
 u16 k573fpga_device::get_mpeg_ctrl()
 {
-	if ((mpeg_ctrl_flag & 0xe000) == 0xe000) {
-		// This has been tested with real hardware, but this flag is always held 0x1000 when the audio is being played
-		return 0x1000;
-	}
+	// Audio playback status
+	// 0x8000 = ?
+	// 0xa000 = Error?
+	// 0xb000 = Not playing
+	// 0xc000 = Playing, demand pin = 0?
+	// 0xd000 = Playing, demand pin = 1?
+	return mas3507d->get_status();
+}
 
-	return 0x0000;
+bool k573fpga_device::is_mp3_playing()
+{
+	return get_mpeg_ctrl() > 0xb000;
+}
+
+u16 k573fpga_device::get_fpga_ctrl()
+{
+	// 0x0000 Not Streaming
+	// 0x1000 Streaming
+	return is_streaming() << 12;
 }
 
 void k573fpga_device::set_mpeg_ctrl(u16 data)
 {
-	logerror("FPGA MPEG control %c%c%c | %08x %08x\n",
+	logerror("FPGA MPEG control %c%c%c | %04x\n",
 				data & 0x8000 ? '#' : '.',
-				data & 0x4000 ? '#' : '.',
+				data & 0x4000 ? '#' : '.', // "Active" flag. Without this flag being set, the FPGA will never start streaming data
 				data & 0x2000 ? '#' : '.',
-				mp3_cur_adr, mp3_end_adr);
+				data);
 
-	mpeg_ctrl_flag = data;
+	if (data == 0xa000) {
+		// Mute
+		mas3507d->reg_write(0xaa, 1);
+		mas3507d->reset_playback();
+
+		is_stream_active = false;
+		is_timer_active = false;
+		reset_counter();
+	} else if (data == 0xe000) {
+		is_stream_active = true;
+		is_timer_active = true;
+		reset_counter();
+
+		// Unmute
+		mas3507d->reg_write(0xaa, 0);
+		mas3507d->reset_playback();
+	}
 }
 
 u16 k573fpga_device::decrypt_default(u16 v)
@@ -140,7 +271,13 @@ u16 k573fpga_device::decrypt_ddrsbm(u16 data)
 
 u16 k573fpga_device::get_decrypted()
 {
-	if(mp3_cur_adr >= mp3_end_adr || (mpeg_ctrl_flag & 0xe000) != 0xe000) {
+	if(!is_streaming()) {
+		if (is_stream_active) {
+			logerror("Reached end of audio! %d (%08x) %d (%04x)\n", get_counter(), get_counter(), mas3507d->get_frame_count(), mas3507d->get_frame_count());
+		}
+
+		is_stream_active = false;
+
 		return 0;
 	}
 

@@ -30,29 +30,46 @@ public:
 	uint32_t get_mp3_end_adr() { return mp3_end_adr; }
 	void set_mp3_end_adr(u32 v) { mp3_end_adr = v; }
 
-	u16 i2c_read();
-	void i2c_write(u16 data);
+	uint16_t mas_i2c_r();
+	void mas_i2c_w(uint16_t data);
 
-	u16 get_mpeg_ctrl();
+	u16 get_fpga_ctrl();
 	void set_mpeg_ctrl(u16 data);
 
-	bool is_playing() { return (mpeg_ctrl_flag & 0xe000) == 0xe000 && mp3_cur_adr < mp3_end_adr; }
+	u16 get_mpeg_ctrl();
+
+	u32 get_counter();
+	u32 get_counter_diff();
+
+	void reset_counter();
+	void vblank_callback(int state);
 
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
+	virtual void device_add_mconfig(machine_config &config) override;
 
 private:
+	required_device<mas3507d_device> mas3507d;
+
 	u16 *ram;
 
 	u16 crypto_key1, crypto_key2;
 	u8 crypto_key3;
 
-	u32 mp3_cur_adr, mp3_end_adr, mpeg_ctrl_flag;
+	u32 mp3_cur_adr, mp3_end_adr;
 	bool use_ddrsbm_fpga;
+
+	bool is_stream_active, is_timer_active, timer_was_reset;
+	u32 frame_count_since_last_update;
+	u32 last_counter, previous_counter, last_frame_diff;
+	attotime base_frame_counter;
 
 	u16 decrypt_default(u16 data);
 	u16 decrypt_ddrsbm(u16 data);
+
+	bool is_mp3_playing();
+	bool is_streaming();
 };
 
 #endif // MAME_MACHINE_K573FPGA_H

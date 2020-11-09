@@ -77,21 +77,22 @@ void k573dio_device::amap(address_map &map)
 	map(0x10, 0x11).w(FUNC(k573dio_device::a10_w));
 	map(0x80, 0x81).r(FUNC(k573dio_device::a80_r));
 	map(0xc4, 0xc5).r(FUNC(k573dio_device::ac4_r));
-	map(0xa0, 0xa1).w(FUNC(k573dio_device::mpeg_start_adr_high_w));
-	map(0xa2, 0xa3).w(FUNC(k573dio_device::mpeg_start_adr_low_w));
+	map(0xa0, 0xa1).rw(FUNC(k573dio_device::mpeg_start_adr_high_r), FUNC(k573dio_device::mpeg_start_adr_high_w));
+	map(0xa2, 0xa3).rw(FUNC(k573dio_device::mpeg_start_adr_low_r), FUNC(k573dio_device::mpeg_start_adr_low_w));
 	map(0xa4, 0xa5).w(FUNC(k573dio_device::mpeg_end_adr_high_w));
 	map(0xa6, 0xa7).w(FUNC(k573dio_device::mpeg_end_adr_low_w));
 	map(0xa8, 0xa9).rw(FUNC(k573dio_device::mpeg_key_1_r), FUNC(k573dio_device::mpeg_key_1_w));
+	map(0xaa, 0xab).r(FUNC(k573dio_device::mpeg_ctrl_r));
 	map(0xac, 0xad).rw(FUNC(k573dio_device::mas_i2c_r), FUNC(k573dio_device::mas_i2c_w));
-	map(0xae, 0xaf).rw(FUNC(k573dio_device::mpeg_ctrl_r), FUNC(k573dio_device::mpeg_ctrl_w));
+	map(0xae, 0xaf).rw(FUNC(k573dio_device::fpga_ctrl_r), FUNC(k573dio_device::fpga_ctrl_w));
 	map(0xb0, 0xb1).w(FUNC(k573dio_device::ram_write_adr_high_w));
 	map(0xb2, 0xb3).w(FUNC(k573dio_device::ram_write_adr_low_w));
 	map(0xb4, 0xb5).rw(FUNC(k573dio_device::ram_r), FUNC(k573dio_device::ram_w));
 	map(0xb6, 0xb7).w(FUNC(k573dio_device::ram_read_adr_high_w));
 	map(0xb8, 0xb9).w(FUNC(k573dio_device::ram_read_adr_low_w));
-	map(0xca, 0xcb).r(FUNC(k573dio_device::mp3_frame_count_high_r));
-	map(0xcc, 0xcd).r(FUNC(k573dio_device::mp3_frame_count_low_r));
-	map(0xce, 0xcf).r(FUNC(k573dio_device::mp3_unk_r));
+	map(0xca, 0xcb).r(FUNC(k573dio_device::mp3_counter_high_r));
+	map(0xcc, 0xcd).rw(FUNC(k573dio_device::mp3_counter_low_r), FUNC(k573dio_device::mp3_counter_low_w));
+	map(0xce, 0xcf).r(FUNC(k573dio_device::mp3_counter_diff_r));
 	map(0xe0, 0xe1).w(FUNC(k573dio_device::output_1_w));
 	map(0xe2, 0xe3).w(FUNC(k573dio_device::output_0_w));
 	map(0xe4, 0xe5).w(FUNC(k573dio_device::output_3_w));
@@ -110,7 +111,6 @@ k573dio_device::k573dio_device(const machine_config &mconfig, const char *tag, d
 	: device_t(mconfig, KONAMI_573_DIGITAL_IO_BOARD, tag, owner, clock),
 	k573fpga(*this, "k573fpga"),
 	digital_id(*this, "digital_id"),
-	mas3507d(*this, "mpeg"),
 	output_cb(*this),
 	is_ddrsbm_fpga(false)
 {
@@ -149,10 +149,6 @@ void k573dio_device::device_add_mconfig(machine_config &config)
 {
 	KONAMI_573_DIGITAL_FPGA(config, k573fpga);
 	DS2401(config, digital_id);
-	MAS3507D(config, mas3507d);
-	mas3507d->sample_cb().set(k573fpga, FUNC(k573fpga_device::get_decrypted));
-	mas3507d->add_route(0, ":lspeaker", 1.0);
-	mas3507d->add_route(1, ":rspeaker", 1.0);
 }
 
 void k573dio_device::device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr)
@@ -191,7 +187,7 @@ uint16_t k573dio_device::a0a_r()
 
 void k573dio_device::a10_w(uint16_t data)
 {
-	logerror("%s: a10_w (%s)\n", tag(), machine().describe_context());
+	logerror("%s: a10_w: %04x (%s)\n", tag(), data, machine().describe_context());
 }
 
 uint16_t k573dio_device::ac4_r()
@@ -221,6 +217,16 @@ void k573dio_device::mpeg_start_adr_low_w(uint16_t data)
 		k573fpga->set_crypto_key3(0);
 }
 
+uint16_t k573dio_device::mpeg_start_adr_high_r()
+{
+	return (k573fpga->get_mp3_cur_adr() & 0xffff0000) >> 16;
+}
+
+uint16_t k573dio_device::mpeg_start_adr_low_r()
+{
+	return k573fpga->get_mp3_cur_adr() & 0x0000ffff;
+}
+
 void k573dio_device::mpeg_end_adr_high_w(uint16_t data)
 {
 	logerror("FPGA MPEG end address high %04x\n", data);
@@ -248,29 +254,25 @@ void k573dio_device::mpeg_key_1_w(uint16_t data)
 
 uint16_t k573dio_device::mas_i2c_r()
 {
-	int scl = mas3507d->i2c_scl_r() << 13;
-	int sda = mas3507d->i2c_sda_r() << 12;
-
-	return scl | sda;
+	return k573fpga->mas_i2c_r();
 }
 
 void k573dio_device::mas_i2c_w(uint16_t data)
 {
-	mas3507d->i2c_scl_w(data & 0x2000);
-	mas3507d->i2c_sda_w(data & 0x1000);
+	k573fpga->mas_i2c_w(data);
 }
 
 uint16_t k573dio_device::mpeg_ctrl_r()
 {
-	if (k573fpga->get_mpeg_ctrl() == 0x1000 && !k573fpga->is_playing()) {
-		// Set the FPGA to stop mode so that data won't be sent anymore
-		k573fpga->set_mpeg_ctrl(0xa000);
-	}
-
 	return k573fpga->get_mpeg_ctrl();
 }
 
-void k573dio_device::mpeg_ctrl_w(uint16_t data)
+uint16_t k573dio_device::fpga_ctrl_r()
+{
+	return k573fpga->get_fpga_ctrl();
+}
+
+void k573dio_device::fpga_ctrl_w(uint16_t data)
 {
 	k573fpga->set_mpeg_ctrl(data);
 }
@@ -312,14 +314,42 @@ void k573dio_device::ram_read_adr_low_w(uint16_t data)
 	ram_read_adr = ((ram_read_adr & 0xffff0000) | data) & 0x1ffffff;
 }
 
-uint16_t k573dio_device::mp3_frame_count_high_r()
+uint16_t k573dio_device::mp3_counter_high_r()
 {
-	return (mas3507d->get_frame_count() & 0xffff0000) >> 16;
+	return (k573fpga->get_counter() & 0xffff0000) >> 16;
 }
 
-uint16_t k573dio_device::mp3_frame_count_low_r()
+uint16_t k573dio_device::mp3_counter_low_r()
 {
-	return mas3507d->get_frame_count() & 0x0000ffff;
+	return k573fpga->get_counter() & 0x0000ffff;
+}
+
+void k573dio_device::mp3_counter_low_w(uint16_t data)
+{
+	// Resets counter and semeingly mutes the MAS3507D
+	//
+	// TODO: Needs to be tested what happens on real hardware
+	// when you write a non-zero value here.
+	//
+	// TODO: Check if the FPGA is actually sending a mute command to the MAS3507D here,
+	// of if there's some other method being used to mute the audio.
+	//
+	// (The following information has been tested on real hardware)
+	// Resetting the counter has the property of also muting the MAS3507D at times.
+	// There is a bug(?) in DDR Extreme's sound options menu where this can be tested.
+	// The SCALE SOUND CHECK 2 option loops through the scale test MP3 twice.
+	// If you move down to FACTORY SETTING during the first loop, the MP3 will be stopped,
+	// the game checks if the counter is 0, and then plays the MP3 for the 2nd loop while muted.
+	//
+	// The other aspect of this flag is also that the game's code always seems to set this register
+	// to 0 when *starting* an MP3. In that case, it won't mute the audio output.
+	logerror("mp3_counter_low_w %04x\n", data);
+	k573fpga->reset_counter();
+}
+
+uint16_t k573dio_device::mp3_counter_diff_r()
+{
+	return k573fpga->get_counter_diff() & 0x0000ffff;
 }
 
 void k573dio_device::output_1_w(uint16_t data)
@@ -400,11 +430,6 @@ void k573dio_device::output_2_w(uint16_t data)
 	output(2, data);
 }
 
-uint16_t k573dio_device::mp3_unk_r()
-{
-	return 0;
-}
-
 void k573dio_device::output(int offset, uint16_t data)
 {
 	data = (data >> 12) & 0x0f;
@@ -416,4 +441,13 @@ void k573dio_device::output(int offset, uint16_t data)
 			output_cb(4*offset + i, newbit, 0xff);
 	}
 	output_data[offset] = data;
+}
+
+WRITE_LINE_MEMBER(k573dio_device::k573dio_vblank)
+{
+	// This is kind of a hack. I do not know how exactly the actual
+	// hardware is operating in this regard.
+	// Tying the FPGA counter to vblank end makes it easier to implement
+	// the FPGA counter in a way that works roughly the same as on real hardware.
+	k573fpga->vblank_callback(state);
 }

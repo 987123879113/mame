@@ -22,7 +22,18 @@ public:
 	void i2c_scl_w(bool line);
 	void i2c_sda_w(bool line);
 
-	u32 get_frame_count() const { return total_frame_count - buffered_frame_count; }
+	u32 get_frame_count() const { return decoded_frame_count; }
+	int get_current_rate() const { return current_rate; }
+	u32 get_status() const { return playback_status; }
+
+	void reset_playback() {
+		decoded_frame_count = 0;
+		playback_status = 0xb000;
+		memset(mp3data.data(), 0, mp3data.size());
+		memset(samples.data(), 0, samples.size());
+	}
+
+	void reg_write(uint32_t adr, uint32_t val);
 
 protected:
 	virtual void device_start() override;
@@ -35,18 +46,21 @@ private:
 	enum { IDLE, STARTED, NAK, ACK, ACK2 } i2c_bus_state;
 	enum { UNKNOWN, VALIDATED, WRONG } i2c_bus_address;
 
-	std::array<u8, 0xe00> mp3data;
+	std::array<u8, 0x500> mp3data; // TODO: Make this dependent on the current sample rate
 	std::array<mp3d_sample_t, MINIMP3_MAX_SAMPLES_PER_FRAME> samples;
 	bool i2c_scli, i2c_sclo, i2c_sdai, i2c_sdao;
 	int i2c_bus_curbit;
 	uint8_t i2c_bus_curval;
 	int mp3_count, sample_count, current_rate;
-	u32 total_frame_count, buffered_frame_count;
+	u32 decoded_frame_count;
 
 	mp3dec_t mp3_dec;
 	mp3dec_frame_info_t mp3_info;
 
 	sound_stream *stream;
+
+	bool is_muted;
+	float gain_ll, gain_lr, gain_rl, gain_rr;
 
 	void i2c_nak();
 	bool i2c_device_got_address(uint8_t address);
@@ -58,9 +72,11 @@ private:
 	int i2c_bytecount;
 	uint32_t i2c_io_bank, i2c_io_adr, i2c_io_count, i2c_io_val;
 
+	u32 i2c_sdao_offset, i2c_sdao_data;
+	u32 playback_status;
+
 	void mem_write(int bank, uint32_t adr, uint32_t val);
 	void run_program(uint32_t adr);
-	void reg_write(uint32_t adr, uint32_t val);
 
 	void fill_buffer();
 	void append_buffer(std::vector<write_stream_view> &outputs, int &pos, int samples);

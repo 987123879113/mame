@@ -14,6 +14,18 @@
 #include "minimp3/minimp3.h"
 #include "minimp3/minimp3_ex.h"
 
+#define CMD_DATA_WRITE 0x68
+#define CMD_DATA_READ 0x69
+#define CMD_CONTROL_WRITE 0x6a
+
+#define CMD_DEV_WRITE 0x3a
+#define CMD_DEV_READ 0x3b
+
+#define PLAYBACK_STATE_ERROR 0xa000
+#define PLAYBACK_STATE_IDLE 0xb000
+#define PLAYBACK_STATE_BUFFER_FULL 0xc000
+#define PLAYBACK_STATE_DEMAND_BUFFER 0xd000
+
 // device type definition
 DEFINE_DEVICE_TYPE(MAS3507D, mas3507d_device, "mas3507d", "MAS 3507D MPEG decoder")
 
@@ -36,19 +48,23 @@ void mas3507d_device::device_start()
 void mas3507d_device::device_reset()
 {
 	i2c_scli = i2c_sdai = true;
-	i2c_sclo = i2c_sdao = true;
+	i2c_sclo = true;
+	i2c_sdao = false;
 	i2c_bus_state = IDLE;
 	i2c_bus_address = UNKNOWN;
 	i2c_bus_curbit = -1;
 	i2c_bus_curval = 0;
+	i2c_sdao_offset = 0;
 
 	mp3dec_init(&mp3_dec);
 	memset(mp3data.data(), 0, mp3data.size());
 	memset(samples.data(), 0, samples.size());
 	mp3_count = 0;
 	sample_count = 0;
-	total_frame_count = 0;
-	buffered_frame_count = 0;
+	decoded_frame_count = 0;
+	is_muted = false;
+	gain_ll = gain_lr = gain_rl = gain_rr = 0;
+	playback_status = PLAYBACK_STATE_IDLE;
 }
 
 void mas3507d_device::i2c_scl_w(bool line)
@@ -61,6 +77,16 @@ void mas3507d_device::i2c_scl_w(bool line)
 		if(i2c_bus_state == STARTED) {
 			if(i2c_sdai)
 				i2c_bus_curval |= 1 << i2c_bus_curbit;
+
+			if (i2c_subdest == DATA_READ) {
+				i2c_sdao_offset = i2c_bus_curbit + (i2c_bytecount * 8);
+				i2c_sdao = (i2c_sdao_data & (1 << i2c_sdao_offset)) != 0;
+			} else {
+				i2c_sdao_data = 0;
+				i2c_sdao_offset = 0;
+				i2c_sdao = false;
+			}
+
 			i2c_bus_curbit --;
 			if(i2c_bus_curbit == -1) {
 				if(i2c_bus_address == UNKNOWN) {
@@ -86,7 +112,7 @@ void mas3507d_device::i2c_scl_w(bool line)
 			i2c_bus_state = STARTED;
 			i2c_bus_curbit = 7;
 			i2c_bus_curval = 0;
-			i2c_sdao = true;
+			i2c_sdao = false;
 		}
 	}
 }
@@ -131,24 +157,33 @@ int mas3507d_device::i2c_sda_r()
 
 bool mas3507d_device::i2c_device_got_address(uint8_t address)
 {
-	if (address == 0x3b) {
+	if (address == CMD_DEV_READ) {
 		i2c_subdest = DATA_READ;
 	} else {
 		i2c_subdest = UNDEFINED;
 	}
 
-	return (address & 0xfe) == 0x3a;
+	return (address & 0xfe) == CMD_DEV_WRITE;
 }
 
 void mas3507d_device::i2c_device_got_byte(uint8_t byte)
 {
 	switch(i2c_subdest) {
 	case UNDEFINED:
-		if(byte == 0x68)
+		if(byte == CMD_DATA_WRITE)
 			i2c_subdest = DATA_WRITE;
-		else if(byte == 0x69)
+		else if(byte == CMD_DATA_READ) {
 			i2c_subdest = DATA_READ;
-		else if(byte == 0x6a)
+
+			// Default read
+			// Push frame counter bits to buffer
+			i2c_sdao_offset = 0;
+			i2c_sdao_data = ((decoded_frame_count >> 8) & 0xff)
+							| ((decoded_frame_count & 0xff) << 8)
+							| (((decoded_frame_count >> 24) & 0xff) << 16)
+							| (((decoded_frame_count >> 16) & 0xff) << 24);
+		}
+		else if(byte == CMD_CONTROL_WRITE)
 			i2c_subdest = CONTROL;
 		else
 			i2c_subdest = BAD;
@@ -163,15 +198,15 @@ void mas3507d_device::i2c_device_got_byte(uint8_t byte)
 		break;
 
 	case DATA_READ:
-		// Default Read
-		// This should return the current MPEGFrameCount value when called
+		switch(i2c_bytecount) {
+		case 0: i2c_io_val = byte; break;
+		case 1: i2c_io_val |= byte << 8; break;
+		case 2: i2c_nak(); return;
+		}
 
-		// TODO: Figure out how to use this data exactly (chip docs are a little unclear to me)
-		i2c_io_val <<= 8;
-		i2c_io_val |= byte;
+		logerror("MAS I2C: DATA_READ %d %02x %08x\n", i2c_bytecount, byte, i2c_io_val);
+
 		i2c_bytecount++;
-
-		logerror("MAS I2C: DATA_READ %d %08x\n", i2c_bytecount, i2c_io_val);
 
 		break;
 
@@ -287,20 +322,32 @@ float gain_to_percentage(int val) {
 void mas3507d_device::mem_write(int bank, uint32_t adr, uint32_t val)
 {
 	switch(adr | (bank ? 0x10000 : 0)) {
+	case 0x0032d: logerror("MAS3507D: PLLOffset48 = %05x\n", val); break;
+	case 0x0032e: logerror("MAS3507D: PLLOffset44 = %05x\n", val); break;
 	case 0x0032f: logerror("MAS3507D: OutputConfig = %05x\n", val); break;
 	case 0x107f8:
-		logerror("MAS3507D: left->left   gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_to_percentage(val));
-		set_output_gain(0, gain_to_percentage(val));
+		gain_ll = gain_to_percentage(val);
+		logerror("MAS3507D: left->left   gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_ll);
+
+		if (!is_muted) {
+			set_output_gain(0, gain_ll);
+		}
 		break;
 	case 0x107f9:
-		logerror("MAS3507D: left->right  gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_to_percentage(val));
+		gain_lr = gain_to_percentage(val);
+		logerror("MAS3507D: left->right  gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_lr);
 		break;
 	case 0x107fa:
-		logerror("MAS3507D: right->left  gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_to_percentage(val));
+		gain_rl = gain_to_percentage(val);
+		logerror("MAS3507D: right->left  gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_rl);
 		break;
 	case 0x107fb:
-		logerror("MAS3507D: right->right gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_to_percentage(val));
-		set_output_gain(1, gain_to_percentage(val));
+		gain_rr = gain_to_percentage(val);
+		logerror("MAS3507D: right->right gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_rr);
+
+		if (!is_muted) {
+			set_output_gain(1, gain_rr);
+		}
 		break;
 	default: logerror("MAS3507D: %d:%04x = %05x\n", bank, adr, val); break;
 	}
@@ -310,7 +357,17 @@ void mas3507d_device::reg_write(uint32_t adr, uint32_t val)
 {
 	switch(adr) {
 	case 0x8e: logerror("MAS3507D: DCCF = %05x\n", val); break;
-	case 0xaa: logerror("MAS3507D: Mute/bypass = %05x\n", val); break;
+	case 0xaa:
+		logerror("MAS3507D: Mute/bypass = %05x\n", val);
+		is_muted = val == 1;
+		if (is_muted) {
+			set_output_gain(0, 0);
+			set_output_gain(1, 0);
+		} else {
+			set_output_gain(0, gain_ll);
+			set_output_gain(1, gain_rr);
+		}
+		break;
 	case 0xe6: logerror("MAS3507D: StartupConfig = %05x\n", val); break;
 	case 0xe7: logerror("MAS3507D: Kprescale = %05x\n", val); break;
 	case 0x6b: logerror("MAS3507D: Kbass = %05x\n", val); break;
@@ -330,6 +387,7 @@ void mas3507d_device::run_program(uint32_t adr)
 void mas3507d_device::fill_buffer()
 {
 	while(mp3_count + 2 < mp3data.size()) {
+		playback_status = PLAYBACK_STATE_BUFFER_FULL; // Need to fill buffer
 		u16 v = cb_sample();
 		mp3data[mp3_count++] = v >> 8;
 		mp3data[mp3_count++] = v;
@@ -338,15 +396,12 @@ void mas3507d_device::fill_buffer()
 	int scount = mp3dec_decode_frame(&mp3_dec, static_cast<const uint8_t *>(&mp3data[0]), mp3_count, static_cast<mp3d_sample_t *>(&samples[0]), &mp3_info);
 
 	if(!scount) {
-		int to_drop = mp3_info.frame_bytes;
-		// At 1MHz, we can transfer around 2082 bytes/video frame.  So
-		// that puts a boundary on how much we're ready to drop
-		if(to_drop > 2082 || !to_drop)
-			to_drop = 2082;
-		std::copy(mp3data.begin() + to_drop, mp3data.end(), mp3data.begin());
-		mp3_count -= to_drop;
+		sample_count = 0;
+		playback_status = PLAYBACK_STATE_IDLE;
 		return;
 	}
+
+	playback_status = PLAYBACK_STATE_DEMAND_BUFFER; // Buffer is full
 
 	std::copy(mp3data.begin() + mp3_info.frame_bytes, mp3data.end(), mp3data.begin());
 	mp3_count -= mp3_info.frame_bytes;
@@ -357,12 +412,12 @@ void mas3507d_device::fill_buffer()
 		current_rate = mp3_info.hz;
 		stream->set_sample_rate(current_rate);
 	}
+
+	decoded_frame_count++;
 }
 
 void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int &pos, int scount)
 {
-	buffered_frame_count = scount;
-
 	int s1 = scount - pos;
 	if(s1 > sample_count)
 		s1 = sample_count;
@@ -382,7 +437,6 @@ void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int
 	if(s1 == sample_count) {
 		pos += s1;
 		sample_count = 0;
-		total_frame_count += s1;
 		return;
 	}
 
@@ -393,33 +447,38 @@ void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int
 
 	pos += s1;
 	sample_count -= s1;
-	total_frame_count += s1;
 }
 
 void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
-	int csamples = outputs[0].samples();
 	int pos = 0;
 
-	append_buffer(outputs, pos, csamples);
+	append_buffer(outputs, pos, outputs[0].samples());
 	for(;;) {
+		int csamples = outputs[0].samples();
+
 		if(pos == csamples)
 			return;
+
 		fill_buffer();
-		if(!sample_count) {
+
+		if(sample_count <= 0) {
 			// In the case of a bad frame or no frames being around, reset the state of the decoder
 			mp3dec_init(&mp3_dec);
 			memset(mp3data.data(), 0, mp3data.size());
 			memset(samples.data(), 0, samples.size());
 			mp3_count = 0;
 			sample_count = 0;
-			total_frame_count = 0;
-			buffered_frame_count = 0;
+			decoded_frame_count = 0;
 
 			outputs[0].fill(0, pos);
 			outputs[1].fill(0, pos);
+
+			playback_status = PLAYBACK_STATE_IDLE;
+
 			return;
 		}
+
 		append_buffer(outputs, pos, csamples);
 	}
 }
