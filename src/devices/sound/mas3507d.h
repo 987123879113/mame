@@ -26,12 +26,7 @@ public:
 	int get_current_rate() const { return current_rate; }
 	u32 get_status() const { return playback_status; }
 
-	void reset_playback() {
-		decoded_frame_count = 0;
-		playback_status = 0xb000;
-		memset(mp3data.data(), 0, mp3data.size());
-		memset(samples.data(), 0, samples.size());
-	}
+	void reset_playback();
 
 	void reg_write(uint32_t adr, uint32_t val);
 

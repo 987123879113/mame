@@ -449,6 +449,17 @@ void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int
 	sample_count -= s1;
 }
 
+void mas3507d_device::reset_playback()
+{
+	mp3dec_init(&mp3_dec);
+	mp3_count = 0;
+	sample_count = 0;
+	decoded_frame_count = 0;
+	playback_status = PLAYBACK_STATE_IDLE;
+	memset(mp3data.data(), 0, mp3data.size());
+	memset(samples.data(), 0, samples.size());
+}
+
 void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
 	int pos = 0;
@@ -464,18 +475,9 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 
 		if(sample_count <= 0) {
 			// In the case of a bad frame or no frames being around, reset the state of the decoder
-			mp3dec_init(&mp3_dec);
-			memset(mp3data.data(), 0, mp3data.size());
-			memset(samples.data(), 0, samples.size());
-			mp3_count = 0;
-			sample_count = 0;
-			decoded_frame_count = 0;
-
+			reset_playback();
 			outputs[0].fill(0, pos);
 			outputs[1].fill(0, pos);
-
-			playback_status = PLAYBACK_STATE_IDLE;
-
 			return;
 		}
 
