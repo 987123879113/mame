@@ -50,6 +50,28 @@ void k573fpga_device::vblank_callback(int state)
 	if (state == 0) {
 		frame_count_since_last_update++;
 		previous_counter = last_counter;
+
+		auto cur_playback_status = mas3507d->get_status();
+		is_timer_active = (cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status;
+		last_playback_status = cur_playback_status;
+
+		if (timer_was_reset) {
+			timer_was_reset = false;
+			base_frame_counter = machine().time();
+			last_counter = previous_counter = 0;
+
+			if (!is_stream_active && !is_mp3_playing()) {
+				// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
+				// There seems to be a window of roughly about 5 frames of 44.1 KHz MP3 data on real hardware,
+				// where the FPGA is no longer streaming data but the MAS3507D is still in the playing state.
+				// If the counter is reset during that window the counter will reset to 0 and immediately continue
+				// ticking up, and it won't ever stop ticking even after the MAS3507D goes into its idle state.
+				//
+				// As a way to emulate that window, the timer will only be completely stopped when both
+				// the stream and MAS3507D are not in their respective active states when the counter is reset.
+				is_timer_active = false;
+			}
+		}
 	}
 }
 
@@ -68,29 +90,6 @@ void k573fpga_device::reset_counter() {
 }
 
 u32 k573fpga_device::get_counter() {
-	auto cur_playback_status = mas3507d->get_status();
-	is_timer_active = (cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status;
-	last_playback_status = cur_playback_status;
-
-	attotime ctr = machine().time();
-	if (timer_was_reset) {
-		timer_was_reset = false;
-		base_frame_counter = ctr;
-		last_counter = previous_counter = 0;
-
-		if (!is_stream_active && !is_mp3_playing()) {
-			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
-			// There seems to be a window of roughly about 5 frames of 44.1 KHz MP3 data on real hardware,
-			// where the FPGA is no longer streaming data but the MAS3507D is still in the playing state.
-			// If the counter is reset during that window the counter will reset to 0 and immediately continue
-			// ticking up, and it won't ever stop ticking even after the MAS3507D goes into its idle state.
-			//
-			// As a way to emulate that window, the timer will only be completely stopped when both
-			// the stream and MAS3507D are not in their respective active states when the counter is reset.
-			is_timer_active = false;
-		}
-	}
-
 	if (!is_timer_active) {
 		last_counter = 0;
 		return 0;
@@ -103,6 +102,7 @@ u32 k573fpga_device::get_counter() {
 	//
 	//	If the counter increments before the next frame occurs and the game can read
 	// 	read the counter, the game never sees that the song ended.
+	attotime ctr = machine().time();
 	auto counter_delta = (int)((ctr - base_frame_counter).as_double() * (double)mas3507d->get_current_rate());
 	if (frame_diff_idx < frame_diff_count) {
 		logerror("Audio frame skip %d/%d... %d skipped\n", frame_diff_idx, frame_diff_count, counter_delta);
