@@ -49,7 +49,6 @@ void k573fpga_device::vblank_callback(int state)
 	// TODO: Is it a better idea to have consistent timers between states instead of calculating diffs between get_counter() calls?
 	if (state == 0) {
 		frame_count_since_last_update++;
-		counter_update();
 	}
 }
 
@@ -119,6 +118,7 @@ void k573fpga_device::counter_update() {
 }
 
 u32 k573fpga_device::get_counter() {
+	counter_update();
 	return last_counter;
 }
 
