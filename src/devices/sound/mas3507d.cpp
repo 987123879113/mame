@@ -387,7 +387,6 @@ void mas3507d_device::run_program(uint32_t adr)
 void mas3507d_device::fill_buffer()
 {
 	while(mp3_count + 2 < mp3data.size()) {
-		playback_status = PLAYBACK_STATE_BUFFER_FULL; // Need to fill buffer
 		u16 v = cb_sample();
 		mp3data[mp3_count++] = v >> 8;
 		mp3data[mp3_count++] = v;
@@ -397,11 +396,8 @@ void mas3507d_device::fill_buffer()
 
 	if(!scount) {
 		sample_count = 0;
-		playback_status = PLAYBACK_STATE_IDLE;
 		return;
 	}
-
-	playback_status = PLAYBACK_STATE_DEMAND_BUFFER; // Buffer is full
 
 	std::copy(mp3data.begin() + mp3_info.frame_bytes, mp3data.end(), mp3data.begin());
 	mp3_count -= mp3_info.frame_bytes;
@@ -414,6 +410,7 @@ void mas3507d_device::fill_buffer()
 	}
 
 	decoded_frame_count++;
+	decoded_samples += sample_count;
 }
 
 void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int &pos, int scount)
@@ -455,6 +452,7 @@ void mas3507d_device::reset_playback()
 	mp3_count = 0;
 	sample_count = 0;
 	decoded_frame_count = 0;
+	decoded_samples = 0;
 	playback_status = PLAYBACK_STATE_IDLE;
 	memset(mp3data.data(), 0, mp3data.size());
 	memset(samples.data(), 0, samples.size());
@@ -468,8 +466,10 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 	for(;;) {
 		int csamples = outputs[0].samples();
 
-		if(pos == csamples)
+		if(pos == csamples) {
+			playback_status = PLAYBACK_STATE_BUFFER_FULL;
 			return;
+		}
 
 		fill_buffer();
 
@@ -483,4 +483,6 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 
 		append_buffer(outputs, pos, csamples);
 	}
+
+	playback_status = PLAYBACK_STATE_DEMAND_BUFFER;
 }

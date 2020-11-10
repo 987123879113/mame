@@ -23,6 +23,7 @@ public:
 	void i2c_sda_w(bool line);
 
 	u32 get_frame_count() const { return decoded_frame_count; }
+	u32 get_samples() const { return decoded_samples; }
 	int get_current_rate() const { return current_rate; }
 	u32 get_status() const { return playback_status; }
 
@@ -46,7 +47,7 @@ private:
 	bool i2c_scli, i2c_sclo, i2c_sdai, i2c_sdao;
 	int i2c_bus_curbit;
 	uint8_t i2c_bus_curval;
-	int mp3_count, sample_count, current_rate;
+	u32 mp3_count, sample_count, current_rate, decoded_samples;
 	u32 decoded_frame_count;
 
 	mp3dec_t mp3_dec;
