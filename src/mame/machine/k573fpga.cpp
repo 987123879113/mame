@@ -49,61 +49,7 @@ void k573fpga_device::vblank_callback(int state)
 	// TODO: Is it a better idea to have consistent timers between states instead of calculating diffs between get_counter() calls?
 	if (state == 0) {
 		frame_count_since_last_update++;
-
-		auto cur_playback_status = mas3507d->get_status();
-		is_timer_active = (cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status;
-		last_playback_status = cur_playback_status;
-
-		attotime ctr = machine().time();
-		if (timer_was_reset) {
-			timer_was_reset = false;
-			base_frame_counter = ctr;
-			last_counter = previous_counter = 0;
-
-			if (!is_stream_active && !is_mp3_playing()) {
-				// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
-				// There seems to be a window of roughly about 5 frames of 44.1 KHz MP3 data on real hardware,
-				// where the FPGA is no longer streaming data but the MAS3507D is still in the playing state.
-				// If the counter is reset during that window the counter will reset to 0 and immediately continue
-				// ticking up, and it won't ever stop ticking even after the MAS3507D goes into its idle state.
-				//
-				// As a way to emulate that window, the timer will only be completely stopped when both
-				// the stream and MAS3507D are not in their respective active states when the counter is reset.
-				is_timer_active = false;
-			}
-		}
-
-		if (!is_timer_active) {
-			last_counter = 0;
-			return;
-		}
-
-		if (ctr < base_frame_counter) {
-			last_counter = previous_counter = 0;
-		} else if (frame_count_since_last_update > 0) {
-			// DDR Extreme's sound options menu has logic like such:
-			// 	If frame changed...
-			// 		If counter is 0, mark song as ended
-			// 		If counter is not 0, reset counter to 0
-			//
-			//	If the counter increments before the next frame occurs and the game can read
-			// 	read the counter, the game never sees that the song ended.
-			previous_counter = last_counter;
-
-			auto counter_delta = (int)((ctr - base_frame_counter).as_double() * (double)mas3507d->get_current_rate());
-			if (frame_diff_idx < frame_diff_count) {
-				logerror("Audio frame skip %d/%d... %d skipped\n", frame_diff_idx, frame_diff_count, counter_delta);
-				frame_diff_idx++;
-			} else {
-				last_counter += counter_delta;
-			}
-
-			last_frame_diff = last_counter - previous_counter;
-			base_frame_counter = ctr;
-			frame_count_since_last_update = 0;
-
-			logerror("Counter @ %lf... %d vs %d\n", machine().time().as_double(), last_counter, mas3507d->get_samples());
-		}
+		previous_counter = last_counter;
 	}
 }
 
@@ -122,9 +68,52 @@ void k573fpga_device::reset_counter() {
 }
 
 u32 k573fpga_device::get_counter() {
+	auto cur_playback_status = mas3507d->get_status();
+	is_timer_active = (cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status;
+	last_playback_status = cur_playback_status;
+
+	attotime ctr = machine().time();
+	if (timer_was_reset) {
+		timer_was_reset = false;
+		base_frame_counter = ctr;
+		last_counter = previous_counter = 0;
+
+		if (!is_stream_active && !is_mp3_playing()) {
+			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
+			// There seems to be a window of roughly about 5 frames of 44.1 KHz MP3 data on real hardware,
+			// where the FPGA is no longer streaming data but the MAS3507D is still in the playing state.
+			// If the counter is reset during that window the counter will reset to 0 and immediately continue
+			// ticking up, and it won't ever stop ticking even after the MAS3507D goes into its idle state.
+			//
+			// As a way to emulate that window, the timer will only be completely stopped when both
+			// the stream and MAS3507D are not in their respective active states when the counter is reset.
+			is_timer_active = false;
+		}
+	}
+
 	if (!is_timer_active) {
+		last_counter = 0;
 		return 0;
 	}
+
+	// DDR Extreme's sound options menu has logic like such:
+	// 	If frame changed...
+	// 		If counter is 0, mark song as ended
+	// 		If counter is not 0, reset counter to 0
+	//
+	//	If the counter increments before the next frame occurs and the game can read
+	// 	read the counter, the game never sees that the song ended.
+	auto counter_delta = (int)((ctr - base_frame_counter).as_double() * (double)mas3507d->get_current_rate());
+	if (frame_diff_idx < frame_diff_count) {
+		logerror("Audio frame skip %d/%d... %d skipped\n", frame_diff_idx, frame_diff_count, counter_delta);
+		frame_diff_idx++;
+	} else {
+		last_counter += counter_delta;
+	}
+
+	base_frame_counter = ctr;
+
+	// logerror("Counter @ %lf... %d (-> %d) vs %d\n", machine().time().as_double(), last_counter, previous_counter, mas3507d->get_samples());
 
 	return last_counter;
 }
@@ -132,8 +121,12 @@ u32 k573fpga_device::get_counter() {
 u32 k573fpga_device::get_counter_diff() {
 	// On real hardware, this seems to reset the counter back to the previous frame's counter
 	// as well as returns the difference from the last update.
-	last_counter = previous_counter;
-	return last_frame_diff;
+	auto diff = last_counter - previous_counter;
+	last_counter -= diff;
+	previous_counter = last_counter;
+	get_counter();
+	// logerror("Called counter diff, resetting counter to %d\n", previous_counter);
+	return diff;
 }
 
 uint16_t k573fpga_device::mas_i2c_r()
