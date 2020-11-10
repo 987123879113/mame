@@ -41,6 +41,7 @@ public:
 	u32 get_counter();
 	u32 get_counter_diff();
 
+	void counter_update();
 	void reset_counter();
 	void vblank_callback(int state);
 
