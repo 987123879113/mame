@@ -7,7 +7,7 @@
 
 
 // TODO: Do something with these
-const u32 frame_diff_count = 10; // The higher the number, the more the chart/visuals will be delayed
+const u32 frame_diff_count = 0; // The higher the number, the more the chart/visuals will be delayed
 u32 frame_diff_idx = 0;
 u32 last_playback_status = 0xb000;
 
@@ -46,8 +46,13 @@ void k573fpga_device::device_reset()
 	counter_current = counter_previous = 0;
 }
 
+attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
+	if (state == 0) {
+		ctr = machine().time();
+		counter_update();
+	}
 }
 
 bool k573fpga_device::is_streaming()
@@ -57,13 +62,14 @@ bool k573fpga_device::is_streaming()
 
 void k573fpga_device::reset_counter() {
 	timer_was_reset = true;
-	frame_diff_idx = 0;
 
 	if (is_mp3_playing()) {
 		mas3507d->reg_write(0xaa, 1);
 	}
 }
 
+attotime last_counter_duration;
+u32 last_counter_delta;
 void k573fpga_device::counter_update() {
 	// DDR Extreme's sound options menu has logic like such:
 	// 	If frame changed...
@@ -72,7 +78,6 @@ void k573fpga_device::counter_update() {
 	//
 	//	If the counter increments before the next frame occurs and the game can read
 	// 	read the counter, the game never sees that the song ended.
-	attotime ctr = machine().time();
 	auto cur_playback_status = mas3507d->get_status();
 	is_timer_active = (cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status;
 	last_playback_status = cur_playback_status;
@@ -82,6 +87,7 @@ void k573fpga_device::counter_update() {
 		counter_base_time = counter_previous_time = ctr;
 		counter_current = counter_previous = counter_base = 0;
 		last_sample_rate = 0;
+		frame_diff_idx = 0;
 
 		if (!is_stream_active && !is_mp3_playing()) {
 			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
@@ -120,20 +126,29 @@ void k573fpga_device::counter_update() {
 		counter_current = counter_base + counter_delta;
 	}
 
+
+	last_counter_duration = ctr - counter_previous_time;
+	last_counter_delta = counter_current - counter_previous;
+
 	counter_previous_time = ctr;
 
 	logerror("Counter updated @ %lf, diff = %d, counter = %08x\n", ctr.as_double(), counter_current - counter_previous, counter_current);
 }
 
 u32 k573fpga_device::get_counter() {
-	counter_update();
-
 	if (!is_timer_active) {
 		counter_current = 0;
 		return counter_current;
 	}
 
-	return counter_current;
+	auto ctr2 = machine().time();
+	auto ctr_diff = ctr2 - ctr;
+	auto new_delta_frac = ctr_diff.as_attoseconds() / (double)last_counter_duration.as_attoseconds();
+	auto new_delta = (int)(last_counter_delta * new_delta_frac);
+
+	logerror("Counter @ %lf: %d\n", ctr2.as_double(), counter_current + new_delta);
+
+	return counter_current + new_delta;
 }
 
 u32 k573fpga_device::get_counter_diff() {
