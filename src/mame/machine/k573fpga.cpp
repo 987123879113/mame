@@ -67,6 +67,8 @@ void k573fpga_device::reset_counter() {
 	}
 }
 
+attotime last_counter_duration;
+u32 last_counter_delta;
 void k573fpga_device::counter_update() {
 	// DDR Extreme's sound options menu has logic like such:
 	// 	If frame changed...
@@ -115,11 +117,23 @@ void k573fpga_device::counter_update() {
 
 	logerror("Counter updated @ %lf, diff = %d, counter = %08x\n", ctr.as_double(), counter_delta, last_counter);
 
+	last_counter_duration = ctr - base_frame_counter;
+	last_counter_delta = counter_delta;
 	base_frame_counter = ctr;
 }
 
 u32 k573fpga_device::get_counter() {
-	return last_counter;
+	if (!is_timer_active) {
+		last_counter = 0;
+		return last_counter;
+	}
+
+	auto ctr = machine().time();
+	auto ctr_diff = ctr - base_frame_counter;
+	auto new_delta_frac = ctr_diff.as_attoseconds() / (double)last_counter_duration.as_attoseconds();
+	auto new_delta = (int)(last_counter_delta * new_delta_frac);
+	// logerror("counter: %d, last_counter: %d, new_delta: %d, ctr_diff: %lf, last_counter_duration: %lf, new_delta_frac: %lf\n", last_counter + new_delta, last_counter, new_delta, ctr_diff.as_double(), last_counter_duration.as_double(), new_delta_frac);
+	return last_counter + new_delta;
 }
 
 u32 k573fpga_device::get_counter_diff() {
@@ -187,6 +201,7 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 	} else if (data == 0xe000) {
 		is_stream_active = true;
 		reset_counter();
+		counter_update();
 
 		// Unmute
 		mas3507d->reg_write(0xaa, 0);
