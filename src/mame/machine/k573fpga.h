@@ -62,9 +62,8 @@ private:
 	bool use_ddrsbm_fpga;
 
 	bool is_stream_active, is_timer_active, timer_was_reset;
-	u32 frame_count_since_last_update;
-	u32 last_counter, previous_counter, last_frame_diff;
-	attotime base_frame_counter;
+	u32 counter_base, counter_previous, counter_current, last_sample_rate;
+	attotime counter_base_time, counter_previous_time;
 
 	u16 decrypt_default(u16 data);
 	u16 decrypt_ddrsbm(u16 data);

@@ -6,6 +6,12 @@
 #include "k573fpga.h"
 
 
+// TODO: Do something with these
+const u32 frame_diff_count = 10; // The higher the number, the more the chart/visuals will be delayed
+u32 frame_diff_idx = 0;
+u32 last_playback_status = 0xb000;
+
+
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
 	mas3507d(*this, "mpeg"),
@@ -37,20 +43,11 @@ void k573fpga_device::device_reset()
 	is_stream_active = false;
 	timer_was_reset = false;
 
-	frame_count_since_last_update = 0;
-	last_counter = previous_counter = 0;
+	counter_current = counter_previous = 0;
 }
 
-const u32 frame_diff_count = 0 ; // The higher the number, the more the chart/visuals will be delayed
-u32 frame_diff_idx = 0;
-u32 last_playback_status = 0xb000;
 void k573fpga_device::vblank_callback(int state)
 {
-	// TODO: Is it a better idea to have consistent timers between states instead of calculating diffs between get_counter() calls?
-	if (state == 0) {
-		frame_count_since_last_update++;
-		counter_update();
-	}
 }
 
 bool k573fpga_device::is_streaming()
@@ -67,8 +64,6 @@ void k573fpga_device::reset_counter() {
 	}
 }
 
-attotime last_counter_duration;
-u32 last_counter_delta;
 void k573fpga_device::counter_update() {
 	// DDR Extreme's sound options menu has logic like such:
 	// 	If frame changed...
@@ -84,8 +79,9 @@ void k573fpga_device::counter_update() {
 
 	if (timer_was_reset) {
 		timer_was_reset = false;
-		base_frame_counter = ctr;
-		last_counter = previous_counter = 0;
+		counter_base_time = counter_previous_time = ctr;
+		counter_current = counter_previous = counter_base = 0;
+		last_sample_rate = 0;
 
 		if (!is_stream_active && !is_mp3_playing()) {
 			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
@@ -101,47 +97,51 @@ void k573fpga_device::counter_update() {
 	}
 
 	if (!is_timer_active) {
-		last_counter = 0;
+		counter_current = 0;
 		return;
 	}
 
-	previous_counter = last_counter;
+	counter_previous = counter_current;
 
-	auto counter_delta = (ctr - base_frame_counter).as_ticks(mas3507d->get_current_rate());
-	if (frame_diff_idx < frame_diff_count) {
-		logerror("Audio frame skip %d/%d... %d skipped\n", frame_diff_idx, frame_diff_count, counter_delta);
-		frame_diff_idx++;
-	} else {
-		last_counter += counter_delta;
+	auto sample_rate = mas3507d->get_current_rate();
+	if (sample_rate != last_sample_rate) {
+		logerror("Sample rate changed from %d to %d\n", last_sample_rate, sample_rate);
+		counter_base += counter_previous;
+		counter_base_time = counter_previous_time;
+		last_sample_rate = sample_rate;
 	}
 
-	logerror("Counter updated @ %lf, diff = %d, counter = %08x\n", ctr.as_double(), counter_delta, last_counter);
+	auto counter_delta = (ctr - counter_base_time).as_ticks(sample_rate);
+	if (frame_diff_idx < frame_diff_count) {
+		logerror("Audio frame skip %d/%d... %d skipped\n", frame_diff_idx, frame_diff_count, counter_delta);
+		counter_base_time = ctr;
+		frame_diff_idx++;
+	} else {
+		counter_current = counter_base + counter_delta;
+	}
 
-	last_counter_duration = ctr - base_frame_counter;
-	last_counter_delta = counter_delta;
-	base_frame_counter = ctr;
+	counter_previous_time = ctr;
+
+	logerror("Counter updated @ %lf, diff = %d, counter = %08x\n", ctr.as_double(), counter_current - counter_previous, counter_current);
 }
 
 u32 k573fpga_device::get_counter() {
+	counter_update();
+
 	if (!is_timer_active) {
-		last_counter = 0;
-		return last_counter;
+		counter_current = 0;
+		return counter_current;
 	}
 
-	auto ctr = machine().time();
-	auto ctr_diff = ctr - base_frame_counter;
-	auto new_delta_frac = ctr_diff.as_attoseconds() / (double)last_counter_duration.as_attoseconds();
-	auto new_delta = (int)(last_counter_delta * new_delta_frac);
-	// logerror("counter: %d, last_counter: %d, new_delta: %d, ctr_diff: %lf, last_counter_duration: %lf, new_delta_frac: %lf\n", last_counter + new_delta, last_counter, new_delta, ctr_diff.as_double(), last_counter_duration.as_double(), new_delta_frac);
-	return last_counter + new_delta;
+	return counter_current;
 }
 
 u32 k573fpga_device::get_counter_diff() {
 	// On real hardware, this seems to reset the counter back to the previous frame's counter
 	// as well as returns the difference from the last update.
-	auto diff = last_counter - previous_counter;
-	last_counter -= diff;
-	previous_counter = last_counter;
+	auto diff = counter_current - counter_previous;
+	counter_current -= diff;
+	counter_previous = counter_current;
 	get_counter();
 	return diff;
 }
