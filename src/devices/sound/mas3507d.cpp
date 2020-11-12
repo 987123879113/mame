@@ -56,15 +56,10 @@ void mas3507d_device::device_reset()
 	i2c_bus_curval = 0;
 	i2c_sdao_offset = 0;
 
-	mp3dec_init(&mp3_dec);
-	memset(mp3data.data(), 0, mp3data.size());
-	memset(samples.data(), 0, samples.size());
-	mp3_count = 0;
-	sample_count = 0;
-	decoded_frame_count = 0;
 	is_muted = false;
 	gain_ll = gain_lr = gain_rl = gain_rr = 0;
-	playback_status = PLAYBACK_STATE_IDLE;
+
+	reset_playback();
 }
 
 void mas3507d_device::i2c_scl_w(bool line)
