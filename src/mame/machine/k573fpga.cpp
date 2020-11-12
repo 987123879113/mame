@@ -6,11 +6,8 @@
 #include "k573fpga.h"
 
 
-// TODO: Do something with these
-const u32 frame_diff_count = 0; // The higher the number, the more the chart/visuals will be delayed
-u32 frame_diff_idx = 0;
-u32 last_playback_status = 0xb000;
-
+// The higher the number, the more the chart/visuals will be delayed
+const u32 frame_skip_target = 0;
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
@@ -44,6 +41,9 @@ void k573fpga_device::device_reset()
 	timer_was_reset = false;
 
 	counter_current = counter_previous = 0;
+
+	mas3507d->reset_playback();
+	last_playback_status = mas3507d->get_status();
 }
 
 attotime ctr;
@@ -87,7 +87,7 @@ void k573fpga_device::counter_update() {
 		counter_base_time = counter_previous_time = ctr;
 		counter_current = counter_previous = counter_base = 0;
 		last_sample_rate = 0;
-		frame_diff_idx = 0;
+		frame_skip_counter = 0;
 
 		if(!is_stream_active && !is_mp3_playing()) {
 			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
@@ -118,10 +118,10 @@ void k573fpga_device::counter_update() {
 	}
 
 	auto counter_delta = (ctr - counter_base_time).as_ticks(sample_rate);
-	if(frame_diff_idx < frame_diff_count) {
-		logerror("Audio frame skip %d/%d... %d skipped\n", frame_diff_idx, frame_diff_count, counter_delta);
+	if(frame_skip_counter < frame_skip_target) {
+		logerror("Audio frame skip %d/%d... %d skipped\n", frame_skip_counter, frame_skip_target, counter_delta);
 		counter_base_time = ctr;
-		frame_diff_idx++;
+		frame_skip_counter++;
 	} else {
 		counter_current = counter_base + counter_delta;
 	}
