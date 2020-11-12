@@ -2260,7 +2260,7 @@ void ksys573_state::k573d(machine_config &config)
 	KONAMI_573_DIGITAL_IO_BOARD(config, "k573dio", XTAL(19'660'800));
 
 	auto screen = subdevice<screen_device>("screen");
-	if (screen != nullptr) {
+	if(screen != nullptr) {
 		screen->screen_vblank().append("k573dio", FUNC(k573dio_device::k573dio_vblank));
 	}
 }

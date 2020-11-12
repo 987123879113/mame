@@ -49,7 +49,7 @@ void k573fpga_device::device_reset()
 attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
-	if (state == 0) {
+	if(state == 0) {
 		ctr = machine().time();
 		counter_update();
 	}
@@ -63,7 +63,7 @@ bool k573fpga_device::is_streaming()
 void k573fpga_device::reset_counter() {
 	timer_was_reset = true;
 
-	if (is_mp3_playing()) {
+	if(is_mp3_playing()) {
 		mas3507d->reg_write(0xaa, 1);
 	}
 }
@@ -82,14 +82,14 @@ void k573fpga_device::counter_update() {
 	is_timer_active = (cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status;
 	last_playback_status = cur_playback_status;
 
-	if (timer_was_reset) {
+	if(timer_was_reset) {
 		timer_was_reset = false;
 		counter_base_time = counter_previous_time = ctr;
 		counter_current = counter_previous = counter_base = 0;
 		last_sample_rate = 0;
 		frame_diff_idx = 0;
 
-		if (!is_stream_active && !is_mp3_playing()) {
+		if(!is_stream_active && !is_mp3_playing()) {
 			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
 			// There seems to be a window of roughly about 5 frames of 44.1 KHz MP3 data on real hardware,
 			// where the FPGA is no longer streaming data but the MAS3507D is still in the playing state.
@@ -102,7 +102,7 @@ void k573fpga_device::counter_update() {
 		}
 	}
 
-	if (!is_timer_active) {
+	if(!is_timer_active) {
 		counter_current = 0;
 		return;
 	}
@@ -110,7 +110,7 @@ void k573fpga_device::counter_update() {
 	counter_previous = counter_current;
 
 	auto sample_rate = mas3507d->get_current_rate();
-	if (sample_rate != last_sample_rate) {
+	if(sample_rate != last_sample_rate) {
 		logerror("Sample rate changed from %d to %d\n", last_sample_rate, sample_rate);
 		counter_base += counter_previous;
 		counter_base_time = counter_previous_time;
@@ -118,7 +118,7 @@ void k573fpga_device::counter_update() {
 	}
 
 	auto counter_delta = (ctr - counter_base_time).as_ticks(sample_rate);
-	if (frame_diff_idx < frame_diff_count) {
+	if(frame_diff_idx < frame_diff_count) {
 		logerror("Audio frame skip %d/%d... %d skipped\n", frame_diff_idx, frame_diff_count, counter_delta);
 		counter_base_time = ctr;
 		frame_diff_idx++;
@@ -136,7 +136,7 @@ void k573fpga_device::counter_update() {
 }
 
 u32 k573fpga_device::get_counter() {
-	if (!is_timer_active) {
+	if(!is_timer_active) {
 		counter_current = 0;
 		return counter_current;
 	}
@@ -205,14 +205,14 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 				data & 0x2000 ? '#' : '.',
 				data);
 
-	if (data == 0xa000) {
+	if(data == 0xa000) {
 		// Mute
 		mas3507d->reg_write(0xaa, 1);
 		mas3507d->reset_playback();
 
 		is_stream_active = false;
 		reset_counter();
-	} else if (data == 0xe000) {
+	} else if(data == 0xe000) {
 		is_stream_active = true;
 		reset_counter();
 		counter_update();
@@ -318,7 +318,7 @@ u16 k573fpga_device::decrypt_ddrsbm(u16 data)
 u16 k573fpga_device::get_decrypted()
 {
 	if(!is_streaming()) {
-		if (is_stream_active) {
+		if(is_stream_active) {
 			logerror("Reached end of audio! %d (%08x) %d (%04x)\n", get_counter(), get_counter(), mas3507d->get_frame_count(), mas3507d->get_frame_count());
 		}
 

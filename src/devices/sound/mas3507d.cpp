@@ -78,7 +78,7 @@ void mas3507d_device::i2c_scl_w(bool line)
 			if(i2c_sdai)
 				i2c_bus_curval |= 1 << i2c_bus_curbit;
 
-			if (i2c_subdest == DATA_READ) {
+			if(i2c_subdest == DATA_READ) {
 				i2c_sdao_offset = i2c_bus_curbit + (i2c_bytecount * 8);
 				i2c_sdao = (i2c_sdao_data & (1 << i2c_sdao_offset)) != 0;
 			} else {
@@ -157,7 +157,7 @@ int mas3507d_device::i2c_sda_r()
 
 bool mas3507d_device::i2c_device_got_address(uint8_t address)
 {
-	if (address == CMD_DEV_READ) {
+	if(address == CMD_DEV_READ) {
 		i2c_subdest = DATA_READ;
 	} else {
 		i2c_subdest = UNDEFINED;
@@ -306,7 +306,7 @@ int gain_to_db(double val) {
 }
 
 float gain_to_percentage(int val) {
-	if (val == 0) {
+	if(val == 0) {
 		return 0; // Special case for muting it seems
 	}
 
@@ -325,7 +325,7 @@ void mas3507d_device::mem_write(int bank, uint32_t adr, uint32_t val)
 		gain_ll = gain_to_percentage(val);
 		logerror("MAS3507D: left->left   gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_ll);
 
-		if (!is_muted) {
+		if(!is_muted) {
 			set_output_gain(0, gain_ll);
 		}
 		break;
@@ -341,7 +341,7 @@ void mas3507d_device::mem_write(int bank, uint32_t adr, uint32_t val)
 		gain_rr = gain_to_percentage(val);
 		logerror("MAS3507D: right->right gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_rr);
 
-		if (!is_muted) {
+		if(!is_muted) {
 			set_output_gain(1, gain_rr);
 		}
 		break;
@@ -356,7 +356,7 @@ void mas3507d_device::reg_write(uint32_t adr, uint32_t val)
 	case 0xaa:
 		logerror("MAS3507D: Mute/bypass = %05x\n", val);
 		is_muted = val == 1;
-		if (is_muted) {
+		if(is_muted) {
 			set_output_gain(0, 0);
 			set_output_gain(1, 0);
 		} else {
@@ -390,7 +390,7 @@ void mas3507d_device::fill_buffer()
 
 	int scount = mp3dec_decode_frame(&mp3_dec, static_cast<const uint8_t *>(&mp3data[0]), mp3_count, static_cast<mp3d_sample_t *>(&samples[0]), &mp3_info);
 
-	if (!scount) {
+	if(!scount) {
 		int to_drop = mp3_info.frame_bytes;
 		// At 1MHz, we can transfer around 2082 bytes/video frame.  So
 		// that puts a boundary on how much we're ready to drop
