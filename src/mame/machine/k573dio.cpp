@@ -77,8 +77,8 @@ void k573dio_device::amap(address_map &map)
 	map(0x10, 0x11).w(FUNC(k573dio_device::a10_w));
 	map(0x80, 0x81).r(FUNC(k573dio_device::a80_r));
 	map(0xc4, 0xc5).r(FUNC(k573dio_device::ac4_r));
-	map(0xa0, 0xa1).rw(FUNC(k573dio_device::mpeg_start_adr_high_r), FUNC(k573dio_device::mpeg_start_adr_high_w));
-	map(0xa2, 0xa3).rw(FUNC(k573dio_device::mpeg_start_adr_low_r), FUNC(k573dio_device::mpeg_start_adr_low_w));
+	map(0xa0, 0xa1).w(FUNC(k573dio_device::mpeg_start_adr_high_w));
+	map(0xa2, 0xa3).w(FUNC(k573dio_device::mpeg_start_adr_low_w));
 	map(0xa4, 0xa5).w(FUNC(k573dio_device::mpeg_end_adr_high_w));
 	map(0xa6, 0xa7).w(FUNC(k573dio_device::mpeg_end_adr_low_w));
 	map(0xa8, 0xa9).rw(FUNC(k573dio_device::mpeg_key_1_r), FUNC(k573dio_device::mpeg_key_1_w));
@@ -217,16 +217,6 @@ void k573dio_device::mpeg_start_adr_low_w(uint16_t data)
 		k573fpga->set_crypto_key3(0);
 }
 
-uint16_t k573dio_device::mpeg_start_adr_high_r()
-{
-	return (k573fpga->get_mp3_cur_adr() & 0xffff0000) >> 16;
-}
-
-uint16_t k573dio_device::mpeg_start_adr_low_r()
-{
-	return k573fpga->get_mp3_cur_adr() & 0x0000ffff;
-}
-
 void k573dio_device::mpeg_end_adr_high_w(uint16_t data)
 {
 	logerror("FPGA MPEG end address high %04x\n", data);
@@ -326,7 +316,7 @@ uint16_t k573dio_device::mp3_counter_low_r()
 
 void k573dio_device::mp3_counter_low_w(uint16_t data)
 {
-	// Resets counter and semeingly mutes the MAS3507D
+	// Resets counter and seemingly mutes the MAS3507D
 	//
 	// TODO: Needs to be tested what happens on real hardware
 	// when you write a non-zero value here.
@@ -448,6 +438,7 @@ WRITE_LINE_MEMBER(k573dio_device::k573dio_vblank)
 	// This is kind of a hack. I do not know how exactly the actual
 	// hardware is operating in this regard.
 	// Tying the FPGA counter to vblank end makes it easier to implement
-	// the FPGA counter in a way that works roughly the same as on real hardware.
+	// the FPGA counter in a way that works roughly the same as on real hardware
+	// but without the timing drifting weirdly throughout the song.
 	k573fpga->vblank_callback(state);
 }
