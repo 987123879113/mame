@@ -42,13 +42,13 @@ private:
 	enum { IDLE, STARTED, NAK, ACK, ACK2 } i2c_bus_state;
 	enum { UNKNOWN, VALIDATED, WRONG } i2c_bus_address;
 
-	std::array<u8, 0x500> mp3data; // TODO: Make this dependent on the current sample rate
+	std::array<u8, 0xe00> mp3data;
 	std::array<mp3d_sample_t, MINIMP3_MAX_SAMPLES_PER_FRAME> samples;
 	bool i2c_scli, i2c_sclo, i2c_sdai, i2c_sdao;
 	int i2c_bus_curbit;
 	uint8_t i2c_bus_curval;
-	u32 mp3_count, sample_count, current_rate, decoded_samples;
-	u32 decoded_frame_count;
+	u32 mp3_count, sample_count, current_rate;
+	u32 decoded_frame_count, decoded_samples;
 
 	mp3dec_t mp3_dec;
 	mp3dec_frame_info_t mp3_info;

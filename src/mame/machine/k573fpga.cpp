@@ -132,7 +132,7 @@ void k573fpga_device::counter_update() {
 
 	counter_previous_time = ctr;
 
-	logerror("Counter updated @ %lf, diff = %d, counter = %08x\n", ctr.as_double(), counter_current - counter_previous, counter_current);
+	// logerror("Counter updated @ %lf, diff = %d, counter = %08x\n", ctr.as_double(), counter_current - counter_previous, counter_current);
 }
 
 u32 k573fpga_device::get_counter() {
@@ -141,12 +141,11 @@ u32 k573fpga_device::get_counter() {
 		return counter_current;
 	}
 
-	auto ctr2 = machine().time();
-	auto ctr_diff = ctr2 - ctr;
+	auto ctr_diff = machine().time() - ctr;
 	auto new_delta_frac = ctr_diff.as_attoseconds() / (double)last_counter_duration.as_attoseconds();
 	auto new_delta = (int)(last_counter_delta * new_delta_frac);
 
-	logerror("Counter @ %lf: %d\n", ctr2.as_double(), counter_current + new_delta);
+	// logerror("Counter @ %lf: %d + %d = %d\n", ctr_diff.as_double(), counter_current, new_delta, counter_current + new_delta);
 
 	return counter_current + new_delta;
 }

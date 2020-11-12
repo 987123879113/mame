@@ -198,15 +198,11 @@ void mas3507d_device::i2c_device_got_byte(uint8_t byte)
 		break;
 
 	case DATA_READ:
-		switch(i2c_bytecount) {
-		case 0: i2c_io_val = byte; break;
-		case 1: i2c_io_val |= byte << 8; break;
-		case 2: i2c_nak(); return;
-		}
+		i2c_io_val <<= 8;
+		i2c_io_val |= byte;
+		i2c_bytecount++;
 
 		logerror("MAS I2C: DATA_READ %d %02x %08x\n", i2c_bytecount, byte, i2c_io_val);
-
-		i2c_bytecount++;
 
 		break;
 
@@ -394,7 +390,14 @@ void mas3507d_device::fill_buffer()
 
 	int scount = mp3dec_decode_frame(&mp3_dec, static_cast<const uint8_t *>(&mp3data[0]), mp3_count, static_cast<mp3d_sample_t *>(&samples[0]), &mp3_info);
 
-	if(!scount) {
+	if (!scount) {
+		int to_drop = mp3_info.frame_bytes;
+		// At 1MHz, we can transfer around 2082 bytes/video frame.  So
+		// that puts a boundary on how much we're ready to drop
+		if(to_drop > 2082 || !to_drop)
+			to_drop = 2082;
+		std::copy(mp3data.begin() + to_drop, mp3data.end(), mp3data.begin());
+		mp3_count -= to_drop;
 		sample_count = 0;
 		return;
 	}
@@ -460,12 +463,11 @@ void mas3507d_device::reset_playback()
 
 void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
+	int csamples = outputs[0].samples();
 	int pos = 0;
 
-	append_buffer(outputs, pos, outputs[0].samples());
+	append_buffer(outputs, pos, csamples);
 	for(;;) {
-		int csamples = outputs[0].samples();
-
 		if(pos == csamples) {
 			playback_status = PLAYBACK_STATE_BUFFER_FULL;
 			return;
