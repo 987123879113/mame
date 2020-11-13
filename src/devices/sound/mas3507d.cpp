@@ -402,8 +402,6 @@ void mas3507d_device::fill_buffer()
 		current_rate = mp3_info.hz;
 		stream->set_sample_rate(current_rate);
 	}
-
-	decoded_frame_count++;
 }
 
 void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int &pos, int scount)
@@ -457,6 +455,10 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 	int pos = 0;
 
 	if (sample_count == 0) {
+		if (decoded_samples > 0) {
+			decoded_frame_count++;
+		}
+
 		fill_buffer();
 	}
 
@@ -473,6 +475,8 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 
 	append_buffer(outputs, pos, csamples);
 	decoded_samples++;
+
+	// logerror("MAS3507D Counter @ %lf: %d\n", machine().time().as_double(), decoded_samples);
 
 	playback_status = PLAYBACK_STATE_DEMAND_BUFFER;
 }

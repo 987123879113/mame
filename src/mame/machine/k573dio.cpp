@@ -386,7 +386,7 @@ void k573dio_device::digital_id_w(uint16_t data)
 
 uint16_t k573dio_device::fpga_status_r()
 {
-	//logerror("%s: fpga_status_r (%s)\n", tag(), machine().describe_context());
+	logerror("%s: fpga_status_r (%s)\n", tag(), machine().describe_context());
 
 	// fpga/digital board status checks
 	// wants & c000 = 8000 (just after program upload?)

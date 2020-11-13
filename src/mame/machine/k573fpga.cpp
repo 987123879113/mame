@@ -89,7 +89,7 @@ void k573fpga_device::counter_update() {
 		counter_current = counter_previous = counter_base = 0;
 		last_sample_rate = 0;
 		frame_skip_counter = 0;
-		skip_counter = 0;
+		skip_counter = mas3507d->get_samples();
 
 		if(!is_stream_active && !is_mp3_playing()) {
 			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
@@ -143,7 +143,7 @@ u32 k573fpga_device::get_counter() {
 	if(!is_timer_active) {
 		counter_current = 0;
 		frame_skip_counter = 0;
-		skip_counter = 0;
+		skip_counter = mas3507d->get_samples();
 		return counter_current;
 	}
 
@@ -337,6 +337,7 @@ u16 k573fpga_device::get_decrypted()
 	if(!is_streaming()) {
 		if(is_stream_active) {
 			logerror("Reached end of audio! %d (%08x) %d (%04x)\n", get_counter(), get_counter(), mas3507d->get_frame_count(), mas3507d->get_frame_count());
+			skip_counter = mas3507d->get_samples();
 		}
 
 		is_stream_active = false;

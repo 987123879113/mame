@@ -890,6 +890,19 @@ WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 			p_n_psxram[ 0x1f850 / 4 ] = 0x08007e22;
 		}
 	}
+	else if( strcmp( machine().system().name, "ddrextrm" ) == 0 )
+	{
+		/* patch out security-plate error */
+
+		uint32_t *p_n_psxram = (uint32_t *) m_ram->pointer();
+
+		/* 8001f850: jal $8003221c */
+		if( p_n_psxram[ 0x30b7e4 / 4 ] == 0x0c0ca348 )
+		{
+			/* 8001f850: j $8001f888 */
+			p_n_psxram[ 0x30b7e4 / 4 ] = 0;
+		}
+	}
 }
 
 // H8 check at startup (JVS related)
@@ -2200,7 +2213,7 @@ void ksys573_state::cr589_config(device_t *device)
 void ksys573_state::konami573(machine_config &config)
 {
 	/* basic machine hardware */
-	CXD8530CQ(config, m_maincpu, XTAL(67'737'600));
+	CXD8530CQ(config, m_maincpu, XTAL(67'737'600)*2);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ksys573_state::konami573_map);
 	m_maincpu->subdevice<psxdma_device>("dma")->install_read_handler(5, psxdma_device::read_delegate(&ksys573_state::cdrom_dma_read, this));
 	m_maincpu->subdevice<psxdma_device>("dma")->install_write_handler(5, psxdma_device::write_delegate(&ksys573_state::cdrom_dma_write, this));
