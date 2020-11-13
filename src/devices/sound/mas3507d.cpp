@@ -41,7 +41,7 @@ mas3507d_device::mas3507d_device(const machine_config &mconfig, const char *tag,
 void mas3507d_device::device_start()
 {
 	current_rate = 44100;
-	stream = stream_alloc(0, 2, current_rate);
+	stream = stream_alloc(0, 2, current_rate, STREAM_SYNCHRONOUS);
 	cb_sample.resolve();
 }
 
@@ -386,14 +386,10 @@ void mas3507d_device::fill_buffer()
 	int scount = mp3dec_decode_frame(&mp3_dec, static_cast<const uint8_t *>(&mp3data[0]), mp3_count, static_cast<mp3d_sample_t *>(&samples[0]), &mp3_info);
 
 	if(!scount) {
-		int to_drop = mp3_info.frame_bytes;
-		// At 1MHz, we can transfer around 2082 bytes/video frame.  So
-		// that puts a boundary on how much we're ready to drop
-		if(to_drop > 2082 || !to_drop)
-			to_drop = 2082;
-		std::copy(mp3data.begin() + to_drop, mp3data.end(), mp3data.begin());
-		mp3_count -= to_drop;
+		playback_status = PLAYBACK_STATE_IDLE;
 		sample_count = 0;
+		decoded_frame_count = 0;
+		decoded_samples = 0;
 		return;
 	}
 
@@ -408,14 +404,13 @@ void mas3507d_device::fill_buffer()
 	}
 
 	decoded_frame_count++;
-	decoded_samples += sample_count;
 }
 
 void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int &pos, int scount)
 {
 	int s1 = scount - pos;
 	if(s1 > sample_count)
-		s1 = sample_count;
+			s1 = sample_count;
 
 	if(mp3_info.channels == 1) {
 		for(int i=0; i<s1; i++) {
@@ -461,25 +456,23 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 	int csamples = outputs[0].samples();
 	int pos = 0;
 
-	append_buffer(outputs, pos, csamples);
-	for(;;) {
-		if(pos == csamples) {
-			playback_status = PLAYBACK_STATE_BUFFER_FULL;
-			return;
-		}
-
+	if (sample_count == 0) {
 		fill_buffer();
-
-		if(sample_count <= 0) {
-			// In the case of a bad frame or no frames being around, reset the state of the decoder
-			reset_playback();
-			outputs[0].fill(0, pos);
-			outputs[1].fill(0, pos);
-			return;
-		}
-
-		append_buffer(outputs, pos, csamples);
 	}
+
+	if(sample_count <= 0) {
+		// In the case of a bad frame or no frames being around, reset the state of the decoder
+		playback_status = PLAYBACK_STATE_IDLE;
+		sample_count = 0;
+		decoded_frame_count = 0;
+		decoded_samples = 0;
+		outputs[0].fill(0, 1);
+		outputs[1].fill(0, 1);
+		return;
+	}
+
+	append_buffer(outputs, pos, csamples);
+	decoded_samples++;
 
 	playback_status = PLAYBACK_STATE_DEMAND_BUFFER;
 }

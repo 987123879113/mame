@@ -8,6 +8,7 @@
 
 // The higher the number, the more the chart/visuals will be delayed
 const u32 frame_skip_target = 0;
+u32 skip_counter = 0;
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
@@ -49,10 +50,10 @@ void k573fpga_device::device_reset()
 attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
-	if(state == 0) {
-		ctr = machine().time();
-		counter_update();
-	}
+	// if(state == 0) {
+	// 	ctr = machine().time();
+	// 	counter_update();
+	// }
 }
 
 bool k573fpga_device::is_streaming()
@@ -88,6 +89,7 @@ void k573fpga_device::counter_update() {
 		counter_current = counter_previous = counter_base = 0;
 		last_sample_rate = 0;
 		frame_skip_counter = 0;
+		skip_counter = 0;
 
 		if(!is_stream_active && !is_mp3_playing()) {
 			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
@@ -107,47 +109,62 @@ void k573fpga_device::counter_update() {
 		return;
 	}
 
-	counter_previous = counter_current;
+	// counter_previous = counter_current;
 
-	auto sample_rate = mas3507d->get_current_rate();
-	if(sample_rate != last_sample_rate) {
-		logerror("Sample rate changed from %d to %d\n", last_sample_rate, sample_rate);
-		counter_base += counter_previous;
-		counter_base_time = counter_previous_time;
-		last_sample_rate = sample_rate;
-	}
+	// auto sample_rate = mas3507d->get_current_rate();
+	// if(sample_rate != last_sample_rate) {
+	// 	logerror("Sample rate changed from %d to %d\n", last_sample_rate, sample_rate);
+	// 	counter_base += counter_previous;
+	// 	counter_base_time = counter_previous_time;
+	// 	last_sample_rate = sample_rate;
+	// }
 
-	auto counter_delta = (ctr - counter_base_time).as_ticks(sample_rate);
-	if(frame_skip_counter < frame_skip_target) {
-		logerror("Audio frame skip %d/%d... %d skipped\n", frame_skip_counter, frame_skip_target, counter_delta);
-		counter_base_time = ctr;
-		frame_skip_counter++;
-	} else {
-		counter_current = counter_base + counter_delta;
-	}
+	// auto counter_delta = (ctr - counter_base_time).as_ticks(sample_rate);
+	// if(frame_skip_counter < frame_skip_target) {
+	// 	logerror("Audio frame skip %d/%d... %d skipped\n", frame_skip_counter, frame_skip_target, counter_delta);
+	// 	counter_base_time = ctr;
+	// 	frame_skip_counter++;
+	// } else {
+	// 	counter_current = counter_base + counter_delta;
+	// }
 
+	// last_counter_duration = ctr - counter_previous_time;
+	// last_counter_delta = counter_current - counter_previous;
 
-	last_counter_duration = ctr - counter_previous_time;
-	last_counter_delta = counter_current - counter_previous;
-
-	counter_previous_time = ctr;
+	// counter_previous_time = ctr;
 
 	// logerror("Counter updated @ %lf, diff = %d, counter = %08x\n", ctr.as_double(), counter_current - counter_previous, counter_current);
 }
 
 u32 k573fpga_device::get_counter() {
+	ctr = machine().time();
+	counter_update();
+
 	if(!is_timer_active) {
 		counter_current = 0;
+		frame_skip_counter = 0;
+		skip_counter = 0;
 		return counter_current;
 	}
 
-	auto ctr_diff = machine().time() - ctr;
-	auto new_delta_frac = ctr_diff.as_attoseconds() / (double)last_counter_duration.as_attoseconds();
-	auto new_delta = (int)(last_counter_delta * new_delta_frac);
+	if(frame_skip_counter < frame_skip_target) {
+		frame_skip_counter++;
+		skip_counter = mas3507d->get_samples();
+		return counter_current;
+	}
+
+	// auto ctr_diff = machine().time() - ctr;
+	// auto new_delta_frac = ctr_diff.as_attoseconds() / (double)last_counter_duration.as_attoseconds();
+	// auto new_delta = (int)(last_counter_delta * new_delta_frac);
 
 	// logerror("Counter @ %lf: %d + %d = %d\n", ctr_diff.as_double(), counter_current, new_delta, counter_current + new_delta);
 
-	return counter_current + new_delta;
+	counter_previous = counter_current;
+	counter_current = mas3507d->get_samples() - skip_counter;
+
+	logerror("Counter @ %lf: %d -> %d = %d diff\n", ctr.as_double(), counter_previous, counter_current, counter_current - counter_previous);
+
+	return counter_current;
 }
 
 u32 k573fpga_device::get_counter_diff() {
