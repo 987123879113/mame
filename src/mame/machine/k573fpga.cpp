@@ -50,11 +50,11 @@ void k573fpga_device::device_reset()
 attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
-	if(state == 0) {
-		counter_previous_time = ctr;
-		ctr = machine().time();
-		counter_update();
-	}
+	// if(state == 0) {
+	// 	counter_previous_time = ctr;
+	// 	ctr = machine().time();
+	// 	counter_update();
+	// }
 }
 
 bool k573fpga_device::is_streaming()
@@ -138,8 +138,9 @@ void k573fpga_device::counter_update() {
 }
 
 u32 k573fpga_device::get_counter() {
-	// ctr = machine().time();
-	// counter_update();
+	counter_previous_time = ctr;
+	ctr = machine().time();
+	counter_update();
 
 	if(!is_timer_active) {
 		counter_current = 0;
