@@ -896,11 +896,14 @@ WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 
 		uint32_t *p_n_psxram = (uint32_t *) m_ram->pointer();
 
-		/* 8001f850: jal $8003221c */
 		if( p_n_psxram[ 0x30b7e4 / 4 ] == 0x0c0ca348 )
 		{
-			/* 8001f850: j $8001f888 */
 			p_n_psxram[ 0x30b7e4 / 4 ] = 0;
+		}
+
+		if( p_n_psxram[ 0x30B9F4 / 4 ] == 0x0c0ca637 )
+		{
+			p_n_psxram[ 0x30B9F4 / 4 ] = 0;
 		}
 	}
 }
