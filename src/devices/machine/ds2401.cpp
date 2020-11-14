@@ -44,11 +44,11 @@ ds2401_device::ds2401_device(const machine_config &mconfig, const char *tag, dev
 
 void ds2401_device::device_start()
 {
-	t_samp = attotime::from_usec( 30);
-	t_rdv  = attotime::from_usec( 30);
-	t_rstl = attotime::from_usec(480);
-	t_pdh  = attotime::from_usec( 30);
-	t_pdl  = attotime::from_usec(120);
+	t_samp = attotime::from_usec( 30) / 2;
+	t_rdv  = attotime::from_usec( 30) / 2;
+	t_rstl = attotime::from_usec(480) / 2;
+	t_pdh  = attotime::from_usec( 30) / 2;
+	t_pdl  = attotime::from_usec(120) / 2;
 
 	m_rx = true;
 	m_tx = true;
