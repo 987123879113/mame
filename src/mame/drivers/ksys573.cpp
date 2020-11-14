@@ -890,22 +890,6 @@ WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 			p_n_psxram[ 0x1f850 / 4 ] = 0x08007e22;
 		}
 	}
-	else if( strcmp( machine().system().name, "ddrextrm" ) == 0 )
-	{
-		/* patch out security-plate error */
-
-		uint32_t *p_n_psxram = (uint32_t *) m_ram->pointer();
-
-		if( p_n_psxram[ 0x30b7e4 / 4 ] == 0x0c0ca348 )
-		{
-			p_n_psxram[ 0x30b7e4 / 4 ] = 0;
-		}
-
-		if( p_n_psxram[ 0x30B9F4 / 4 ] == 0x0c0ca637 )
-		{
-			p_n_psxram[ 0x30B9F4 / 4 ] = 0;
-		}
-	}
 }
 
 // H8 check at startup (JVS related)
