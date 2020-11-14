@@ -50,8 +50,6 @@ attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
 	if(state == 0) {
-		ctr = machine().time();
-		counter_update();
 	}
 }
 
@@ -86,7 +84,7 @@ void k573fpga_device::counter_update() {
 		timer_was_reset = false;
 		counter_base_time = counter_previous_time = ctr;
 		counter_current = counter_previous = counter_base = 0;
-		last_sample_rate = 0;
+		last_sample_rate = mas3507d->get_current_rate();
 		frame_skip_counter = 0;
 
 		if(!is_stream_active && !is_mp3_playing()) {
@@ -126,7 +124,6 @@ void k573fpga_device::counter_update() {
 		counter_current = counter_base + counter_delta;
 	}
 
-
 	last_counter_duration = ctr - counter_previous_time;
 	last_counter_delta = counter_current - counter_previous;
 
@@ -136,6 +133,9 @@ void k573fpga_device::counter_update() {
 }
 
 u32 k573fpga_device::get_counter() {
+	ctr = machine().time();
+	counter_update();
+
 	if(!is_timer_active) {
 		counter_current = 0;
 		return counter_current;
