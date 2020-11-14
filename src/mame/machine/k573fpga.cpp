@@ -138,7 +138,6 @@ void k573fpga_device::counter_update() {
 }
 
 u32 k573fpga_device::get_counter() {
-	counter_previous_time = ctr;
 	ctr = machine().time();
 	counter_update();
 
@@ -150,6 +149,7 @@ u32 k573fpga_device::get_counter() {
 	}
 
 	if(frame_skip_counter < frame_skip_target) {
+		counter_previous_time = ctr;
 		frame_skip_counter++;
 		skip_counter = mas3507d->get_samples();
 		return counter_current;
@@ -162,7 +162,7 @@ u32 k573fpga_device::get_counter() {
 	// logerror("Counter @ %lf: %d + %d = %d\n", ctr_diff.as_double(), counter_current, new_delta, counter_current + new_delta);
 
 	counter_previous = counter_current;
-	counter_current = (int)((ctr - counter_previous_time).as_double() * (mas3507d->get_current_rate())); //mas3507d->get_samples() - skip_counter;
+	counter_current = (int)((ctr - counter_previous_time).as_double() * (double)(mas3507d->get_current_rate())); //mas3507d->get_samples() - skip_counter;
 
 	logerror("Counter @ %lf: %d -> %d = %d diff\n", ctr.as_double(), counter_previous, counter_current, counter_current - counter_previous);
 
