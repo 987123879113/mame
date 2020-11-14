@@ -51,9 +51,13 @@ attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
 	if(state == 0) {
-		counter_previous_time = ctr;
 		ctr = machine().time();
 		counter_update();
+
+		if(frame_skip_counter < frame_skip_target) {
+			counter_previous_time = ctr;
+			frame_skip_counter++;
+		}
 	}
 }
 
@@ -149,9 +153,7 @@ u32 k573fpga_device::get_counter() {
 	}
 
 	if(frame_skip_counter < frame_skip_target) {
-		frame_skip_counter++;
-		skip_counter = mas3507d->get_samples();
-		return counter_current;
+		return 0;
 	}
 
 	// auto ctr_diff = machine().time() - ctr;
