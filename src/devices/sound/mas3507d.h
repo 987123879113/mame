@@ -27,6 +27,8 @@ public:
 	int get_current_rate() const { return current_rate; }
 	u32 get_status() const { return playback_status; }
 
+	attotime get_duration() const { return time_duration; }
+
 	void reset_playback();
 
 	void reg_write(uint32_t adr, uint32_t val);
@@ -38,6 +40,8 @@ protected:
 
 private:
 	devcb_read16 cb_sample;
+
+	attotime time_started, time_duration;
 
 	enum { IDLE, STARTED, NAK, ACK, ACK2 } i2c_bus_state;
 	enum { UNKNOWN, VALIDATED, WRONG } i2c_bus_address;

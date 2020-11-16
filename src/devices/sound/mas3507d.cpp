@@ -56,10 +56,15 @@ void mas3507d_device::device_reset()
 	i2c_bus_curval = 0;
 	i2c_sdao_offset = 0;
 
+	mp3dec_init(&mp3_dec);
+	memset(mp3data.data(), 0, mp3data.size());
+	memset(samples.data(), 0, samples.size());
+	mp3_count = 0;
+	sample_count = 0;
+	decoded_frame_count = 0;
 	is_muted = false;
 	gain_ll = gain_lr = gain_rl = gain_rr = 0;
-
-	reset_playback();
+	playback_status = PLAYBACK_STATE_IDLE;
 }
 
 void mas3507d_device::i2c_scl_w(bool line)
@@ -73,7 +78,7 @@ void mas3507d_device::i2c_scl_w(bool line)
 			if(i2c_sdai)
 				i2c_bus_curval |= 1 << i2c_bus_curbit;
 
-			if(i2c_subdest == DATA_READ) {
+			if (i2c_subdest == DATA_READ) {
 				i2c_sdao_offset = i2c_bus_curbit + (i2c_bytecount * 8);
 				i2c_sdao = (i2c_sdao_data & (1 << i2c_sdao_offset)) != 0;
 			} else {
@@ -152,7 +157,7 @@ int mas3507d_device::i2c_sda_r()
 
 bool mas3507d_device::i2c_device_got_address(uint8_t address)
 {
-	if(address == CMD_DEV_READ) {
+	if (address == CMD_DEV_READ) {
 		i2c_subdest = DATA_READ;
 	} else {
 		i2c_subdest = UNDEFINED;
@@ -193,11 +198,15 @@ void mas3507d_device::i2c_device_got_byte(uint8_t byte)
 		break;
 
 	case DATA_READ:
-		i2c_io_val <<= 8;
-		i2c_io_val |= byte;
-		i2c_bytecount++;
+		switch(i2c_bytecount) {
+		case 0: i2c_io_val = byte; break;
+		case 1: i2c_io_val |= byte << 8; break;
+		case 2: i2c_nak(); return;
+		}
 
 		logerror("MAS I2C: DATA_READ %d %02x %08x\n", i2c_bytecount, byte, i2c_io_val);
+
+		i2c_bytecount++;
 
 		break;
 
@@ -301,7 +310,7 @@ int gain_to_db(double val) {
 }
 
 float gain_to_percentage(int val) {
-	if(val == 0) {
+	if (val == 0) {
 		return 0; // Special case for muting it seems
 	}
 
@@ -320,7 +329,7 @@ void mas3507d_device::mem_write(int bank, uint32_t adr, uint32_t val)
 		gain_ll = gain_to_percentage(val);
 		logerror("MAS3507D: left->left   gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_ll);
 
-		if(!is_muted) {
+		if (!is_muted) {
 			set_output_gain(0, gain_ll);
 		}
 		break;
@@ -336,7 +345,7 @@ void mas3507d_device::mem_write(int bank, uint32_t adr, uint32_t val)
 		gain_rr = gain_to_percentage(val);
 		logerror("MAS3507D: right->right gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_rr);
 
-		if(!is_muted) {
+		if (!is_muted) {
 			set_output_gain(1, gain_rr);
 		}
 		break;
@@ -351,7 +360,7 @@ void mas3507d_device::reg_write(uint32_t adr, uint32_t val)
 	case 0xaa:
 		logerror("MAS3507D: Mute/bypass = %05x\n", val);
 		is_muted = val == 1;
-		if(is_muted) {
+		if (is_muted) {
 			set_output_gain(0, 0);
 			set_output_gain(1, 0);
 		} else {
@@ -386,10 +395,7 @@ void mas3507d_device::fill_buffer()
 	int scount = mp3dec_decode_frame(&mp3_dec, static_cast<const uint8_t *>(&mp3data[0]), mp3_count, static_cast<mp3d_sample_t *>(&samples[0]), &mp3_info);
 
 	if(!scount) {
-		playback_status = PLAYBACK_STATE_IDLE;
 		sample_count = 0;
-		decoded_frame_count = 0;
-		decoded_samples = 0;
 		return;
 	}
 
@@ -402,13 +408,15 @@ void mas3507d_device::fill_buffer()
 		current_rate = mp3_info.hz;
 		stream->set_sample_rate(current_rate);
 	}
+
+	decoded_frame_count++;
 }
 
 void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int &pos, int scount)
 {
 	int s1 = scount - pos;
 	if(s1 > sample_count)
-			s1 = sample_count;
+		s1 = sample_count;
 
 	if(mp3_info.channels == 1) {
 		for(int i=0; i<s1; i++) {
@@ -445,20 +453,16 @@ void mas3507d_device::reset_playback()
 	decoded_frame_count = 0;
 	decoded_samples = 0;
 	playback_status = PLAYBACK_STATE_IDLE;
+	time_started = machine().time();
 	memset(mp3data.data(), 0, mp3data.size());
 	memset(samples.data(), 0, samples.size());
 }
 
 void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
-	int csamples = outputs[0].samples();
-	int pos = 0;
+	auto ctr = machine().time();
 
 	if (sample_count == 0) {
-		if (decoded_samples > 0) {
-			decoded_frame_count++;
-		}
-
 		fill_buffer();
 	}
 
@@ -471,12 +475,19 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 		outputs[0].fill(0, 1);
 		outputs[1].fill(0, 1);
 		return;
+	} else if (playback_status == PLAYBACK_STATE_IDLE) {
+		time_started = ctr;
+		decoded_samples = 0;
 	}
 
+	int pos = 0;
+	int csamples = outputs[0].samples();
 	append_buffer(outputs, pos, csamples);
 	decoded_samples++;
 
-	// logerror("MAS3507D Counter @ %lf: %d\n", machine().time().as_double(), decoded_samples);
+	time_duration = ctr - time_started;
+
+	// logerror("MAS3507D Counter @ %lf: %d\n", time_duration.as_double(), decoded_samples);
 
 	playback_status = PLAYBACK_STATE_DEMAND_BUFFER;
 }

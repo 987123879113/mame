@@ -7,7 +7,7 @@
 
 
 // The higher the number, the more the chart/visuals will be delayed
-const u32 frame_skip_target = 0;
+const u32 frame_skip_target = 30 * 2;
 u32 skip_counter = 0;
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
@@ -51,13 +51,8 @@ attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
 	if(state == 0) {
-		ctr = machine().time();
-		counter_update();
-
-		if(frame_skip_counter < frame_skip_target) {
-			counter_previous_time = ctr;
-			frame_skip_counter++;
-		}
+		// ctr = machine().time();
+		// counter_update();
 	}
 }
 
@@ -92,9 +87,9 @@ void k573fpga_device::counter_update() {
 		timer_was_reset = false;
 		counter_base_time = counter_previous_time = ctr;
 		counter_current = counter_previous = counter_base = 0;
-		last_sample_rate = 0;
+		last_sample_rate = mas3507d->get_current_rate();
 		frame_skip_counter = 0;
-		skip_counter = mas3507d->get_samples();
+		skip_counter = 0;
 
 		if(!is_stream_active && !is_mp3_playing()) {
 			// There is another bug(?) (tested on real hardware) involving when the timer is stopped.
@@ -142,17 +137,21 @@ void k573fpga_device::counter_update() {
 }
 
 u32 k573fpga_device::get_counter() {
-	// ctr = machine().time();
-	// counter_update();
+	ctr = machine().time();
+	counter_update();
+
+	auto ctr2 = mas3507d->get_duration();
+	auto samps = mas3507d->get_samples();
 
 	if(!is_timer_active) {
 		counter_current = 0;
-		frame_skip_counter = 0;
-		skip_counter = mas3507d->get_samples();
+		skip_counter = samps;
 		return counter_current;
 	}
 
 	if(frame_skip_counter < frame_skip_target) {
+		frame_skip_counter++;
+		skip_counter = samps;
 		return 0;
 	}
 
@@ -163,9 +162,16 @@ u32 k573fpga_device::get_counter() {
 	// logerror("Counter @ %lf: %d + %d = %d\n", ctr_diff.as_double(), counter_current, new_delta, counter_current + new_delta);
 
 	counter_previous = counter_current;
-	counter_current = (int)((ctr - counter_previous_time).as_double() * (mas3507d->get_current_rate())); //mas3507d->get_samples() - skip_counter;
 
-	logerror("Counter @ %lf: %d -> %d = %d diff\n", ctr.as_double(), counter_previous, counter_current, counter_current - counter_previous);
+	counter_current = samps - skip_counter; //ctr2.as_ticks(mas3507d->get_current_rate());
+
+	if (counter_current < 0) {
+		counter_current = 0;
+	}
+
+	if (counter_current - counter_previous != 0) {
+		logerror("Counter @ %lf: %d -> %d = %d diff | %d %d | %d\n", ctr2.as_double(), counter_previous, counter_current, counter_current - counter_previous, counter_current, samps, skip_counter);
+	}
 
 	return counter_current;
 }
@@ -340,7 +346,7 @@ u16 k573fpga_device::get_decrypted()
 	if(!is_streaming()) {
 		if(is_stream_active) {
 			logerror("Reached end of audio! %d (%08x) %d (%04x)\n", get_counter(), get_counter(), mas3507d->get_frame_count(), mas3507d->get_frame_count());
-			skip_counter = mas3507d->get_samples();
+			// skip_counter = mas3507d->get_samples();
 		}
 
 		is_stream_active = false;
