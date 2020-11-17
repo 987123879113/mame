@@ -7,7 +7,7 @@
 
 
 // The higher the number, the more the chart/visuals will be delayed
-const u32 frame_skip_target = 32.25 * 294;
+u32 frame_skip_target = 0;
 u32 skip_counter = 0;
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
@@ -15,6 +15,11 @@ k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag,
 	mas3507d(*this, "mpeg"),
 	use_ddrsbm_fpga(false)
 {
+}
+
+void k573fpga_device::set_audio_offset(u32 offset) {
+	frame_skip_target = offset;
+	logerror("Set audio offset to %d\n", frame_skip_target);
 }
 
 void k573fpga_device::device_add_mconfig(machine_config &config)

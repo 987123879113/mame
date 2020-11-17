@@ -377,6 +377,15 @@ G: gun mania only, drives air soft gun (this game uses real BB bullet)
 class ksys573_state : public driver_device
 {
 public:
+	INPUT_CHANGED_MEMBER(audio_offset)
+	{
+		auto fpga = subdevice<k573dio_device>("k573dio")->subdevice<k573fpga_device>("k573fpga");
+
+		if (fpga != nullptr) {
+			fpga->set_audio_offset(newval);
+		}
+	}
+
 	ksys573_state( const machine_config &mconfig, device_type type, const char *tag ) :
 		driver_device(mconfig, type, tag),
 		m_pads(*this, "PADS"),
@@ -2698,7 +2707,6 @@ void ksys573_state::mamboagga(machine_config &config)
 	KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 }
 
-
 static INPUT_PORTS_START( konami573 )
 	PORT_START( "IN0" )
 	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -2818,6 +2826,11 @@ static INPUT_PORTS_START( konami573 )
 	PORT_CONFSETTING( 1, "2" )
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( k573dio )
+	PORT_START( "AUDIO_OFFSET" )
+	PORT_ADJUSTER( 0, "Audio Offset" ) PORT_MINMAX( 0, 0x7fffffff ) PORT_CHANGED_MEMBER(DEVICE_SELF, ksys573_state, audio_offset, 0)
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( fbaitbc )
 	PORT_INCLUDE( konami573 )
 
@@ -2842,6 +2855,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddr )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000f0f, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER( ksys573_state, gn845pwbb_read )
@@ -2859,6 +2873,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddrsolo )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "P1 Left 1" )
@@ -2888,6 +2903,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( gtrfrks )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x10000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* SERVICE1 */
@@ -2927,6 +2943,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( dmx )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER( 1 ) PORT_NAME( "D-Sensor D1 L" ) /* P1 LEFT */
@@ -2963,6 +2980,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( drmn )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* COIN2 */
@@ -3107,6 +3125,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( mamboagg )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER( 1 ) PORT_NAME( "Right Pad 1 (Top Right)" ) /* COIN2 */
