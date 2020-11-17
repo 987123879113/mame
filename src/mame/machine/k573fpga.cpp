@@ -7,7 +7,7 @@
 
 
 // The higher the number, the more the chart/visuals will be delayed
-const u32 frame_skip_target = 0 * 294;
+const u32 frame_skip_target = 32.25 * 294;
 u32 skip_counter = 0;
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
@@ -31,6 +31,7 @@ void k573fpga_device::device_start()
 
 void k573fpga_device::device_reset()
 {
+	mp3_start_adr = 0;
 	mp3_cur_adr = 0;
 	mp3_end_adr = 0;
 
@@ -39,6 +40,7 @@ void k573fpga_device::device_reset()
 	crypto_key3 = 0;
 
 	is_stream_active = false;
+	is_timer_active = false;
 	timer_was_reset = false;
 
 	counter_current = counter_previous = 0;
@@ -60,25 +62,6 @@ void k573fpga_device::vblank_callback(int state)
 		if (!mas3507d->is_started) {
 			mas3507d->reset_playback();
 			mas3507d->is_started = true;
-		}
-
-		auto ctr2 = mas3507d->get_duration();
-		auto samps = mas3507d->get_samples();
-
-		if(!is_timer_active) {
-			counter_current = 0;
-			return;
-		}
-
-		counter_previous = counter_current;
-		counter_current = samps - frame_skip_target;
-
-		if (counter_current < 0) {
-			counter_current = 0;
-		}
-
-		if (counter_current - counter_previous != 0) {
-			logerror("Counter @ %lf: %d -> %d = %d diff | %d %d | %d\n", ctr2.as_double(), counter_previous, counter_current, counter_current - counter_previous, counter_current, samps, skip_counter);
 		}
 	}
 }
@@ -144,8 +127,23 @@ void k573fpga_device::counter_update() {
 }
 
 u32 k573fpga_device::get_counter() {
-	if(!is_timer_active) {
+	if(!mas3507d->is_started || !is_timer_active) {
 		counter_current = 0;
+		return 0;
+	}
+
+	auto ctr2 = mas3507d->get_duration();
+	auto samps = mas3507d->get_samples();
+
+	counter_previous = counter_current;
+	counter_current = samps - frame_skip_target;
+
+	if (counter_current < 0) {
+		counter_current = 0;
+	}
+
+	if (counter_current - counter_previous != 0) {
+		logerror("Counter @ %lf: %d -> %d = %d diff | %d %d | %d\n", ctr2.as_double(), counter_previous, counter_current, counter_current - counter_previous, counter_current, samps, skip_counter);
 	}
 
 	return counter_current;

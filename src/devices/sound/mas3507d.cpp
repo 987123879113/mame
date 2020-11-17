@@ -56,15 +56,10 @@ void mas3507d_device::device_reset()
 	i2c_bus_curval = 0;
 	i2c_sdao_offset = 0;
 
-	mp3dec_init(&mp3_dec);
-	memset(mp3data.data(), 0, mp3data.size());
-	memset(samples.data(), 0, samples.size());
-	mp3_count = 0;
-	sample_count = 0;
-	decoded_frame_count = 0;
 	is_muted = false;
 	gain_ll = gain_lr = gain_rl = gain_rr = 0;
-	playback_status = PLAYBACK_STATE_IDLE;
+
+	reset_playback();
 }
 
 void mas3507d_device::i2c_scl_w(bool line)
@@ -461,8 +456,6 @@ void mas3507d_device::reset_playback()
 
 void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
-	auto ctr = machine().time();
-
 	if (!is_started) {
 		outputs[0].fill(0, 1);
 		outputs[1].fill(0, 1);
@@ -474,6 +467,7 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 		fill_buffer();
 	}
 
+	auto ctr = machine().time();
 	if(sample_count <= 0) {
 		// In the case of a bad frame or no frames being around, reset the state of the decoder
 		playback_status = PLAYBACK_STATE_IDLE;
