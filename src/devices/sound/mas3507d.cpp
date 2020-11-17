@@ -453,6 +453,7 @@ void mas3507d_device::reset_playback()
 	decoded_frame_count = 0;
 	decoded_samples = 0;
 	playback_status = PLAYBACK_STATE_IDLE;
+	is_started = false;
 	time_started = machine().time();
 	memset(mp3data.data(), 0, mp3data.size());
 	memset(samples.data(), 0, samples.size());
@@ -461,6 +462,13 @@ void mas3507d_device::reset_playback()
 void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
 	auto ctr = machine().time();
+
+	if (!is_started) {
+		outputs[0].fill(0, 1);
+		outputs[1].fill(0, 1);
+		playback_status = PLAYBACK_STATE_BUFFER_FULL;
+		return;
+	}
 
 	if (sample_count == 0) {
 		fill_buffer();

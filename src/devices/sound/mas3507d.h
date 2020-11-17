@@ -33,6 +33,8 @@ public:
 
 	void reg_write(uint32_t adr, uint32_t val);
 
+	bool is_started;
+
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;

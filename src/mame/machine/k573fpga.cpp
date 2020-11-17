@@ -7,7 +7,7 @@
 
 
 // The higher the number, the more the chart/visuals will be delayed
-const u32 frame_skip_target = 30 * 294;
+const u32 frame_skip_target = 0 * 294;
 u32 skip_counter = 0;
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
@@ -51,8 +51,16 @@ attotime ctr;
 void k573fpga_device::vblank_callback(int state)
 {
 	if(state == 0) {
-		ctr = machine().time();
 		counter_update();
+
+		if(!is_timer_active) {
+			return;
+		}
+
+		if (!mas3507d->is_started) {
+			mas3507d->reset_playback();
+			mas3507d->is_started = true;
+		}
 
 		auto ctr2 = mas3507d->get_duration();
 		auto samps = mas3507d->get_samples();
@@ -62,16 +70,8 @@ void k573fpga_device::vblank_callback(int state)
 			return;
 		}
 
-		// if(frame_skip_counter < frame_skip_target) {
-		// 	skip_counter = samps;
-		// 	logerror("Skip Counter @ %lf: %d/%d, %d\n", ctr2.as_double(), frame_skip_counter, frame_skip_target, skip_counter);
-		// 	frame_skip_counter++;
-		// 	return 0;
-		// }
-
 		counter_previous = counter_current;
-
-		counter_current = samps - frame_skip_target; //ctr2.as_ticks(mas3507d->get_current_rate());
+		counter_current = samps - frame_skip_target;
 
 		if (counter_current < 0) {
 			counter_current = 0;
@@ -146,7 +146,6 @@ void k573fpga_device::counter_update() {
 u32 k573fpga_device::get_counter() {
 	if(!is_timer_active) {
 		counter_current = 0;
-		return counter_current;
 	}
 
 	return counter_current;
