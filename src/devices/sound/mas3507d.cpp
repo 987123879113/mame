@@ -204,7 +204,7 @@ void mas3507d_device::i2c_device_got_byte(uint8_t byte)
 		case 2: i2c_nak(); return;
 		}
 
-		logerror("MAS I2C: DATA_READ %d %02x %08x\n", i2c_bytecount, byte, i2c_io_val);
+		// logerror("MAS I2C: DATA_READ %d %02x %08x\n", i2c_bytecount, byte, i2c_io_val);
 
 		i2c_bytecount++;
 
@@ -302,7 +302,7 @@ void mas3507d_device::i2c_device_got_byte(uint8_t byte)
 
 void mas3507d_device::i2c_device_got_stop()
 {
-	logerror("MAS I2C: got stop\n");
+	// logerror("MAS I2C: got stop\n");
 }
 
 int gain_to_db(double val) {

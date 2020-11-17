@@ -205,13 +205,13 @@ uint16_t k573dio_device::a80_r()
 void k573dio_device::mpeg_start_adr_high_w(uint16_t data)
 {
 	logerror("FPGA MPEG start address high %04x\n", data);
-	k573fpga->set_mp3_cur_adr((k573fpga->get_mp3_cur_adr() & 0x0000ffff) | (data << 16)); // high
+	k573fpga->set_mp3_start_adr((k573fpga->get_mp3_start_adr() & 0x0000ffff) | (data << 16)); // high
 }
 
 void k573dio_device::mpeg_start_adr_low_w(uint16_t data)
 {
 	logerror("FPGA MPEG start address low %04x\n", data);
-	k573fpga->set_mp3_cur_adr((k573fpga->get_mp3_cur_adr() & 0xffff0000) | data); // low
+	k573fpga->set_mp3_start_adr((k573fpga->get_mp3_start_adr() & 0xffff0000) | data); // low
 
 	if(is_ddrsbm_fpga)
 		k573fpga->set_crypto_key3(0);

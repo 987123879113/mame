@@ -24,8 +24,8 @@ public:
 	void set_crypto_key2(u16 v) { crypto_key2 = v; }
 	void set_crypto_key3(u8 v) { crypto_key3 = v; }
 
-	uint32_t get_mp3_cur_adr() { return mp3_cur_adr; }
-	void set_mp3_cur_adr(u32 v) { mp3_cur_adr = v; }
+	uint32_t get_mp3_start_adr() { return mp3_start_adr; }
+	void set_mp3_start_adr(u32 v) { mp3_start_adr = v; }
 
 	uint32_t get_mp3_end_adr() { return mp3_end_adr; }
 	void set_mp3_end_adr(u32 v) { mp3_end_adr = v; }
@@ -58,7 +58,9 @@ private:
 	u16 crypto_key1, crypto_key2;
 	u8 crypto_key3;
 
-	u32 mp3_cur_adr, mp3_end_adr;
+	u32 mpeg_ctrl;
+
+	u32 mp3_start_adr, mp3_cur_adr, mp3_end_adr;
 	bool use_ddrsbm_fpga;
 
 	bool is_stream_active, is_timer_active, timer_was_reset;
