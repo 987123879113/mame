@@ -41,7 +41,7 @@ public:
 	u32 get_counter();
 	u32 get_counter_diff();
 
-	void counter_update();
+	void status_update();
 	void reset_counter();
 	void vblank_callback(int state);
 
@@ -66,11 +66,9 @@ private:
 	bool use_ddrsbm_fpga;
 
 	bool is_stream_active, is_timer_active, timer_was_reset;
-	u32 counter_base, counter_previous;
+	u32 counter_previous;
 	s32 counter_current;
 	u32 last_sample_rate, last_playback_status;
-	u32 frame_skip_counter;
-	attotime counter_base_time, counter_previous_time;
 
 	u16 decrypt_default(u16 data);
 	u16 decrypt_ddrsbm(u16 data);
