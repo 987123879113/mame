@@ -91,18 +91,18 @@ void k573fpga_device::status_update() {
 	if(!is_timer_active) {
 		counter_current = 0;
 	}
+
+	if (!mas3507d->is_started) {
+		mas3507d->reset_playback();
+		mas3507d->is_started = true;
+		started_timer = machine().time();
+	}
 }
 
 u32 k573fpga_device::get_counter() {
 	if(!is_timer_active) {
 		counter_current = 0;
 		return 0;
-	}
-
-	if (!mas3507d->is_started) {
-		mas3507d->reset_playback();
-		mas3507d->is_started = true;
-		started_timer = machine().time();
 	}
 
 	auto cur_ctr = machine().time();
@@ -117,7 +117,7 @@ u32 k573fpga_device::get_counter() {
 	}
 
 	if (counter_current - counter_previous != 0) {
-		logerror("Counter @ %lf: %d -> %d = %d diff\n", ctr2.as_double(), counter_previous, counter_current, counter_current - counter_previous);
+		logerror("Counter @ %lf: %d -> %d = %d diff, %d %d\n", ctr2.as_double(), counter_previous, counter_current, counter_current - counter_previous, mas3507d->get_samples(), samps);
 	}
 
 	return counter_current;
@@ -186,7 +186,6 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 	mpeg_ctrl = data;
 
 	if(data == 0xa000) {
-		// Mute
 		is_stream_active = false;
 		counter_current = counter_previous = 0;
 		last_sample_rate = mas3507d->get_current_rate();
@@ -198,7 +197,6 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 		mp3_cur_adr = mp3_start_adr;
 
 		reset_counter();
-		status_update();
 
 		// Unmute
 		mas3507d->reg_write(0xaa, 0);
