@@ -69,10 +69,6 @@ void k573fpga_device::reset_counter() {
 	last_sample_rate = mas3507d->get_current_rate();
 	started_timer = machine().time();
 
-	if(is_mp3_playing()) {
-		mas3507d->reg_write(0xaa, 1);
-	}
-
 	status_update();
 }
 
@@ -179,6 +175,8 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 
 	mpeg_ctrl = data;
 
+	mas3507d->reset_playback();
+
 	if(data == 0xa000) {
 		is_stream_active = false;
 		counter_current = counter_previous = 0;
@@ -191,10 +189,6 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 		mp3_cur_adr = mp3_start_adr;
 
 		reset_counter();
-
-		// Unmute
-		mas3507d->reg_write(0xaa, 0);
-		mas3507d->reset_playback();
 
 		if (!mas3507d->is_started) {
 			mas3507d->reset_playback();
