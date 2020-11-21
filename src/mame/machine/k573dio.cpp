@@ -193,6 +193,7 @@ void k573dio_device::a10_w(uint16_t data)
 uint16_t k573dio_device::ac4_r()
 {
 	// What is this?
+	logerror("%s: ac4_r (%s)\n", tag(), machine().describe_context());
 	return 0;
 }
 

@@ -91,12 +91,6 @@ void k573fpga_device::status_update() {
 	if(!is_timer_active) {
 		counter_current = 0;
 	}
-
-	if (!mas3507d->is_started) {
-		mas3507d->reset_playback();
-		mas3507d->is_started = true;
-		started_timer = machine().time();
-	}
 }
 
 u32 k573fpga_device::get_counter() {
@@ -201,6 +195,12 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 		// Unmute
 		mas3507d->reg_write(0xaa, 0);
 		mas3507d->reset_playback();
+
+		if (!mas3507d->is_started) {
+			mas3507d->reset_playback();
+			mas3507d->is_started = true;
+			started_timer = machine().time();
+		}
 	}
 }
 
