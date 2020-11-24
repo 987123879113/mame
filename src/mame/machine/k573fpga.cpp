@@ -58,9 +58,11 @@ void k573fpga_device::device_reset()
 	last_playback_status = mas3507d->get_status();
 }
 
+attotime cur_ctr;
 void k573fpga_device::vblank_callback(int state)
 {
-	if(state == 0) {
+	if(state == 1) {
+		cur_ctr = machine().time();
 	}
 }
 
@@ -82,6 +84,11 @@ void k573fpga_device::status_update() {
 	// 	read the counter, the game never sees that the song ended.
 	auto cur_playback_status = mas3507d->get_status();
 	is_timer_active = is_streaming() || ((cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status);
+
+	if (last_playback_status == 0xb000 && cur_playback_status > 0xb000) {
+		started_timer = machine().time();
+	}
+
 	last_playback_status = cur_playback_status;
 
 	if(!is_timer_active) {
@@ -90,17 +97,17 @@ void k573fpga_device::status_update() {
 }
 
 u32 k573fpga_device::get_counter() {
+	status_update();
+
 	if(!is_timer_active) {
 		counter_current = 0;
 		return 0;
 	}
 
-	auto cur_ctr = machine().time();
 	auto ctr2 = cur_ctr - started_timer;
 	auto samps = ctr2.as_ticks(mas3507d->get_current_rate());
 
-	counter_previous = counter_current;
-	counter_current = samps - frame_skip_target;
+	auto ret = counter_previous;
 
 	if (counter_current < 0) {
 		counter_current = 0;
@@ -110,7 +117,10 @@ u32 k573fpga_device::get_counter() {
 		logerror("Counter @ %lf: %d -> %d = %d diff, %d %d\n", ctr2.as_double(), counter_previous, counter_current, counter_current - counter_previous, mas3507d->get_samples(), samps);
 	}
 
-	return counter_current;
+	counter_previous = counter_current;
+	counter_current = samps - frame_skip_target;
+
+	return ret;
 }
 
 u32 k573fpga_device::get_counter_diff() {

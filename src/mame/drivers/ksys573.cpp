@@ -2209,7 +2209,7 @@ void ksys573_state::cr589_config(device_t *device)
 void ksys573_state::konami573(machine_config &config)
 {
 	/* basic machine hardware */
-	CXD8530CQ(config, m_maincpu, XTAL(67'737'600)*2);
+	CXD8530CQ(config, m_maincpu, XTAL(67'737'600));
 	m_maincpu->set_addrmap(AS_PROGRAM, &ksys573_state::konami573_map);
 	m_maincpu->subdevice<psxdma_device>("dma")->install_read_handler(5, psxdma_device::read_delegate(&ksys573_state::cdrom_dma_read, this));
 	m_maincpu->subdevice<psxdma_device>("dma")->install_write_handler(5, psxdma_device::write_delegate(&ksys573_state::cdrom_dma_write, this));
