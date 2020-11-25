@@ -317,23 +317,6 @@ uint16_t k573dio_device::mp3_counter_low_r()
 
 void k573dio_device::mp3_counter_low_w(uint16_t data)
 {
-	// Resets counter and seemingly mutes the MAS3507D
-	//
-	// TODO: Needs to be tested what happens on real hardware
-	// when you write a non-zero value here.
-	//
-	// TODO: Check if the FPGA is actually sending a mute command to the MAS3507D here,
-	// of if there's some other method being used to mute the audio.
-	//
-	// (The following information has been tested on real hardware)
-	// Resetting the counter has the property of also muting the MAS3507D at times.
-	// There is a bug(?) in DDR Extreme's sound options menu where this can be tested.
-	// The SCALE SOUND CHECK 2 option loops through the scale test MP3 twice.
-	// If you move down to FACTORY SETTING during the first loop, the MP3 will be stopped,
-	// the game checks if the counter is 0, and then plays the MP3 for the 2nd loop while muted.
-	//
-	// The other aspect of this flag is also that the game's code always seems to set this register
-	// to 0 when *starting* an MP3. In that case, it won't mute the audio output.
 	logerror("mp3_counter_low_w %04x\n", data);
 	k573fpga->reset_counter();
 }
@@ -432,14 +415,4 @@ void k573dio_device::output(int offset, uint16_t data)
 			output_cb(4*offset + i, newbit, 0xff);
 	}
 	output_data[offset] = data;
-}
-
-WRITE_LINE_MEMBER(k573dio_device::k573dio_vblank)
-{
-	// This is kind of a hack. I do not know how exactly the actual
-	// hardware is operating in this regard.
-	// Tying the FPGA counter to vblank end makes it easier to implement
-	// the FPGA counter in a way that works roughly the same as on real hardware
-	// but without the timing drifting weirdly throughout the song.
-	k573fpga->vblank_callback(state);
 }

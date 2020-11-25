@@ -43,7 +43,6 @@ public:
 
 	void status_update();
 	void reset_counter();
-	void vblank_callback(int state);
 
 	void set_audio_offset(u32 offset);
 

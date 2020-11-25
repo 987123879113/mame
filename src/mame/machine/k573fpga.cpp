@@ -7,12 +7,7 @@
 
 
 // The higher the number, the more the chart/visuals will be delayed
-u32 frame_skip_target = 0;
-
-attotime ctr;
-
-attotime last_counter_duration, started_timer;
-u32 last_counter_delta;
+u32 sample_skip_offset = 0;
 
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
@@ -30,8 +25,7 @@ void k573fpga_device::device_add_mconfig(machine_config &config)
 }
 
 void k573fpga_device::set_audio_offset(u32 offset) {
-	frame_skip_target = offset;
-	logerror("Set audio offset to %d\n", frame_skip_target);
+	sample_skip_offset = offset;
 }
 
 void k573fpga_device::device_start()
@@ -58,37 +52,15 @@ void k573fpga_device::device_reset()
 	last_playback_status = mas3507d->get_status();
 }
 
-attotime cur_ctr;
-void k573fpga_device::vblank_callback(int state)
-{
-	if(state == 1) {
-		cur_ctr = machine().time();
-	}
-}
-
 void k573fpga_device::reset_counter() {
 	counter_current = counter_previous = 0;
 	last_sample_rate = mas3507d->get_current_rate();
-	started_timer = machine().time();
-
 	status_update();
 }
 
 void k573fpga_device::status_update() {
-	// DDR Extreme's sound options menu has logic like such:
-	// 	If frame changed...
-	// 		If counter is 0, mark song as ended
-	// 		If counter is not 0, reset counter to 0
-	//
-	//	If the counter increments before the next frame occurs and the game can read
-	// 	read the counter, the game never sees that the song ended.
 	auto cur_playback_status = mas3507d->get_status();
 	is_timer_active = is_streaming() || ((cur_playback_status == last_playback_status && last_playback_status > 0xb000) || cur_playback_status > last_playback_status);
-
-	if (last_playback_status == 0xb000 && cur_playback_status > 0xb000) {
-		started_timer = machine().time();
-	}
-
 	last_playback_status = cur_playback_status;
 
 	if(!is_timer_active) {
@@ -104,28 +76,13 @@ u32 k573fpga_device::get_counter() {
 		return 0;
 	}
 
-	auto ctr2 = cur_ctr - started_timer;
-	auto samps = ctr2.as_ticks(mas3507d->get_current_rate());
-
-	auto ret = counter_previous;
-
-	if (counter_current < 0) {
-		counter_current = 0;
-	}
-
-	if (counter_current - counter_previous != 0) {
-		logerror("Counter @ %lf: %d -> %d = %d diff, %d %d\n", ctr2.as_double(), counter_previous, counter_current, counter_current - counter_previous, mas3507d->get_samples(), samps);
-	}
-
 	counter_previous = counter_current;
-	counter_current = samps - frame_skip_target;
+	counter_current = mas3507d->get_samples() - sample_skip_offset;
 
-	return ret;
+	return counter_current;
 }
 
 u32 k573fpga_device::get_counter_diff() {
-	// On real hardware, this seems to reset the counter back to the previous frame's counter
-	// as well as returns the difference from the last update.
 	auto diff = counter_current - counter_previous;
 	counter_current -= diff;
 	counter_previous = counter_current;
@@ -192,7 +149,6 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 		counter_current = counter_previous = 0;
 		last_sample_rate = mas3507d->get_current_rate();
 
-		started_timer = machine().time();
 		status_update();
 	} else if(data == 0xe000) {
 		is_stream_active = true;
@@ -203,7 +159,6 @@ void k573fpga_device::set_mpeg_ctrl(u16 data)
 		if (!mas3507d->is_started) {
 			mas3507d->reset_playback();
 			mas3507d->is_started = true;
-			started_timer = machine().time();
 		}
 	}
 }
@@ -303,12 +258,7 @@ u16 k573fpga_device::decrypt_ddrsbm(u16 data)
 u16 k573fpga_device::get_decrypted()
 {
 	if(!is_streaming()) {
-		if(is_stream_active) {
-			logerror("Reached end of audio! %d (%08x) %d (%04x)\n", get_counter(), get_counter(), mas3507d->get_frame_count(), mas3507d->get_frame_count());
-		}
-
 		is_stream_active = false;
-
 		return 0;
 	}
 

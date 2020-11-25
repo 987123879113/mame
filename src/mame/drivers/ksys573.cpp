@@ -2267,11 +2267,6 @@ void ksys573_state::k573d(machine_config &config)
 	konami573(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ksys573_state::konami573d_map);
 	KONAMI_573_DIGITAL_IO_BOARD(config, "k573dio", XTAL(19'660'800));
-
-	auto screen = subdevice<screen_device>("screen");
-	if(screen != nullptr) {
-		screen->screen_vblank().append("k573dio", FUNC(k573dio_device::k573dio_vblank));
-	}
 }
 
 // Variants with additional analogue i/o board
