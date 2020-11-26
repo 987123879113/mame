@@ -189,7 +189,12 @@ public:
 		m_ata(*this, "ata"),
 		m_gcu(*this, "gcu%u", 0),
 		m_dpram(*this, "spuram"),
-		m_spuata(*this, "spu_ata")
+		m_spuata(*this, "spu_ata"),
+		m_waveram(*this, "rfsnd"),
+		m_spu_ata_dma(0),
+		m_spu_ata_dma_base(0),
+		m_spu_ata_dmarq(0),
+		m_wave_bank(0)
 	{ }
 
 	void firebeat2(machine_config &config);
@@ -211,6 +216,7 @@ private:
 	optional_device_array<k057714_device, 2> m_gcu;
 	optional_device<cy7c131_device> m_dpram;
 	optional_device<ata_interface_device> m_spuata;
+	required_shared_ptr<uint16_t> m_waveram;
 
 	uint8_t m_extend_board_irq_enable;
 	uint8_t m_extend_board_irq_active;
@@ -223,6 +229,14 @@ private:
 	int m_ibutton_state;
 	int m_ibutton_read_subkey_ptr;
 	uint8_t m_ibutton_subkey_data[0x40];
+
+	uint16_t m_spu_ctrl;      // SPU board control register
+	uint32_t m_spu_ata_dma;
+	uint32_t m_spu_ata_dma_base;
+	int m_spu_ata_dmarq;
+	uint32_t m_wave_bank;
+
+	void rf5c400_map(address_map &map);
 
 	DECLARE_MACHINE_START(firebeat);
 	DECLARE_MACHINE_RESET(firebeat);
@@ -255,8 +269,13 @@ private:
 	uint16_t spu_unk_r();
 	void spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void spu_220000_w(uint16_t data);
-	void spu_sdram_bank_w(uint16_t data);
+	void spu_ata_dma_low_w(uint16_t data);
+	void spu_ata_dma_high_w(uint16_t data);
+	void spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t firebeat_waveram_r(offs_t offset);
+	void firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
+	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
 //  TIMER_CALLBACK_MEMBER(keyboard_timer_callback);
 	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
 	void set_ibutton(uint8_t *data);
@@ -795,6 +814,8 @@ void firebeat_state::spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_ma
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
 		if (data & 0x02)
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ2, CLEAR_LINE);
+		if (data & 0x04)
+			m_audiocpu->set_input_line(INPUT_LINE_IRQ4, CLEAR_LINE);
 		if (data & 0x08)
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ6, CLEAR_LINE);
 	}
@@ -805,13 +826,74 @@ void firebeat_state::spu_220000_w(uint16_t data)
 	// IRQ2 handler 5 sets all bits
 }
 
-void firebeat_state::spu_sdram_bank_w(uint16_t data)
+void firebeat_state::spu_ata_dma_low_w(uint16_t data)
 {
+	m_spu_ata_dma = (m_spu_ata_dma & ~0xffff) | data;
+	m_spu_ata_dma_base = m_spu_ata_dma;
+	printf("DMA now %x\n", m_spu_ata_dma);
+}
+
+void firebeat_state::spu_ata_dma_high_w(uint16_t data)
+{
+	m_spu_ata_dma = (m_spu_ata_dma & 0xffff) | ((uint32_t)data << 16);
+	m_spu_ata_dma_base = m_spu_ata_dma;
+	printf("DMA now %x\n", m_spu_ata_dma);
+}
+
+void firebeat_state::spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	printf("%x to wavebank_w, mask %04x\n", data, mem_mask);
+
+	// banks are fairly clearly 8MB, so there's 3 of them in the 24 MB of RAM.
+	// the games load up the full 24MB of RAM 8 MB at a time, first to bank 1,
+	// then to bank 2, and finally to bank 3.
+	//
+	// neither the 68k nor DMA access wave RAM when the bank is 0.
+	m_wave_bank = data * (4*1024*1024);
+}
+
+uint16_t firebeat_state::firebeat_waveram_r(offs_t offset)
+{
+	return m_waveram[offset+m_wave_bank];
+}
+
+void firebeat_state::firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	COMBINE_DATA(&m_waveram[offset+m_wave_bank]);
 }
 
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_interrupt)
 {
 	m_audiocpu->set_input_line(INPUT_LINE_IRQ6, state);
+}
+
+
+WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
+{
+	printf("%s: spu_ata_dmarq: %d -> %d\n", machine().describe_context().c_str(), m_spu_ata_dmarq, state);
+
+	if (m_spu_ata_dmarq != state)
+	{
+		m_spu_ata_dmarq = state;
+
+		if (m_spu_ata_dmarq)
+		{
+			m_spuata->write_dmack(ASSERT_LINE);
+
+			while (m_spu_ata_dmarq) {
+				uint16_t data = m_spuata->read_dma();
+				// printf("%d spu_ata_dmarq %08x %04x: %08x\n", m_spu_ata_dmarq, m_spu_ata_dma * 2, data, (m_wave_bank+m_spu_ata_dma) * 2);
+				m_waveram[m_wave_bank+m_spu_ata_dma] = data; //(data >> 8) | (data << 8);
+				m_spu_ata_dma++;
+
+				if ((m_spu_ata_dma - m_spu_ata_dma_base) >= 0x00010000) {
+					break;
+				}
+			}
+
+			m_spuata->write_dmack(CLEAR_LINE);
+		}
+	}
 }
 
 TIMER_DEVICE_CALLBACK_MEMBER(firebeat_state::spu_timer_callback)
@@ -841,6 +923,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
 	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
+	//map(0x7d000500, 0x7d000501).w(...); // Exception?
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
 	map(0x7d800000, 0x7d9fffff).rw("flash_snd1", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
@@ -870,16 +953,17 @@ void firebeat_state::spu_map(address_map &map)
 {
 	map(0x000000, 0x07ffff).rom();
 	map(0x100000, 0x13ffff).ram();
-	map(0x200000, 0x200001).r(FUNC(firebeat_state::spu_unk_r));
+	map(0x200000, 0x200001).portr("SPU_DSW");
 	map(0x220000, 0x220001).w(FUNC(firebeat_state::spu_220000_w));
 	map(0x230000, 0x230001).w(FUNC(firebeat_state::spu_irq_ack_w));
-	map(0x260000, 0x260001).w(FUNC(firebeat_state::spu_sdram_bank_w));
+	map(0x240000, 0x240003).w(FUNC(firebeat_state::spu_ata_dma_low_w)).nopr();
+	map(0x250000, 0x250003).w(FUNC(firebeat_state::spu_ata_dma_high_w)).nopr();
+	map(0x260000, 0x260001).w(FUNC(firebeat_state::spu_wavebank_w)).nopr();
 	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
 	map(0x300000, 0x30000f).rw(m_spuata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x340000, 0x34000f).rw(m_spuata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
-	map(0x400000, 0x400fff).rw("rf5c400", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
-	map(0x800000, 0x83ffff).ram();         // SDRAM
-	map(0xfc0000, 0xffffff).ram();         // SDRAM
+	map(0x400000, 0x7fffff).rw("rfsnd", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
+	map(0x800000, 0xffffff).rw(FUNC(firebeat_state::firebeat_waveram_r), FUNC(firebeat_state::firebeat_waveram_w));
 }
 
 void firebeat_state::ymz280b_map(address_map &map)
@@ -895,7 +979,22 @@ WRITE_LINE_MEMBER(firebeat_state::sound_irq_callback)
 {
 }
 
+
+static INPUT_PORTS_START( firebeat )
+	PORT_START("SPU_DSW")
+	PORT_DIPUNKNOWN_DIPLOC( 0x01, IP_ACTIVE_LOW, "SPU DSW:1" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x02, IP_ACTIVE_LOW, "SPU DSW:2" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x04, IP_ACTIVE_LOW, "SPU DSW:3" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x08, IP_ACTIVE_LOW, "SPU DSW:4" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x10, IP_ACTIVE_LOW, "SPU DSW:5" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x20, IP_ACTIVE_LOW, "SPU DSW:6" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x40, IP_ACTIVE_LOW, "SPU DSW:7" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "SPU DSW:8" )
+INPUT_PORTS_END
+
 static INPUT_PORTS_START(ppp)
+	PORT_INCLUDE( firebeat )
+
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Left
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON2 )            // Right
@@ -929,6 +1028,8 @@ static INPUT_PORTS_START(ppp)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(kbm)
+	PORT_INCLUDE( firebeat )
+
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1 )             // Start P1
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_START2 )             // Start P2
@@ -1006,6 +1107,8 @@ static INPUT_PORTS_START(kbm)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(popn)
+	PORT_INCLUDE( firebeat )
+
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Switch 1
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON2 )            // Switch 2
@@ -1210,6 +1313,8 @@ void firebeat_state::firebeat_spu(machine_config &config)
 
 	M68000(config, m_audiocpu, 16000000);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &firebeat_state::spu_map);
+	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq1_line_assert), attotime::from_hz(60));
+	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(60));
 
 	CY7C131(config, m_dpram);
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
@@ -1217,12 +1322,19 @@ void firebeat_state::firebeat_spu(machine_config &config)
 
 	TIMER(config, "sputimer").configure_periodic(FUNC(firebeat_state::spu_timer_callback), attotime::from_hz(1000));
 
-	rf5c400_device &rf5c400(RF5C400(config, "rf5c400", XTAL(16'934'400)));
+	rf5c400_device &rf5c400(RF5C400(config, "rfsnd", XTAL(16'934'400)));
+	rf5c400.set_addrmap(0, &firebeat_state::rf5c400_map);
 	rf5c400.add_route(0, "lspeaker", 1.0);
 	rf5c400.add_route(1, "rspeaker", 1.0);
 
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
+	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
+}
+
+void firebeat_state::rf5c400_map(address_map &map)
+{
+	map(0x0000000, 0x1ffffff).ram().share("rfsnd");
 }
 
 /*****************************************************************************/
@@ -1559,7 +1671,7 @@ ROM_START( popn6 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqa16jaa01", 0, SHA1(7a7e475d06c74a273f821fdfde0743b33d566e4c) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:cdrom:image" ) // data DVD-ROM
 	DISK_IMAGE( "gqa16jaa02", 0, SHA1(e39067300e9440ff19cb98c1abc234fa3d5b26d1) )
 ROM_END
 
