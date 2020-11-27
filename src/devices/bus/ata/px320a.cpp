@@ -24,7 +24,7 @@ void px320a_device::device_start()
 }
 
 
-u16 px320a_device::read_dma()
+u32 px320a_device::read_dma()
 {
 	return 0;
 }

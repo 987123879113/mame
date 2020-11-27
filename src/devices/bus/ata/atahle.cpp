@@ -206,6 +206,7 @@ void ata_hle_device::process_command()
 		start_busy(MINIMUM_COMMAND_TIME, PARAM_COMMAND);
 		break;
 
+    case IDE_COMMAND_STANDBY:
     case IDE_COMMAND_IDLE:
 		/* signal an interrupt */
 		set_irq(ASSERT_LINE);
@@ -549,9 +550,9 @@ WRITE_LINE_MEMBER( ata_hle_device::write_pdiag )
 	}
 }
 
-uint16_t ata_hle_device::read_dma()
+uint32_t ata_hle_device::read_dma()
 {
-	uint16_t result = 0xffff;
+	uint32_t result = 0xffffffff;
 
 	if (device_selected())
 	{

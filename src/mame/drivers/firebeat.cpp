@@ -881,14 +881,15 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 			m_spuata->write_dmack(ASSERT_LINE);
 
 			while (m_spu_ata_dmarq) {
-				uint16_t data = m_spuata->read_dma();
-				// printf("%d spu_ata_dmarq %08x %04x: %08x\n", m_spu_ata_dmarq, m_spu_ata_dma * 2, data, (m_wave_bank+m_spu_ata_dma) * 2);
-				m_waveram[m_wave_bank+m_spu_ata_dma] = data; //(data >> 8) | (data << 8);
-				m_spu_ata_dma++;
+				uint32_t data = m_spuata->read_dma();
 
-				if ((m_spu_ata_dma - m_spu_ata_dma_base) >= 0x00010000) {
+				if (data > 0xffff) {
+					// printf("%d spu_ata_dmarq %08x %04x: %08x\n", m_spu_ata_dmarq, m_spu_ata_dma * 2, data, (m_wave_bank+m_spu_ata_dma) * 2);
 					break;
 				}
+
+				m_waveram[m_wave_bank+m_spu_ata_dma] = data; //(data >> 8) | (data << 8);
+				m_spu_ata_dma++;
 			}
 
 			m_spuata->write_dmack(CLEAR_LINE);
