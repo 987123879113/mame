@@ -26,10 +26,10 @@ void atapi_hle_device::process_buffer()
 {
 	if (m_packet)
 	{
-		printf( "atapi command %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
-		   m_buffer[0],m_buffer[1],m_buffer[2],m_buffer[3],
-		   m_buffer[4],m_buffer[5],m_buffer[6],m_buffer[7],
-		   m_buffer[8],m_buffer[9],m_buffer[10],m_buffer[11]);
+		//printf( "atapi command %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+		//    m_buffer[0],m_buffer[1],m_buffer[2],m_buffer[3],
+		//    m_buffer[4],m_buffer[5],m_buffer[6],m_buffer[7],
+		//    m_buffer[8],m_buffer[9],m_buffer[10],m_buffer[11]);
 
 		m_error = 0; // HACK: This might not be the right place, but firebeat needs this cleared at some point
 
@@ -44,7 +44,7 @@ void atapi_hle_device::process_buffer()
 		if (m_buffer_size == 0xffff)
 			m_buffer_size = 0xfffe;
 
-		printf("atapi result %08x %08x\n", m_data_size, m_buffer_size);
+		//printf("atapi result %08x %08x\n", m_data_size, m_buffer_size);
 
 		if (m_buffer_size > ATAPI_BUFFER_LENGTH || m_buffer_size == 0)
 			m_buffer_size = ATAPI_BUFFER_LENGTH;
@@ -94,8 +94,6 @@ void atapi_hle_device::fill_buffer()
 	switch (m_command)
 	{
 	case IDE_COMMAND_PACKET:
-		// printf("fill_buffer: %08x %08x\n", m_buffer_size, m_data_size);
-
 		if (m_buffer_size >= m_data_size)
 		{
 			m_buffer_size = m_data_size;
