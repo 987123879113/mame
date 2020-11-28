@@ -416,11 +416,11 @@ int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rect
 
 void k057714_device::draw_object(uint32_t *cmd)
 {
-	// 0x00: xxx----- -------- -------- --------   command (5)
+	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   object data address in vram
+	// 0x00: ----xx-- -------- -------- --------   ?
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
-	// 0x00: ----xx-- -------- -------- --------   ?
-	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   object data address in vram
+	// 0x00: xxx----- -------- -------- --------   command (5)
 
 	// 0x01: -------- -------- ------xx xxxxxxxx   object x
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
@@ -432,15 +432,15 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	// 0x02: -------- -------- ------xx xxxxxxxx   object width
 	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
-	// 0x02: xxxxx--- -------- -------- --------   ?
+	// 0x02: -------- --xxx--- -------- --------   transparency max (front)
 	// 0x02: -----xxx xx------ -------- --------   translucency
-	// 0x02: -------- --xxx--- -------- --------   ?
+	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
 	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
-	// 0x03: xxxxx--- -------- -------- --------   ?
+	// 0x03: -------- --xxx--- -------- --------   transparency max value (source, background)
 	// 0x03: -----xxx xx------ -------- --------   ?
-	// 0x03: -------- --xxx--- -------- --------   ?
+	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
 
 	int x = cmd[1] & 0x3ff;
 	int y = (cmd[1] >> 10) & 0x3fff;
@@ -453,7 +453,10 @@ void k057714_device::draw_object(uint32_t *cmd)
 	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
 	uint32_t address = cmd[0] & 0xffffff;
-	int alpha_level = (cmd[2] >> 22) & 0x1f;
+	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
+	int alpha_level2_max = (cmd[3] >> 22) & 0x1f;
+	int alpha_level = (cmd[2] >> 27) & 0x1f;
+	int alpha_level_max = (cmd[2] >> 22) & 0x1f;
 	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
@@ -534,9 +537,18 @@ void k057714_device::draw_object(uint32_t *cmd)
 						uint32_t g = (pix >>  5) & 0x1f;
 						uint32_t b = (pix >>  0) & 0x1f;
 
-						sr += (r * alpha_level) >> 4;
-						sg += (g * alpha_level) >> 4;
-						sb += (b * alpha_level) >> 4;
+						if (alpha_level_max == 0 || alpha_level2_max == 0) {
+							// This is probably wrong
+							// It seems to be an additive blend from what I can tell
+							int alpha_max = alpha_level2 + alpha_level;
+							sr += (uint32_t)(r * (alpha_level / (float)alpha_max));
+							sg += (uint32_t)(g * (alpha_level / (float)alpha_max));
+							sb += (uint32_t)(b * (alpha_level / (float)alpha_max));
+						} else {
+							sr = (uint32_t)(sr * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(r * (alpha_level / (float)alpha_level_max));
+							sg = (uint32_t)(sg * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(g * (alpha_level / (float)alpha_level_max));
+							sb = (uint32_t)(sb * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(b * (alpha_level / (float)alpha_level_max));
+						}
 
 						if (sr > 0x1f) sr = 0x1f;
 						if (sg > 0x1f) sg = 0x1f;
