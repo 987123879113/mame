@@ -25,8 +25,8 @@ void k057714_device::device_start()
 {
 	m_irq.resolve_safe();
 
-	m_vram = std::make_unique<uint32_t[]>(0x2000000/4);
-	memset(m_vram.get(), 0, 0x2000000);
+	m_vram = std::make_unique<uint32_t[]>(0x4000000/4);
+	memset(m_vram.get(), 0, 0x4000000);
 }
 
 void k057714_device::device_reset()
