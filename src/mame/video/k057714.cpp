@@ -443,7 +443,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
 
 	int x = cmd[1] & 0x3ff;
-	int y = (cmd[1] >> 10) & 0x3ff;
+	int y = (cmd[1] >> 10) & 0x3fff;
 	int width = (cmd[2] & 0x3ff) + 1;
 	int height = (cmd[3] & 0x3ff)  + 1;
 	int xscale = (cmd[2] >> 10) & 0x1ff;
@@ -520,49 +520,52 @@ void k057714_device::draw_object(uint32_t *cmd)
 		int u = 0;
 		for (int i=0; i < width; i++)
 		{
-			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
-			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
-			if (alpha_enable)
-			{
-				if (draw)
+			if (fbaddr <= 0x1000000) {
+				uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)) & 0xffffff];
+				bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
+				if (alpha_enable)
 				{
-					if ((pix & 0x7fff) != 0)
+					if (draw)
 					{
-						uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
+						if ((pix & 0x7fff) != 0)
+						{
+							uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
 
-						uint32_t sr = (srcpix >> 10) & 0x1f;
-						uint32_t sg = (srcpix >>  5) & 0x1f;
-						uint32_t sb = (srcpix >>  0) & 0x1f;
-						uint32_t r = (pix >> 10) & 0x1f;
-						uint32_t g = (pix >>  5) & 0x1f;
-						uint32_t b = (pix >>  0) & 0x1f;
+							uint32_t sr = (srcpix >> 10) & 0x1f;
+							uint32_t sg = (srcpix >> 5) & 0x1f;
+							uint32_t sb = (srcpix >> 0) & 0x1f;
+							uint32_t r = (pix >> 10) & 0x1f;
+							uint32_t g = (pix >> 5) & 0x1f;
+							uint32_t b = (pix >> 0) & 0x1f;
 
-						if (alpha_level_max == 0 || alpha_level2_max == 0) {
-							// This is probably wrong
-							// It seems to be an additive blend from what I can tell
-							int alpha_max = alpha_level2 + alpha_level;
-							sr += (uint32_t)(r * (alpha_level / (float)alpha_max));
-							sg += (uint32_t)(g * (alpha_level / (float)alpha_max));
-							sb += (uint32_t)(b * (alpha_level / (float)alpha_max));
-						} else {
-							sr = (uint32_t)(sr * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(r * (alpha_level / (float)alpha_level_max));
-							sg = (uint32_t)(sg * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(g * (alpha_level / (float)alpha_level_max));
-							sb = (uint32_t)(sb * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(b * (alpha_level / (float)alpha_level_max));
+							if (alpha_level_max == 0 || alpha_level2_max == 0) {
+								// This is probably wrong
+								// It seems to be an additive blend from what I can tell
+								int alpha_max = alpha_level2 + alpha_level;
+								sr += (uint32_t)(r * (alpha_level / (float)alpha_max));
+								sg += (uint32_t)(g * (alpha_level / (float)alpha_max));
+								sb += (uint32_t)(b * (alpha_level / (float)alpha_max));
+							}
+							else {
+								sr = (uint32_t)(sr * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(r * (alpha_level / (float)alpha_level_max));
+								sg = (uint32_t)(sg * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(g * (alpha_level / (float)alpha_level_max));
+								sb = (uint32_t)(sb * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(b * (alpha_level / (float)alpha_level_max));
+							}
+
+							if (sr > 0x1f) sr = 0x1f;
+							if (sg > 0x1f) sg = 0x1f;
+							if (sb > 0x1f) sb = 0x1f;
+
+							vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
 						}
-
-						if (sr > 0x1f) sr = 0x1f;
-						if (sg > 0x1f) sg = 0x1f;
-						if (sb > 0x1f) sb = 0x1f;
-
-						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
 					}
 				}
-			}
-			else
-			{
-				if (draw)
+				else
 				{
-					vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (pix & 0xffff);
+					if (draw)
+					{
+						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)] = (pix & 0xffff);
+					}
 				}
 			}
 
