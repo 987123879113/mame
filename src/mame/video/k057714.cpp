@@ -25,8 +25,8 @@ void k057714_device::device_start()
 {
 	m_irq.resolve_safe();
 
-	m_vram = std::make_unique<uint32_t[]>(0x4000000/4);
-	memset(m_vram.get(), 0, 0x4000000);
+	m_vram = std::make_unique<uint32_t[]>(0x2000000/4);
+	memset(m_vram.get(), 0, 0x2000000);
 }
 
 void k057714_device::device_reset()
@@ -443,7 +443,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
 
 	int x = cmd[1] & 0x3ff;
-	int y = (cmd[1] >> 10) & 0x3fff;
+	int y = (cmd[1] >> 10) & 0x3ff;
 	int width = (cmd[2] & 0x3ff) + 1;
 	int height = (cmd[3] & 0x3ff)  + 1;
 	int xscale = (cmd[2] >> 10) & 0x1ff;
