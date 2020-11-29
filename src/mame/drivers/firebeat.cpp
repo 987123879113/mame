@@ -94,12 +94,13 @@
     GQ977      GQA11          2000    Para Para Paradise 1st Mix+
     GQA02(?)   GQ986          2000    Pop'n Music 4
     ???        G?A04          2000    Pop'n Music 5
+    ???        GQ976          2000    Pop'n Music Mickey Tunes
+    ???        GQ976          2000    Pop'n Music Mickey Tunes!
     ???        GQA16          2001    Pop'n Music 6
     GQA02      GCB00          2001    Pop'n Music 7
     ???        GQB30          2002    Pop'n Music 8
-    ???        ?              2000    Pop'n Music Animelo
+    ???        GQ987          2000    Pop'n Music Animelo
     ???        GEA02          2001    Pop'n Music Animelo 2
-    ???        ?              2001    Pop'n Music Mickey Tunes
 
 Dumpable pieces missing
 -----------------------
@@ -222,8 +223,7 @@ private:
 	uint8_t m_extend_board_irq_active;
 //  emu_timer *m_keyboard_timer;
 	int m_layer;
-	int m_cab_data_ptr;
-	const int * m_cur_cab_data;
+	int * m_cur_cab_data;
 //  int m_keyboard_state[2];
 	IBUTTON m_ibutton;
 	int m_ibutton_state;
@@ -254,6 +254,7 @@ private:
 //  uint32_t comm_uart_r(offs_t offset, uint32_t mem_mask = ~ 0);
 //  void comm_uart_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t cabinet_r(offs_t offset, uint32_t mem_mask = ~0);
+	void cabinet_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t keyboard_wheel_r(offs_t offset);
 	uint8_t midi_uart_r(offs_t offset);
 	void midi_uart_w(offs_t offset, uint8_t data);
@@ -464,29 +465,54 @@ static void comm_uart_irq_callback(running_machine &machine, int channel, int va
 
 /*****************************************************************************/
 
-static const int cab_data[2] = { 0x0, 0x8 };
-static const int kbm_cab_data[2] = { 0x2, 0x8 };
-static const int ppd_cab_data[2] = { 0x1, 0x9 };
+
+
+static int cab_data[3] = { 0, 0, 0 };
+static int kbm_cab_data[3] = { 2, 0, 0 };
+static int ppd_cab_data[3] = { 1, 0, 0 };
 
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
-	uint32_t r = 0;
-
-//  printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
+	printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
 
 	switch (offset)
 	{
 		case 0:
 		{
-			r = m_cur_cab_data[m_cab_data_ptr & 1] << 28;
-			m_cab_data_ptr++;
-			return r;
+			// Based on pop'n music's code
+			// m_cur_cab_data:
+			//     0x00: -------x Cabinet Region (0 = Japanese, 1 = Overseas)
+			//     0x00: -----xx- Rental?
+			// pop'n music Mickey Tunes refers to as the "CPLD", giving an error "CPLD checked NG" or "CPLD checked OK" if it matches the dongle
+			// For Mickey Tunes, the 4th byte of the dongle serial determines the cabinet type
+			return m_cur_cab_data[0] << 4;
 		}
-		case 2:     return 0x00000000;
-		case 4:     return 0x00000000;
+
+		case 2:
+			return m_cur_cab_data[1];
+
+		case 4:
+			return m_cur_cab_data[2];
 	}
 
 	return 0;
+}
+
+void firebeat_state::cabinet_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	printf("cabinet_w: %08X, %08x, %08X\n", offset, data, mem_mask);
+
+	switch (offset)
+	{
+	case 0:
+		m_cur_cab_data[0] = data & 0xff;
+
+	case 2:
+		m_cur_cab_data[1] = data & 0xff;
+
+	case 4:
+		m_cur_cab_data[2] = data & 0xff;
+	}
 }
 
 /*****************************************************************************/
@@ -921,7 +947,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_state::keyboard_wheel_r));
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
-	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
+	map(0x7d000200, 0x7d00021f).rw(FUNC(firebeat_state::cabinet_r), FUNC(firebeat_state::cabinet_w));
 	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	//map(0x7d000500, 0x7d000501).w(...); // Exception?
@@ -1635,7 +1661,7 @@ ROM_START( popn4 )
 	DISK_IMAGE_READONLY( "gq986jaa01", 0, SHA1(e5368ac029b0bdf29943ae66677b5521ae1176e1) )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE( "gq986jaa02", 0, SHA1(53367d3d5f91422fe386c42716492a0ae4332390) )
+	DISK_IMAGE( "gq986jaa02", 0, BAD_DUMP )
 ROM_END
 
 ROM_START( popn5 )
@@ -1654,7 +1680,47 @@ ROM_START( popn5 )
 	DISK_IMAGE_READONLY( "a04jaa01", 0, SHA1(87136ddad1d786b4d5f04381fcbf679ab666e6c9) )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "a04jaa02", 0, SHA1(49a017dde76f84829f6e99a678524c40665c3bfd) )
+	DISK_IMAGE_READONLY( "a04jaa02", 0, BAD_DUMP )
+ROM_END
+
+ROM_START( popnmt )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP( "a02jaa03.21e", 0x000000, 0x080000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599) )
+
+	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD("gq976-ja.bin", 0x00, 0xc0, CRC(f03cae1f) SHA1(2307952b383bab541d967a80ca17e5a11c9cf3db) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP( "a02jaa04.3q",  0x000000, 0x080000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683) )
+
+	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "976jaa01", 0, NO_DUMP )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, NO_DUMP )
+ROM_END
+
+
+ROM_START( popnmt2 )
+	// This is an updated version of popnmt released a few months later which has NET@MANIA
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP( "a02jaa03.21e", 0x000000, 0x080000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599) )
+
+	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD("gq976-ja.bin", 0x00, 0xc0, CRC(f03cae1f) SHA1(2307952b383bab541d967a80ca17e5a11c9cf3db) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP( "a02jaa04.3q",  0x000000, 0x080000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683) )
+
+	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "976jba01", 0, NO_DUMP )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, NO_DUMP )
 ROM_END
 
 ROM_START( popn6 )
@@ -1672,8 +1738,8 @@ ROM_START( popn6 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqa16jaa01", 0, SHA1(7a7e475d06c74a273f821fdfde0743b33d566e4c) )
 
-	DISK_REGION( "spu_ata:0:cdrom:image" ) // data DVD-ROM
-	DISK_IMAGE( "gqa16jaa02", 0, SHA1(e39067300e9440ff19cb98c1abc234fa3d5b26d1) )
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE( "gqa16jaa02", 0, BAD_DUMP )
 ROM_END
 
 ROM_START( popn7 )
@@ -1692,7 +1758,7 @@ ROM_START( popn7 )
 	DISK_IMAGE_READONLY( "b00jab01", 0, SHA1(259c733ca4d30281205b46b7bf8d60c9d01aa818) )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "b00jaa02", 0, SHA1(c8ce2f8ee6aeeedef9c110a59e68fcec7b669ad6) )
+	DISK_IMAGE_READONLY( "b00jaa02", 0, BAD_DUMP )
 ROM_END
 
 ROM_START( popn8 )
@@ -1711,7 +1777,26 @@ ROM_START( popn8 )
 	DISK_IMAGE_READONLY( "gqb30jaa01", 0, SHA1(0ff3e40e3717ce23337b3a2438bdaca01cba9e30) )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "gqb30jaa02", 0, SHA1(f067d502c23efe0267aada5706f5bc7a54605942) )
+	DISK_IMAGE_READONLY( "gqb30jaa02", 0, BAD_DUMP )
+ROM_END
+
+ROM_START( popnanm )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
+
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD( "gq987-ja.bin", 0x000000, 0x0000c0, CRC(072f8624) SHA1(e869b85a891bf7f9c870fb581a9a2ddd70810e2c) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+
+	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa01", 0, NO_DUMP )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa02", 0, NO_DUMP )
 ROM_END
 
 ROM_START( popnanm2 )
@@ -1730,7 +1815,7 @@ ROM_START( popnanm2 )
 	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "gea02jaa02", 0, SHA1(7212e399779f37a5dcb8317a8f635a3b3f620aa9) )
+	DISK_IMAGE_READONLY( "gea02jaa02", 0, BAD_DUMP )
 ROM_END
 
 ROM_START( ppd )
@@ -1849,6 +1934,9 @@ GAMEL( 2000, kbm2nd,   0,   firebeat2,    kbm,  firebeat_state, init_kbm, ROT270
 GAMEL( 2001, kbm3rd,   0,   firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 3rd Mix", MACHINE_NOT_WORKING, layout_firebeat)
 GAME(  2000, popn4,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 4", MACHINE_NOT_WORKING)
 GAME(  2000, popn5,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 5", MACHINE_NOT_WORKING)
+GAME(  2000, popnmt,   0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music Mickey Tunes", MACHINE_NOT_WORKING)
+GAME(  2000, popnmt2,  0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music Mickey Tunes!", MACHINE_NOT_WORKING)
+GAME(  2000, popnanm,  0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music Animelo", MACHINE_NOT_WORKING)
 GAME(  2001, popn6,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 6", MACHINE_NOT_WORKING)
 GAME(  2001, popn7,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 7", MACHINE_NOT_WORKING)
 GAME(  2001, popnanm2, 0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
