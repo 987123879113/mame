@@ -432,14 +432,14 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	// 0x02: -------- -------- ------xx xxxxxxxx   object width
 	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
-	// 0x02: -------- --xxx--- -------- --------   transparency max (front)
-	// 0x02: -----xxx xx------ -------- --------   translucency
+	// 0x02: -------- --xxx--- -------- --------   translucency
+	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
 	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
 	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
-	// 0x03: -------- --xxx--- -------- --------   transparency max value (source, background)
-	// 0x03: -----xxx xx------ -------- --------   ?
+	// 0x03: -------- --xxx--- -------- --------   ?
+	// 0x03: -----xxx xx------ -------- --------   transparency max value (source, background)
 	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
 
 	int x = cmd[1] & 0x3ff;
