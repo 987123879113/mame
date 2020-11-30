@@ -538,19 +538,17 @@ void k057714_device::draw_object(uint32_t *cmd)
 							uint32_t g = (pix >> 5) & 0x1f;
 							uint32_t b = (pix >> 0) & 0x1f;
 
-							if (alpha_level_max == 0 || alpha_level2_max == 0) {
-								// This is probably wrong
-								// It seems to be an additive blend from what I can tell
-								int alpha_max = alpha_level2 + alpha_level;
-								sr += (uint32_t)(r * (alpha_level / (float)alpha_max));
-								sg += (uint32_t)(g * (alpha_level / (float)alpha_max));
-								sb += (uint32_t)(b * (alpha_level / (float)alpha_max));
-							}
-							else {
-								sr = (uint32_t)(sr * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(r * (alpha_level / (float)alpha_level_max));
-								sg = (uint32_t)(sg * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(g * (alpha_level / (float)alpha_level_max));
-								sb = (uint32_t)(sb * ((alpha_level2 / (float)alpha_level2_max))) + (uint32_t)(b * (alpha_level / (float)alpha_level_max));
-							}
+							uint32_t nsr = (uint32_t)(sr * ((alpha_level2 / (float)16.0f)));
+							uint32_t nsg = (uint32_t)(sg * ((alpha_level2 / (float)16.0f)));
+							uint32_t nsb = (uint32_t)(sb * ((alpha_level2 / (float)16.0f)));
+
+							uint32_t nr = (uint32_t)(r * (alpha_level / (float)16.0f));
+							uint32_t ng = (uint32_t)(g * (alpha_level / (float)16.0f));
+							uint32_t nb = (uint32_t)(b * (alpha_level / (float)16.0f));
+
+							sr = nsr + nr;
+							sg = nsg + ng;
+							sb = nsb + nb;
 
 							if (sr > 0x1f) sr = 0x1f;
 							if (sg > 0x1f) sg = 0x1f;
