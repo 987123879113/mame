@@ -458,7 +458,6 @@ void k057714_device::draw_object(uint32_t *cmd)
 	int alpha_level = (cmd[2] >> 27) & 0x1f;
 	int alpha_level_max = (cmd[2] >> 22) & 0x1f;
 	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
-
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
 
 	if (relative_coords)
@@ -477,6 +476,13 @@ void k057714_device::draw_object(uint32_t *cmd)
 #if PRINT_CMD_EXEC
 	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
 #endif
+
+	if (yflip) {
+		// Animelo 1's logo overlaps without this
+		y -= 1;
+	}
+
+	int orig_height = height;
 
 	width = (((width * 65536) / xscale) * 64) / 65536;
 	height = (((height * 65536) / yscale) * 64) / 65536;
@@ -500,11 +506,11 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 		if (yflip)
 		{
-			index = address + ((height - 1 - (v >> 6)) * 1024);
+			index = address + ((orig_height - 1 - (v >> 6)) * fb_pitch);
 		}
 		else
 		{
-			index = address + ((v >> 6) * 1024);
+			index = address + ((v >> 6) * fb_pitch);
 		}
 
 		if (xflip)
