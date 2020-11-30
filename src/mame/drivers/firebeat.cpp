@@ -320,6 +320,10 @@ uint32_t firebeat_state::input_r(offs_t offset, uint32_t mem_mask)
 	{
 		r |= (ioport("IN0")->read() & 0xff) << 24;
 	}
+	if (ACCESSING_BITS_16_23)
+	{
+		r |= (ioport("FLASH_IN")->read() & 0xff) << 16;
+	}
 	if (ACCESSING_BITS_8_15)
 	{
 		r |= (ioport("IN1")->read() & 0xff) << 8;
@@ -1017,6 +1021,10 @@ static INPUT_PORTS_START( firebeat )
 	PORT_DIPUNKNOWN_DIPLOC( 0x20, IP_ACTIVE_LOW, "SPU DSW:6" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x40, IP_ACTIVE_LOW, "SPU DSW:7" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "SPU DSW:8" )
+
+	PORT_START("FLASH_IN")
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_UNKNOWN)
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_UNKNOWN)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(ppp)
