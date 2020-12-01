@@ -860,19 +860,19 @@ void firebeat_state::spu_ata_dma_low_w(uint16_t data)
 {
 	m_spu_ata_dma = (m_spu_ata_dma & ~0xffff) | data;
 	m_spu_ata_dma_base = m_spu_ata_dma;
-	printf("DMA now %x\n", m_spu_ata_dma);
+	//printf("DMA now %x\n", m_spu_ata_dma);
 }
 
 void firebeat_state::spu_ata_dma_high_w(uint16_t data)
 {
 	m_spu_ata_dma = (m_spu_ata_dma & 0xffff) | ((uint32_t)data << 16);
 	m_spu_ata_dma_base = m_spu_ata_dma;
-	printf("DMA now %x\n", m_spu_ata_dma);
+	//printf("DMA now %x\n", m_spu_ata_dma);
 }
 
 void firebeat_state::spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	printf("%x to wavebank_w, mask %04x\n", data, mem_mask);
+	//printf("%x to wavebank_w, mask %04x\n", data, mem_mask);
 
 	// banks are fairly clearly 8MB, so there's 3 of them in the 24 MB of RAM.
 	// the games load up the full 24MB of RAM 8 MB at a time, first to bank 1,
@@ -900,7 +900,7 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_interrupt)
 
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 {
-	printf("%s: spu_ata_dmarq: %d -> %d\n", machine().describe_context().c_str(), m_spu_ata_dmarq, state);
+	//printf("%s: spu_ata_dmarq: %d -> %d\n", machine().describe_context().c_str(), m_spu_ata_dmarq, state);
 
 	if (m_spu_ata_dmarq != state)
 	{
