@@ -8,7 +8,7 @@
 #include "screen.h"
 
 
-#define DUMP_VRAM 0
+#define DUMP_VRAM 1
 #define PRINT_GCU 0
 #define PRINT_CMD_EXEC 0
 
@@ -443,32 +443,32 @@ void k057714_device::draw_object(uint32_t *cmd)
 	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
 
 	// 0x02: -------- -------- ------xx xxxxxxxx   object width
-	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
+	// 0x02: -------- ----xxxx xxxxxx-- --------   object x scale
 	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
 	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
-	// 0x02: -------- --xxx--- -------- --------   translucency
+	// 0x02: -------- --xx---- -------- --------   ?
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
-	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
+	// 0x03: -------- ----xxxx xxxxxx-- --------   object y scale
 	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
 	// 0x03: -----xxx xx------ -------- --------   transparency max value (source, background)
-	// 0x03: -------- --xxx--- -------- --------   ?
+	// 0x03: -------- --xx---- -------- --------   ?
 
 	int x = cmd[1] & 0x3ff;
 	int y = (cmd[1] >> 10) & 0x3fff;
 	int width = (cmd[2] & 0x3ff) + 1;
 	int height = (cmd[3] & 0x3ff)  + 1;
-	int xscale = (cmd[2] >> 10) & 0x1ff;
-	int yscale = (cmd[3] >> 10) & 0x1ff;
+	int xscale = ((cmd[2] >> 10) & 0x1ff) * (((cmd[2] >> 19) & 1) ? -1 : 1);
+	int yscale = ((cmd[3] >> 10) & 0x1ff) * (((cmd[3] >> 19) & 1) ? -1 : 1);
 	bool xflip = (cmd[1] & 0x04000000) ? true : false;
 	bool yflip = (cmd[1] & 0x08000000) ? true : false;
 	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
 	uint32_t address = cmd[0] & 0xffffff;
 	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
-	int alpha_level2_max = (cmd[3] >> 22) & 0x1f;
+	//int alpha_level2_max = (cmd[3] >> 22) & 0x1f;
 	int alpha_level = (cmd[2] >> 27) & 0x1f;
-	int alpha_level_max = (cmd[2] >> 22) & 0x1f;
+	//int alpha_level_max = (cmd[2] >> 22) & 0x1f;
 	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
 
@@ -480,13 +480,13 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
 
-	if (xscale == 0 || yscale == 0)
+	if (xscale <= 0 || yscale <= 0)
 	{
 		return;
 	}
 
 #if PRINT_CMD_EXEC
-	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X] [(%d, %d) (%d, %d)]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3], alpha_level, alpha_level_max, alpha_level2, alpha_level2_max);
+	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X] [(%d, %d) (%d, %d)]\n", basetag(), address, x, y, width, height, 64.0f / (float)(xscale), 64.0f / (float)(yscale), cmd[0], cmd[1], cmd[2], cmd[3], alpha_level, alpha_level_max, alpha_level2, alpha_level2_max);
 #endif
 
 	if (yflip) {
@@ -496,8 +496,8 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	int orig_height = height;
 
-	width = (((width * 65536) / xscale) * 64) / 65536;
-	height = (((height * 65536) / yscale) * 64) / 65536;
+	width = (((width * 512) / xscale) * 64) / 512;
+	height = (((height * 512) / yscale) * 64) / 512;
 
 	int fb_width = m_frame[0].width;
 	int fb_height = m_frame[0].height;
