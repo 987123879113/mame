@@ -519,35 +519,32 @@ void k057714_device::draw_object(uint32_t *cmd)
 				{
 					if (draw)
 					{
-						if ((pix & 0x7fff) != 0)
-						{
-							uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
+						uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
 
-							uint32_t sr = (srcpix >> 10) & 0x1f;
-							uint32_t sg = (srcpix >> 5) & 0x1f;
-							uint32_t sb = (srcpix >> 0) & 0x1f;
-							uint32_t r = (pix >> 10) & 0x1f;
-							uint32_t g = (pix >> 5) & 0x1f;
-							uint32_t b = (pix >> 0) & 0x1f;
+						uint32_t sr = (srcpix >> 10) & 0x1f;
+						uint32_t sg = (srcpix >> 5) & 0x1f;
+						uint32_t sb = (srcpix >> 0) & 0x1f;
+						uint32_t r = (pix >> 10) & 0x1f;
+						uint32_t g = (pix >> 5) & 0x1f;
+						uint32_t b = (pix >> 0) & 0x1f;
 
-							uint32_t nsr = (uint32_t)(sr * ((alpha_level2 / (float)16.0f)));
-							uint32_t nsg = (uint32_t)(sg * ((alpha_level2 / (float)16.0f)));
-							uint32_t nsb = (uint32_t)(sb * ((alpha_level2 / (float)16.0f)));
+						uint32_t nsr = (uint32_t)(sr * ((alpha_level2 / (float)16.0f)));
+						uint32_t nsg = (uint32_t)(sg * ((alpha_level2 / (float)16.0f)));
+						uint32_t nsb = (uint32_t)(sb * ((alpha_level2 / (float)16.0f)));
 
-							uint32_t nr = (uint32_t)(r * (alpha_level / (float)16.0f));
-							uint32_t ng = (uint32_t)(g * (alpha_level / (float)16.0f));
-							uint32_t nb = (uint32_t)(b * (alpha_level / (float)16.0f));
+						uint32_t nr = (uint32_t)(r * (alpha_level / (float)16.0f));
+						uint32_t ng = (uint32_t)(g * (alpha_level / (float)16.0f));
+						uint32_t nb = (uint32_t)(b * (alpha_level / (float)16.0f));
 
-							sr = nsr + nr;
-							sg = nsg + ng;
-							sb = nsb + nb;
+						sr = nsr + nr;
+						sg = nsg + ng;
+						sb = nsb + nb;
 
-							if (sr > 0x1f) sr = 0x1f;
-							if (sg > 0x1f) sg = 0x1f;
-							if (sb > 0x1f) sb = 0x1f;
+						if (sr > 0x1f) sr = 0x1f;
+						if (sg > 0x1f) sg = 0x1f;
+						if (sb > 0x1f) sb = 0x1f;
 
-							vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
-						}
+						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
 					}
 				}
 				else
