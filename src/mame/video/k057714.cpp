@@ -460,7 +460,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 	}
 
 #if PRINT_CMD_EXEC
-	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
+	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X] [(%d, %d) (%d, %d)]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3], alpha_level, alpha_level_max, alpha_level2, alpha_level2_max);
 #endif
 
 	if (yflip) {
