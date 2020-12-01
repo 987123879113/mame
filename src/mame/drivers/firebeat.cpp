@@ -1256,8 +1256,8 @@ void firebeat_state::firebeat(machine_config &config)
 	ymz280b_device &ymz(YMZ280B(config, "ymz", 16934400));
 	ymz.irq_handler().set(FUNC(firebeat_state::sound_irq_callback));
 	ymz.set_addrmap(0, &firebeat_state::ymz280b_map);
-	ymz.add_route(0, "lspeaker", 1.0);
-	ymz.add_route(1, "rspeaker", 1.0);
+	ymz.add_route(0, "rspeaker", 1.0);
+	ymz.add_route(1, "lspeaker", 1.0);
 
 	PC16552D(config, "duart_com", 0);  // pgmd to 9600baud
 	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
@@ -1323,8 +1323,8 @@ void firebeat_state::firebeat2(machine_config &config)
 	ymz280b_device &ymz(YMZ280B(config, "ymz", 16934400));
 	ymz.irq_handler().set(FUNC(firebeat_state::sound_irq_callback));
 	ymz.set_addrmap(0, &firebeat_state::ymz280b_map);
-	ymz.add_route(0, "lspeaker", 1.0);
-	ymz.add_route(1, "rspeaker", 1.0);
+	ymz.add_route(0, "rspeaker", 1.0);
+	ymz.add_route(1, "lspeaker", 1.0);
 
 	PC16552D(config, "duart_com", 0);
 	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
@@ -1337,6 +1337,11 @@ void firebeat_state::firebeat2(machine_config &config)
 
 	MIDI_KBD(config, m_kbd[0], 31250).tx_callback().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
 	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
+
+	rf5c400_device& rf5c400(RF5C400(config, "rfsnd", XTAL(16'934'400)));
+	rf5c400.set_addrmap(0, &firebeat_state::rf5c400_map);
+	rf5c400.add_route(0, "lspeaker", 1.0);
+	rf5c400.add_route(1, "rspeaker", 1.0);
 }
 
 void firebeat_state::firebeat_spu(machine_config &config)
