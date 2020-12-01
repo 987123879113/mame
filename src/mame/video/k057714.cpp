@@ -402,11 +402,11 @@ int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rect
 
 void k057714_device::draw_object(uint32_t *cmd)
 {
-	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   object data address in vram
-	// 0x00: ----xx-- -------- -------- --------   ?
+	// 0x00: xxx----- -------- -------- --------   command (5)
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
-	// 0x00: xxx----- -------- -------- --------   command (5)
+	// 0x00: ----xx-- -------- -------- --------   ?
+	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   object data address in vram
 
 	// 0x01: -------- -------- ------xx xxxxxxxx   object x
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
@@ -418,15 +418,15 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	// 0x02: -------- -------- ------xx xxxxxxxx   object width
 	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
-	// 0x02: -------- --xxx--- -------- --------   translucency
-	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
 	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
+	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
+	// 0x02: -------- --xxx--- -------- --------   translucency
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
 	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
-	// 0x03: -------- --xxx--- -------- --------   ?
-	// 0x03: -----xxx xx------ -------- --------   transparency max value (source, background)
 	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
+	// 0x03: -----xxx xx------ -------- --------   transparency max value (source, background)
+	// 0x03: -------- --xxx--- -------- --------   ?
 
 	int x = cmd[1] & 0x3ff;
 	int y = (cmd[1] >> 10) & 0x3fff;
@@ -519,39 +519,35 @@ void k057714_device::draw_object(uint32_t *cmd)
 				{
 					if (draw)
 					{
-						uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
+						uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
 
 						uint32_t sr = (srcpix >> 10) & 0x1f;
-						uint32_t sg = (srcpix >> 5) & 0x1f;
-						uint32_t sb = (srcpix >> 0) & 0x1f;
+						uint32_t sg = (srcpix >>  5) & 0x1f;
+						uint32_t sb = (srcpix >>  0) & 0x1f;
 						uint32_t r = (pix >> 10) & 0x1f;
-						uint32_t g = (pix >> 5) & 0x1f;
-						uint32_t b = (pix >> 0) & 0x1f;
+						uint32_t g = (pix >>  5) & 0x1f;
+						uint32_t b = (pix >>  0) & 0x1f;
 
-						uint32_t nsr = (uint32_t)(sr * ((alpha_level2 / (float)16.0f)));
-						uint32_t nsg = (uint32_t)(sg * ((alpha_level2 / (float)16.0f)));
-						uint32_t nsb = (uint32_t)(sb * ((alpha_level2 / (float)16.0f)));
+						sr = (sr * alpha_level2) >> 4;
+						sg = (sg * alpha_level2) >> 4;
+						sb = (sb * alpha_level2) >> 4;
 
-						uint32_t nr = (uint32_t)(r * (alpha_level / (float)16.0f));
-						uint32_t ng = (uint32_t)(g * (alpha_level / (float)16.0f));
-						uint32_t nb = (uint32_t)(b * (alpha_level / (float)16.0f));
-
-						sr = nsr + nr;
-						sg = nsg + ng;
-						sb = nsb + nb;
+						sr += (r * alpha_level) >> 4;
+						sg += (g * alpha_level) >> 4;
+						sb += (b * alpha_level) >> 4;
 
 						if (sr > 0x1f) sr = 0x1f;
 						if (sg > 0x1f) sg = 0x1f;
 						if (sb > 0x1f) sb = 0x1f;
 
-						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
+						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
 					}
 				}
 				else
 				{
 					if (draw)
 					{
-						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)] = (pix & 0xffff);
+						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (pix & 0xffff);
 					}
 				}
 			}
