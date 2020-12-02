@@ -8,7 +8,7 @@
 #include "screen.h"
 
 
-#define DUMP_VRAM 1
+#define DUMP_VRAM 0
 #define PRINT_GCU 0
 #define PRINT_CMD_EXEC 0
 
@@ -443,25 +443,27 @@ void k057714_device::draw_object(uint32_t *cmd)
 	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
 
 	// 0x02: -------- -------- ------xx xxxxxxxx   object width
-	// 0x02: -------- ----xxxx xxxxxx-- --------   object x scale
+	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
+	// 0x02: -------- ----x--- -------- --------   object x scale sign
 	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
 	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
 	// 0x02: -------- --xx---- -------- --------   ?
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
-	// 0x03: -------- ----xxxx xxxxxx-- --------   object y scale
+	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
+	// 0x03: -------- ----x--- -------- --------   object y scale sign
 	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
 	// 0x03: -----xxx xx------ -------- --------   transparency max value (source, background)
 	// 0x03: -------- --xx---- -------- --------   ?
 
-	int x = cmd[1] & 0x3ff;
-	int y = (cmd[1] >> 10) & 0x3fff;
-	int width = (cmd[2] & 0x3ff) + 1;
-	int height = (cmd[3] & 0x3ff)  + 1;
-	int xscale = ((cmd[2] >> 10) & 0x1ff) * (((cmd[2] >> 19) & 1) ? -1 : 1);
-	int yscale = ((cmd[3] >> 10) & 0x1ff) * (((cmd[3] >> 19) & 1) ? -1 : 1);
 	bool xflip = (cmd[1] & 0x04000000) ? true : false;
 	bool yflip = (cmd[1] & 0x08000000) ? true : false;
+	int x = (cmd[1] & 0x3ff);
+	int y = ((cmd[1] >> 10) & 0x3fff) - yflip;
+	int width = (cmd[2] & 0x3ff) + 1;
+	int height = (cmd[3] & 0x3ff) + 1;
+	int xscale = ((cmd[2] >> 10) & 0x1ff) * (((cmd[2] >> 19) & 1) ? -1 : 1);
+	int yscale = ((cmd[3] >> 10) & 0x1ff) * (((cmd[3] >> 19) & 1) ? -1 : 1);
 	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
 	uint32_t address = cmd[0] & 0xffffff;
@@ -489,15 +491,11 @@ void k057714_device::draw_object(uint32_t *cmd)
 	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X] [(%d, %d) (%d, %d)]\n", basetag(), address, x, y, width, height, 64.0f / (float)(xscale), 64.0f / (float)(yscale), cmd[0], cmd[1], cmd[2], cmd[3], alpha_level, alpha_level_max, alpha_level2, alpha_level2_max);
 #endif
 
-	if (yflip) {
-		// Animelo 1's logo overlaps without this
-		y -= 1;
-	}
-
 	int orig_height = height;
 
-	width = (((width * 512) / xscale) * 64) / 512;
-	height = (((height * 512) / yscale) * 64) / 512;
+	// Fixes some glitching on Animelo's title screen, visible on the right side before the circle goes off screen
+	width = (int)round(width * (64.0f / (float)xscale));
+	height = (int)round(height * (64.0f / (float)yscale));
 
 	int fb_width = m_frame[0].width;
 	int fb_height = m_frame[0].height;
@@ -510,10 +508,10 @@ void k057714_device::draw_object(uint32_t *cmd)
 	int fb_pitch = 1024;
 
 	int v = 0;
+	int xinc = xflip ? -1 : 1;
 	for (int j=0; j < height; j++)
 	{
 		int index;
-		int xinc;
 		uint32_t fbaddr = ((j+y) * fb_pitch) + x;
 
 		if (yflip)
@@ -527,12 +525,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 		if (xflip)
 		{
-			fbaddr += width;
-			xinc = -1;
-		}
-		else
-		{
-			xinc = 1;
+			fbaddr += width - 1;
 		}
 
 		int u = 0;
