@@ -458,8 +458,8 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	bool xflip = (cmd[1] & 0x04000000) ? true : false;
 	bool yflip = (cmd[1] & 0x08000000) ? true : false;
-	int x = (cmd[1] & 0x3ff);
-	int y = ((cmd[1] >> 10) & 0x3fff) - yflip;
+	int x = cmd[1] & 0x3ff;
+	int y = (cmd[1] >> 10) & 0x3fff;
 	int width = (cmd[2] & 0x3ff) + 1;
 	int height = (cmd[3] & 0x3ff) + 1;
 	int xscale = ((cmd[2] >> 10) & 0x1ff) * (((cmd[2] >> 19) & 1) ? -1 : 1);
