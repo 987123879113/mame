@@ -208,7 +208,7 @@ void rf5c400_device::device_clock_changed()
 void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
 	int i, ch;
-	uint64_t end;//, loop;
+	uint64_t end, loop;
 	uint64_t pos;
 	uint8_t vol, lvol, rvol, type;
 	uint8_t env_phase;
@@ -223,10 +223,10 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
 
-//	    auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+	    auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
 		auto offset = channel->offset;
 		end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
-//		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
+		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
 		pos = channel->pos;
 		vol = channel->volume & 0xFF;
 		lvol = channel->pan & 0xFF;
@@ -316,8 +316,17 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			offset += channel->step;
 			if ((pos>>16) > end)
 			{
-				pos = channel->start_pos;
+				if (loop - end >= start) {
+					pos -= loop << 16;
+					pos &= 0xFFFFFF0000ULL;
+				}
+				else
+				{
+					pos = channel->start_pos;
+				}
+
 				offset = 0;
+
 				break;
 			}
 		}
