@@ -22,7 +22,7 @@ class device_ata_interface : public device_interface
 {
 	friend class abstract_ata_interface_device;
 public:
-	virtual uint32_t read_dma() = 0;
+	virtual uint16_t read_dma() = 0;
 	virtual uint16_t read_cs0(offs_t offset, uint16_t mem_mask = 0xffff) = 0;
 	virtual uint16_t read_cs1(offs_t offset, uint16_t mem_mask = 0xffff) = 0;
 

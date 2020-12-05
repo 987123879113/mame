@@ -36,36 +36,6 @@ void atapi_cdrom_device::device_add_mconfig(machine_config &config)
 	CDDA(config, "cdda");
 }
 
-static void swap_strncpy(uint16_t *dst, const char *src, int field_size_in_words)
-{
-	for (int i = 0; i < field_size_in_words; i++)
-	{
-		uint16_t d;
-
-		if (*src)
-		{
-			d = *(src++) << 8;
-		}
-		else
-		{
-			d = ' ' << 8;
-		}
-
-		if (*src)
-		{
-			d |= *(src++);
-		}
-		else
-		{
-			d |= ' ';
-		}
-
-		dst[i] = d;
-	}
-
-	assert(*(src) == 0);
-}
-
 void atapi_cdrom_device::device_start()
 {
 	m_image = subdevice<cdrom_image_device>("image");
@@ -75,8 +45,31 @@ void atapi_cdrom_device::device_start()
 
 	m_identify_buffer[ 0 ] = 0x8500; // ATAPI device, cmd set 5 compliant, DRQ within 3 ms of PACKET command
 
-	swap_strncpy(&m_identify_buffer[23], "1.0", 4); /* 23-26: firmware revision */
-	swap_strncpy(&m_identify_buffer[27], "MAME Virtual CDROM", 20); /* 27-46: model number */
+	m_identify_buffer[ 23 ] = ('1' << 8) | '.';
+	m_identify_buffer[ 24 ] = ('0' << 8) | ' ';
+	m_identify_buffer[ 25 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 26 ] = (' ' << 8) | ' ';
+
+	m_identify_buffer[ 27 ] = ('M' << 8) | 'A';
+	m_identify_buffer[ 28 ] = ('M' << 8) | 'E';
+	m_identify_buffer[ 29 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 30 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 31 ] = ('V' << 8) | 'i';
+	m_identify_buffer[ 32 ] = ('r' << 8) | 't';
+	m_identify_buffer[ 33 ] = ('u' << 8) | 'a';
+	m_identify_buffer[ 34 ] = ('l' << 8) | ' ';
+	m_identify_buffer[ 35 ] = ('C' << 8) | 'D';
+	m_identify_buffer[ 36 ] = ('R' << 8) | 'O';
+	m_identify_buffer[ 37 ] = ('M' << 8) | ' ';
+	m_identify_buffer[ 38 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 39 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 40 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 41 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 42 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 43 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 44 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 45 ] = (' ' << 8) | ' ';
+	m_identify_buffer[ 46 ] = (' ' << 8) | ' ';
 
 	m_identify_buffer[ 49 ] = 0x0600; // Word 49=Capabilities, IORDY may be disabled (bit_10), LBA Supported mandatory (bit_9)
 

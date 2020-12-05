@@ -127,24 +127,12 @@ WRITE_LINE_MEMBER( abstract_ata_interface_device::pdiag1_write_line )
  *
  *************************************/
 
-uint32_t abstract_ata_interface_device::read_dma()
+uint16_t abstract_ata_interface_device::read_dma()
 {
-	uint32_t result = 0xffff;
-	bool found_result = false;
-
+	uint16_t result = 0xffff;
 	for (auto & elem : m_slot)
-		if (elem->dev() != nullptr) {
-			auto r = elem->dev()->read_dma();
-
-			if (r != 0xffffffff) {
-				result &= r;
-				found_result = true;
-			}
-		}
-
-	if (!found_result) {
-		return 0xffffffff;
-	}
+		if (elem->dev() != nullptr)
+			result &= elem->dev()->read_dma();
 
 //  logerror( "%s: read_dma %04x\n", machine().describe_context(), result );
 	return result;

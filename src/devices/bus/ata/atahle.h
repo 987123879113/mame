@@ -18,7 +18,7 @@
 class ata_hle_device : public device_t, public device_ata_interface
 {
 public:
-	virtual uint32_t read_dma() override;
+	virtual uint16_t read_dma() override;
 	virtual uint16_t read_cs0(offs_t offset, uint16_t mem_mask = 0xffff) override;
 	virtual uint16_t read_cs1(offs_t offset, uint16_t mem_mask = 0xffff) override;
 

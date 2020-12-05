@@ -20,7 +20,7 @@ protected:
 	virtual void device_add_mconfig(machine_config &config) override;
 	virtual const tiny_rom_entry *device_rom_region() const override;
 
-	virtual u32 read_dma() override;
+	virtual u16 read_dma() override;
 	virtual u16 read_cs0(offs_t offset, u16 mem_mask = 0xffff) override;
 	virtual u16 read_cs1(offs_t offset, u16 mem_mask = 0xffff) override;
 	virtual void write_dma(u16 data) override;

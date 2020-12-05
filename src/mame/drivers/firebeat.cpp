@@ -902,7 +902,7 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_interrupt)
 
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 {
-	printf("%s: spu_ata_dmarq: %d -> %d\n", machine().describe_context().c_str(), m_spu_ata_dmarq, state);
+	//printf("%s: spu_ata_dmarq: %d -> %d\n", machine().describe_context().c_str(), m_spu_ata_dmarq, state);
 
 	if (m_spu_ata_dmarq != state)
 	{
@@ -913,15 +913,8 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 			m_spuata->write_dmack(ASSERT_LINE);
 
 			while (m_spu_ata_dmarq) {
-				uint32_t data = m_spuata->read_dma();
-
-				if (data > 0xffff) {
-					printf("%d spu_ata_dmarq %08x %04x: %08x\n", m_spu_ata_dmarq, m_spu_ata_dma * 2, data, (m_wave_bank+m_spu_ata_dma) * 2);
-					m_audiocpu->set_input_line(INPUT_LINE_IRQ6, ASSERT_LINE);
-					break;
-				}
-
-				m_waveram[m_wave_bank+m_spu_ata_dma] = data;
+				auto data = m_spuata->read_dma();
+				m_waveram[m_wave_bank + m_spu_ata_dma] = data;
 				m_spu_ata_dma++;
 			}
 

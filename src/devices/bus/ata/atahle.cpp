@@ -385,7 +385,7 @@ uint16_t ata_hle_device::read_data()
 	/* if we're at the end of the buffer, handle it */
 	if (m_buffer_offset >= m_buffer_size)
 	{
-		LOG(("%s:IDE completed PIO read, %08x %08x\n", machine().describe_context(), m_buffer_offset, m_buffer_size));
+		LOG(("%s:IDE completed PIO read\n", machine().describe_context()));
 		read_buffer_empty();
 	}
 
@@ -531,12 +531,10 @@ WRITE_LINE_MEMBER( ata_hle_device::write_dasp )
 
 WRITE_LINE_MEMBER( ata_hle_device::write_dmack )
 {
-	if (state && !m_dmack && single_word_dma_mode() >= 0) {
-		m_dmack = state;
-		m_dmarq = CLEAR_LINE;
-	} else {
-		m_dmack = state;
-	}
+	if (state && !m_dmack && single_word_dma_mode() >= 0)
+		set_dmarq(CLEAR_LINE);
+
+	m_dmack = state;
 }
 
 WRITE_LINE_MEMBER( ata_hle_device::write_pdiag )
@@ -550,16 +548,12 @@ WRITE_LINE_MEMBER( ata_hle_device::write_pdiag )
 	}
 }
 
-uint32_t ata_hle_device::read_dma()
+uint16_t ata_hle_device::read_dma()
 {
-	uint32_t result = 0xffffffff;
+	uint16_t result = 0xffff;
 
 	if (device_selected())
 	{
-		if (m_dmarq && single_word_dma_mode() >= 0) {
-			m_dmarq = false;
-		}
-
 		if (!m_dmack)
 		{
 			logerror( "%s: %s dev %d read_dma ignored (!DMACK)\n", machine().describe_context(), tag(), dev() );
@@ -583,14 +577,14 @@ uint32_t ata_hle_device::read_dma()
 		else if (!(m_status & IDE_STATUS_DRQ))
 		{
 			logerror( "%s: %s dev %d read_dma ignored (!DRQ)\n", machine().describe_context(), tag(), dev() );
+			set_dmarq(CLEAR_LINE);
 		}
 		else
 		{
 			result = read_data();
 
-			if (!(m_status & IDE_STATUS_DRQ) && single_word_dma_mode() >= 0) {
-				set_dmarq(CLEAR_LINE);
-			}
+			if ((m_status & IDE_STATUS_DRQ) && single_word_dma_mode() >= 0)
+				set_dmarq(ASSERT_LINE);
 		}
 	}
 
@@ -600,7 +594,7 @@ uint32_t ata_hle_device::read_dma()
 uint16_t ata_hle_device::read_cs0(offs_t offset, uint16_t mem_mask)
 {
 	/* logit */
- if (offset != IDE_CS0_DATA_RW && offset != IDE_CS0_STATUS_R)
+//  if (offset != IDE_CS0_DATA_RW && offset != IDE_CS0_STATUS_R)
 		LOG(("%s:IDE cs0 read at %X, mem_mask=%X\n", machine().describe_context(), offset, mem_mask));
 
 	uint16_t result = 0xffff;
@@ -834,10 +828,10 @@ void ata_hle_device::write_cs0(offs_t offset, uint16_t data, uint16_t mem_mask)
 	{
 		logerror( "%s: %s dev %d write_cs0 %04x %04x %04x ignored (BSY) command %02x\n", machine().describe_context(), tag(), dev(), offset, data, mem_mask, m_command );
 	}
-	// else if ((m_status & IDE_STATUS_DRQ) && offset != IDE_CS0_DATA_RW && offset != IDE_CS0_COMMAND_W)
-	// {
-	// 	logerror( "%s: %s dev %d write_cs0 %04x %04x %04x ignored (DRQ) command %02x\n", machine().describe_context(), tag(), dev(), offset, data, mem_mask, m_command );
-	// }
+	else if ((m_status & IDE_STATUS_DRQ) && offset != IDE_CS0_DATA_RW && offset != IDE_CS0_COMMAND_W)
+	{
+		logerror( "%s: %s dev %d write_cs0 %04x %04x %04x ignored (DRQ) command %02x\n", machine().describe_context(), tag(), dev(), offset, data, mem_mask, m_command );
+	}
 	else
 	{
 		uint8_t old;
