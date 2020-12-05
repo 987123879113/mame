@@ -322,6 +322,11 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 				}
 				else
 				{
+					// The old looping method relied on the loop offset being set properly.
+					// In pop'n music, when playing BGMs, it's actually set to a value larger than the size of
+					// the BGM which makes it loop to a start address *before* the actual start address.
+					// That means the BGMs could never played properly and instead start playing something else.
+					// See comment about DMAs for why this happens.
 					pos = channel->start_pos;
 				}
 
@@ -376,8 +381,16 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 					return 0;
 				}
 
-				auto ret = (uint16_t)(((channel->offset >> 16) >> 7) + 4) & 0xffff;
-				return ret;
+				// pop'n music's SPU program expects to read this register 6 times with the same value every
+				// read, and then the value should match a different value in memory (@ 0x1008ca).
+				// The value seems to correspond to how much data is read during the DMAs.
+				// The first DMA for pop'n music is 0x200000 bytes and then subsequent DMAs are 0x100000 bytes.
+				// The first value matched at 0x1008ca in the SPU program is 2, and then after that 1s.
+				// When the value matches, the SPU sends off a new DMA request to overwrite the sample data in
+				// memory. This DMA request completely overwrites the currently playing sample data.
+				//
+				// TODO: There's no reason for the +4 to actually be here in a proper implementation.
+				return (uint16_t)(((channel->offset >> 16) >> 7) + 4) & 0xffff;
 			}
 
 			case 0x13:      // memory read
