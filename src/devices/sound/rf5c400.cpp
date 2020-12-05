@@ -354,7 +354,7 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 {
 	if (offset < 0x400)
 	{
-		//printf("%s:rf5c400_r: %08X, %08X\n", machine().describe_context().c_str(), offset, mem_mask);
+		//osd_printf_debug("%s:rf5c400_r: %08X, %08X\n", machine().describe_context(), offset, mem_mask);
 
 		switch(offset)
 		{
@@ -477,6 +477,7 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				int ch = data & 0x1f;
 				m_requested_channel = ch;
 				m_requested_cmd = data >> 5;
+				break;
 			}
 
 
