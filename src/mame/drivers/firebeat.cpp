@@ -280,7 +280,6 @@ private:
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
 //  TIMER_CALLBACK_MEMBER(keyboard_timer_callback);
-	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
 	void set_ibutton(uint8_t *data);
 	int ibutton_w(uint8_t data);
 	void security_w(uint8_t data);
@@ -931,13 +930,6 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 	}
 }
 
-TIMER_DEVICE_CALLBACK_MEMBER(firebeat_state::spu_timer_callback)
-{
-	if (!m_spu_ata_dmarq) {
-		m_audiocpu->set_input_line(INPUT_LINE_IRQ2, ASSERT_LINE);
-	}
-}
-
 /*****************************************************************************/
 
 MACHINE_START_MEMBER(firebeat_state,firebeat)
@@ -960,7 +952,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7d000200, 0x7d00021f).rw(FUNC(firebeat_state::cabinet_r), FUNC(firebeat_state::cabinet_w));
 	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
-	//map(0x7d000500, 0x7d000501).w(...); // Exception?
+	//map(0x7d000500, 0x7d000501).w(...); // Always gets written to when an exception occurs
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
 	map(0x7d800000, 0x7d9fffff).rw("flash_snd1", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
@@ -990,13 +982,12 @@ void firebeat_state::spu_map(address_map &map)
 {
 	map(0x000000, 0x07ffff).rom();
 	map(0x100000, 0x13ffff).ram();
-	map(0x200000, 0x200001).portr("SPU_DSW"); // 0
-	// 0x210000 doesn't exist in the register table apparently
-	map(0x220000, 0x220001).w(FUNC(firebeat_state::spu_220000_w)); // 1
-	map(0x230000, 0x230001).w(FUNC(firebeat_state::spu_irq_ack_w)); // 2
-	map(0x240000, 0x240003).w(FUNC(firebeat_state::spu_ata_dma_low_w)).nopr(); // 3
-	map(0x250000, 0x250003).w(FUNC(firebeat_state::spu_ata_dma_high_w)).nopr(); // 4
-	map(0x260000, 0x260001).w(FUNC(firebeat_state::spu_wavebank_w)).nopr(); // 5
+	map(0x200000, 0x200001).portr("SPU_DSW");
+	map(0x220000, 0x220001).w(FUNC(firebeat_state::spu_220000_w));
+	map(0x230000, 0x230001).w(FUNC(firebeat_state::spu_irq_ack_w));
+	map(0x240000, 0x240003).w(FUNC(firebeat_state::spu_ata_dma_low_w)).nopr();
+	map(0x250000, 0x250003).w(FUNC(firebeat_state::spu_ata_dma_high_w)).nopr();
+	map(0x260000, 0x260001).w(FUNC(firebeat_state::spu_wavebank_w)).nopr();
 	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
 	map(0x300000, 0x30000f).rw(m_spuata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x340000, 0x34000f).rw(m_spuata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
@@ -1362,8 +1353,6 @@ void firebeat_state::firebeat_spu(machine_config &config)
 	m_audiocpu->set_addrmap(AS_PROGRAM, &firebeat_state::spu_map);
 	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq1_line_assert), attotime::from_hz(60));
 	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(60));
-
-	TIMER(config, "sputimer").configure_periodic(FUNC(firebeat_state::spu_timer_callback), attotime::from_hz(60));
 
 	CY7C131(config, m_dpram);
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt

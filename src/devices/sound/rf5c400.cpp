@@ -223,7 +223,7 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
 
-	    auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+		auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
 		auto offset = channel->offset;
 		end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
 		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
@@ -237,7 +237,6 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		env_level = channel->env_level;
 		env_step = channel->env_step;
 		env_rstep = env_step * channel->env_scale;
-
 
 		for (i=0; i < buf0.samples(); i++)
 		{
@@ -445,8 +444,6 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 						m_channels[ch].pos <<= 16;
 						m_channels[ch].start_pos = m_channels[ch].pos;
 
-						printf("Setting ch %d to %llx\n", ch, m_channels[ch].pos);
-
 						m_channels[ch].env_phase = PHASE_ATTACK;
 						m_channels[ch].env_level = 0.0;
 						m_channels[ch].env_step  = m_env_tables.ar(m_channels[ch]);
@@ -476,6 +473,7 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 
 			case 0x08:      // channel request??
 			{
+				// This is called before every 0x09 read in pop'n music's SPU
 				int ch = data & 0x1f;
 				m_requested_channel = ch;
 				m_requested_cmd = data >> 5;
