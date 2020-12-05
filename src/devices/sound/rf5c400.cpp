@@ -149,6 +149,13 @@ void rf5c400_device::device_start()
 	// init channel info
 	for (rf5c400_channel &chan : m_channels)
 	{
+		chan.offset = 0;
+		chan.startH = 0;
+		chan.startL = 0;
+		chan.endL = 0;
+		chan.endHloopH = 0;
+		chan.loopL = 0;
+		chan.pos = 0;
 		chan.env_phase = PHASE_NONE;
 		chan.env_level = 0.0;
 		chan.env_step = 0.0;
@@ -180,7 +187,7 @@ void rf5c400_device::device_start()
 	save_item(STRUCT_MEMBER(m_channels, env_step));
 	save_item(STRUCT_MEMBER(m_channels, env_scale));
 
-	m_stream = stream_alloc(0, 2, clock() / 384);
+	m_stream = stream_alloc(0, 2, clock() / 384, STREAM_SYNCHRONOUS);
 }
 
 //-------------------------------------------------
@@ -201,7 +208,7 @@ void rf5c400_device::device_clock_changed()
 void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
 	int i, ch;
-	uint64_t end, loop;
+	uint64_t end;//, loop;
 	uint64_t pos;
 	uint8_t vol, lvol, rvol, type;
 	uint8_t env_phase;
@@ -216,9 +223,10 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
 
-//      start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+//	    auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+		auto offset = channel->offset;
 		end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
-		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
+//		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
 		pos = channel->pos;
 		vol = channel->volume & 0xFF;
 		lvol = channel->pan & 0xFF;
@@ -229,6 +237,7 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		env_level = channel->env_level;
 		env_step = channel->env_step;
 		env_rstep = env_step * channel->env_scale;
+
 
 		for (i=0; i < buf0.samples(); i++)
 		{
@@ -304,15 +313,17 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			buf1.add_int(i, sample * pan_table[rvol], 32768);
 
 			pos += channel->step;
+			offset += channel->step;
 			if ((pos>>16) > end)
 			{
-				pos -= loop<<16;
-				pos &= 0xFFFFFF0000ULL;
+				pos = channel->start_pos;
+				offset = 0;
+				break;
 			}
-
 		}
-		channel->pos = pos;
 
+		channel->offset = offset;
+		channel->pos = pos;
 		channel->env_phase = env_phase;
 		channel->env_level = env_level;
 		channel->env_step = env_step;
@@ -330,7 +341,7 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 {
 	if (offset < 0x400)
 	{
-		//osd_printf_debug("%s:rf5c400_r: %08X, %08X\n", machine().describe_context(), offset, mem_mask);
+		//printf("%s:rf5c400_r: %08X, %08X\n", machine().describe_context().c_str(), offset, mem_mask);
 
 		switch(offset)
 		{
@@ -342,6 +353,22 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 			case 0x04:      // unknown read
 			{
 				return 0;
+			}
+
+			case 0x09:      // position read?
+			{
+				if (m_requested_cmd != 6) {
+					printf("Unknown m_requested_cmd: %04x on ch %d\n", m_requested_cmd, m_requested_channel);
+				}
+
+				rf5c400_channel* channel = &m_channels[m_requested_channel];
+
+				if (channel->env_phase == PHASE_NONE) {
+					return 0;
+				}
+
+				auto ret = (uint16_t)(((channel->offset >> 16) >> 7) + 4) & 0xffff;
+				return ret;
 			}
 
 			case 0x13:      // memory read
@@ -390,9 +417,13 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				switch ( data & 0x60 )
 				{
 					case 0x60:
+						m_channels[ch].offset = 0;
 						m_channels[ch].pos =
 							((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
 						m_channels[ch].pos <<= 16;
+						m_channels[ch].start_pos = m_channels[ch].pos;
+
+						printf("Setting ch %d to %llx\n", ch, m_channels[ch].pos);
 
 						m_channels[ch].env_phase = PHASE_ATTACK;
 						m_channels[ch].env_level = 0.0;
@@ -421,7 +452,14 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				break;
 			}
 
-			case 0x08:      // relative to env attack (channel no)
+			case 0x08:      // channel request??
+			{
+				int ch = data & 0x1f;
+				m_requested_channel = ch;
+				m_requested_cmd = data >> 5;
+			}
+
+
 			case 0x09:      // relative to env attack (0x0c00/ 0x1c00)
 
 			case 0x11:      // memory r/w address, bits 15 - 0
