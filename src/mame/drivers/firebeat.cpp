@@ -1207,7 +1207,7 @@ static void firebeat_ata_devices(device_slot_interface &device)
 void firebeat_state::firebeat(machine_config &config)
 {
 	/* basic machine hardware */
-	PPC403GCX(config, m_maincpu, XTAL(64'000'000));
+	PPC403GCX(config, m_maincpu, XTAL(66'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_state::firebeat_map);
 	m_maincpu->set_vblank_int("screen", FUNC(firebeat_state::firebeat_interrupt));
 
@@ -1263,7 +1263,7 @@ void firebeat_state::firebeat(machine_config &config)
 void firebeat_state::firebeat2(machine_config &config)
 {
 	/* basic machine hardware */
-	PPC403GCX(config, m_maincpu, XTAL(64'000'000));
+	PPC403GCX(config, m_maincpu, XTAL(66'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_state::firebeat2_map);
 	m_maincpu->set_vblank_int("lscreen", FUNC(firebeat_state::firebeat_interrupt));
 
