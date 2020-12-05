@@ -912,7 +912,7 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 		{
 			m_spuata->write_dmack(ASSERT_LINE);
 
-			while (1) {
+			while (m_spu_ata_dmarq) {
 				uint32_t data = m_spuata->read_dma();
 
 				if (data > 0xffff) {
