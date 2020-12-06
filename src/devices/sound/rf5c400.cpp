@@ -149,22 +149,34 @@ void rf5c400_device::device_start()
 	// init channel info
 	for (rf5c400_channel &chan : m_channels)
 	{
-		chan.offset = 0;
 		chan.startH = 0;
 		chan.startL = 0;
+		chan.freq = 0;
 		chan.endL = 0;
 		chan.endHloopH = 0;
 		chan.loopL = 0;
+		chan.pan = 0;
+		chan.effect = 0;
+		chan.volume = 0;
+		chan.attack = 0;
+		chan.decay = 0;
+		chan.release = 0;
 		chan.pos = 0;
+		chan.step = 0;
+		chan.keyon = 0;
 		chan.env_phase = PHASE_NONE;
 		chan.env_level = 0.0;
 		chan.env_step = 0.0;
 		chan.env_scale = 1.0;
+		chan.start_pos = 0;
+		chan.offset = 0;
 	}
 
 	save_item(NAME(m_rf5c400_status));
 	save_item(NAME(m_ext_mem_address));
 	save_item(NAME(m_ext_mem_data));
+	save_item(NAME(m_requested_channel));
+	save_item(NAME(m_requested_cmd));
 
 	save_item(STRUCT_MEMBER(m_channels, startH));
 	save_item(STRUCT_MEMBER(m_channels, startL));
@@ -186,6 +198,8 @@ void rf5c400_device::device_start()
 	save_item(STRUCT_MEMBER(m_channels, env_level));
 	save_item(STRUCT_MEMBER(m_channels, env_step));
 	save_item(STRUCT_MEMBER(m_channels, env_scale));
+	save_item(STRUCT_MEMBER(m_channels, start_pos));
+	save_item(STRUCT_MEMBER(m_channels, offset));
 
 	m_stream = stream_alloc(0, 2, clock() / 384, STREAM_SYNCHRONOUS);
 }

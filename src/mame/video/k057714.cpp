@@ -27,6 +27,33 @@ void k057714_device::device_start()
 
 	m_vram = std::make_unique<uint32_t[]>(0x2000000/4);
 	memset(m_vram.get(), 0, 0x2000000);
+
+	save_item(NAME(m_vram_read_addr));
+	save_item(NAME(m_vram_fifo0_addr));
+	save_item(NAME(m_vram_fifo1_addr));
+	save_item(NAME(m_vram_fifo0_mode));
+	save_item(NAME(m_vram_fifo1_mode));
+	save_item(NAME(m_command_fifo0));
+	save_item(NAME(m_command_fifo0_ptr));
+	save_item(NAME(m_command_fifo1));
+	save_item(NAME(m_command_fifo1_ptr));
+	save_item(NAME(m_ext_fifo_addr));
+	save_item(NAME(m_ext_fifo_count));
+	save_item(NAME(m_ext_fifo_line));
+	save_item(NAME(m_ext_fifo_num_lines));
+	save_item(NAME(m_ext_fifo_width));
+
+	save_item(NAME(m_fb_origin_x));
+	save_item(NAME(m_fb_origin_y));
+	save_item(NAME(m_layer_select));
+	save_item(NAME(m_reg_6c));
+
+	save_item(STRUCT_MEMBER(m_frame, base));
+	save_item(STRUCT_MEMBER(m_frame, width));
+	save_item(STRUCT_MEMBER(m_frame, height));
+	save_item(STRUCT_MEMBER(m_frame, x));
+	save_item(STRUCT_MEMBER(m_frame, y));
+	save_item(STRUCT_MEMBER(m_frame, brightness));
 }
 
 void k057714_device::device_reset()
