@@ -874,7 +874,7 @@ void firebeat_state::spu_ata_dma_high_w(uint16_t data)
 
 void firebeat_state::spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	printf("%x to wavebank_w, mask %04x\n", data, mem_mask);
+//	printf("%x to wavebank_w, mask %04x\n", data, mem_mask);
 
 	// banks are fairly clearly 8MB, so there's 3 of them in the 24 MB of RAM.
 	// the games load up the full 24MB of RAM 8 MB at a time, first to bank 1,

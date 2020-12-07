@@ -237,7 +237,6 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
 
-		auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
 		auto offset = channel->offset;
 		end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
 		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
@@ -329,23 +328,15 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			offset += channel->step;
 			if ((pos>>16) > end)
 			{
-				if (loop - end >= start) {
+				offset = 0;
+
+				if (loop > end) {
+					pos = channel->start_pos;
+				}
+				else {
 					pos -= loop << 16;
 					pos &= 0xFFFFFF0000ULL;
 				}
-				else
-				{
-					// The old looping method relied on the loop offset being set properly.
-					// In pop'n music, when playing BGMs, it's actually set to a value larger than the size of
-					// the BGM which makes it loop to a start address *before* the actual start address.
-					// That means the BGMs could never played properly and instead start playing something else.
-					// See comment about DMAs for why this happens.
-					pos = channel->start_pos;
-				}
-
-				offset = 0;
-
-				break;
 			}
 		}
 
@@ -385,7 +376,7 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 			case 0x09:      // position read?
 			{
 				if (m_requested_cmd != 6) {
-					printf("Unknown m_requested_cmd: %04x on ch %d\n", m_requested_cmd, m_requested_channel);
+					//printf("Unknown m_requested_cmd: %04x on ch %d\n", m_requested_cmd, m_requested_channel);
 				}
 
 				rf5c400_channel* channel = &m_channels[m_requested_channel];
@@ -438,6 +429,10 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (offset < 0x400)
 	{
+		if (offset != 8 && offset != 0x11 && offset != 0x12 && offset != 0x13 && offset != 0x14) {
+			//printf("%lf: offset %04x, data %04x\n", machine().time().as_double(), offset, data);
+		}
+
 		switch(offset)
 		{
 			case 0x00:
@@ -453,14 +448,14 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				{
 					case 0x60:
 						m_channels[ch].offset = 0;
-						m_channels[ch].pos =
-							((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+						m_channels[ch].pos = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
 						m_channels[ch].pos <<= 16;
 						m_channels[ch].start_pos = m_channels[ch].pos;
 
 						m_channels[ch].env_phase = PHASE_ATTACK;
 						m_channels[ch].env_level = 0.0;
 						m_channels[ch].env_step  = m_env_tables.ar(m_channels[ch]);
+
 						break;
 					case 0x40:
 						if (m_channels[ch].env_phase != PHASE_NONE)
@@ -482,6 +477,15 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 						m_channels[ch].env_step  = 0.0;
 						break;
 				}
+
+
+				{
+					//auto start = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+					//auto end = ((m_channels[ch].endHloopH & 0xFF) << 16) | m_channels[ch].endL;
+					//auto loop = ((m_channels[ch].endHloopH & 0xFF00) << 8) | m_channels[ch].loopL;
+					//printf("ch %d, start: %08x, stop: %08x, loop: %08x\n", ch, start, end, loop);
+				}
+
 				break;
 			}
 

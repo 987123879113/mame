@@ -387,12 +387,7 @@ uint16_t ata_hle_device::read_data_block(uint16_t* buffer, uint32_t* size)
 		*size += len / 2;
 		m_buffer_offset += len;
 
-		/* if we're at the end of the buffer, handle it */
-		if (m_buffer_offset >= m_buffer_size)
-		{
-			LOG(("%s:IDE completed PIO read\n", machine().describe_context()));
-			read_buffer_empty();
-		}
+		read_buffer_empty();
 	}
 
 	return 0;
