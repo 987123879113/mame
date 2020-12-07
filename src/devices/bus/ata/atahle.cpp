@@ -375,6 +375,29 @@ int ata_hle_device::ultra_dma_mode()
 	return bit_to_mode(m_identify_buffer[88]);
 }
 
+uint16_t ata_hle_device::read_data_block(uint16_t* buffer, uint32_t* size)
+{
+	/* fetch the correct amount of data */
+	while (m_buffer_size - m_buffer_offset > 0) {
+		int len = m_buffer_size - m_buffer_offset;
+
+		//printf("Copying %08x bytes...\n", m_buffer_size - m_buffer_offset);
+		memcpy((uint8_t*)&buffer[*size], &m_buffer[m_buffer_offset], len);
+
+		*size += len / 2;
+		m_buffer_offset += len;
+
+		/* if we're at the end of the buffer, handle it */
+		if (m_buffer_offset >= m_buffer_size)
+		{
+			LOG(("%s:IDE completed PIO read\n", machine().describe_context()));
+			read_buffer_empty();
+		}
+	}
+
+	return 0;
+}
+
 uint16_t ata_hle_device::read_data()
 {
 	/* fetch the correct amount of data */
@@ -556,15 +579,15 @@ uint16_t ata_hle_device::read_dma()
 	{
 		if (!m_dmack)
 		{
-			logerror( "%s: %s dev %d read_dma ignored (!DMACK)\n", machine().describe_context(), tag(), dev() );
+			logerror("%s: %s dev %d read_dma ignored (!DMACK)\n", machine().describe_context(), tag(), dev());
 		}
 		else if (m_dmarq && single_word_dma_mode() >= 0)
 		{
-			logerror( "%s: %s dev %d read_dma ignored (DMARQ)\n", machine().describe_context(), tag(), dev() );
+			logerror("%s: %s dev %d read_dma ignored (DMARQ)\n", machine().describe_context(), tag(), dev());
 		}
 		else if (!m_dmarq && multi_word_dma_mode() >= 0)
 		{
-			logerror( "%s: %s dev %d read_dma ignored (!DMARQ)\n", machine().describe_context(), tag(), dev() );
+			logerror("%s: %s dev %d read_dma ignored (!DMARQ)\n", machine().describe_context(), tag(), dev());
 		}
 		else if (!m_dmarq && ultra_dma_mode() >= 0)
 		{
@@ -572,16 +595,59 @@ uint16_t ata_hle_device::read_dma()
 		}
 		else if (m_status & IDE_STATUS_BSY)
 		{
-			logerror( "%s: %s dev %d read_dma ignored (BSY)\n", machine().describe_context(), tag(), dev() );
+			logerror("%s: %s dev %d read_dma ignored (BSY)\n", machine().describe_context(), tag(), dev());
 		}
 		else if (!(m_status & IDE_STATUS_DRQ))
 		{
-			logerror( "%s: %s dev %d read_dma ignored (!DRQ)\n", machine().describe_context(), tag(), dev() );
+			logerror("%s: %s dev %d read_dma ignored (!DRQ)\n", machine().describe_context(), tag(), dev());
 			set_dmarq(CLEAR_LINE);
 		}
 		else
 		{
 			result = read_data();
+
+			if ((m_status & IDE_STATUS_DRQ) && single_word_dma_mode() >= 0)
+				set_dmarq(ASSERT_LINE);
+		}
+	}
+
+	return result;
+}
+
+uint16_t ata_hle_device::read_dma_block(uint16_t* buffer, uint32_t* size)
+{
+	uint16_t result = 0xffff;
+
+	if (device_selected())
+	{
+		if (!m_dmack)
+		{
+			logerror("%s: %s dev %d read_dma ignored (!DMACK)\n", machine().describe_context(), tag(), dev());
+		}
+		else if (m_dmarq && single_word_dma_mode() >= 0)
+		{
+			logerror("%s: %s dev %d read_dma ignored (DMARQ)\n", machine().describe_context(), tag(), dev());
+		}
+		else if (!m_dmarq && multi_word_dma_mode() >= 0)
+		{
+			logerror("%s: %s dev %d read_dma ignored (!DMARQ)\n", machine().describe_context(), tag(), dev());
+		}
+		else if (!m_dmarq && ultra_dma_mode() >= 0)
+		{
+			logerror("%s: %s dev %d read_dma ignored (!DMARQ)\n", machine().describe_context(), tag(), dev());
+		}
+		else if (m_status & IDE_STATUS_BSY)
+		{
+			logerror("%s: %s dev %d read_dma ignored (BSY)\n", machine().describe_context(), tag(), dev());
+		}
+		else if (!(m_status & IDE_STATUS_DRQ))
+		{
+			logerror("%s: %s dev %d read_dma ignored (!DRQ)\n", machine().describe_context(), tag(), dev());
+			set_dmarq(CLEAR_LINE);
+		}
+		else
+		{
+			result = read_data_block(buffer, size);
 
 			if ((m_status & IDE_STATUS_DRQ) && single_word_dma_mode() >= 0)
 				set_dmarq(ASSERT_LINE);

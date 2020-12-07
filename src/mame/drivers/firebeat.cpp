@@ -493,7 +493,7 @@ static int ppd_cab_data[3] = { 1, 0, 0 };
 
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
-	printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
+//	printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
 
 	switch (offset)
 	{
@@ -520,7 +520,7 @@ uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 
 void firebeat_state::cabinet_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-	printf("cabinet_w: %08X, %08x, %08X\n", offset, data, mem_mask);
+//	printf("cabinet_w: %08X, %08x, %08X\n", offset, data, mem_mask);
 
 	switch (offset)
 	{
@@ -913,12 +913,14 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 			m_spuata->write_dmack(ASSERT_LINE);
 
 			while (m_spu_ata_dmarq) {
-				auto data = m_spuata->read_dma();
-				m_waveram[m_wave_bank + m_spu_ata_dma] = data;
-				m_spu_ata_dma++;
-			}
+				auto before = m_spu_ata_dma;
 
-			m_spuata->write_dmack(CLEAR_LINE);
+				m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma);
+
+				if (before == m_spu_ata_dma) {
+					m_spuata->write_dmack(CLEAR_LINE);
+				}
+			}
 		}
 	}
 }

@@ -58,6 +58,7 @@ public:
 	ata_slot_device &slot(int index);
 
 	uint16_t read_dma();
+	uint16_t read_dma_block(uint16_t* buffer, uint32_t* size);
 	void write_dma(uint16_t data);
 	DECLARE_WRITE_LINE_MEMBER(write_dmack);
 

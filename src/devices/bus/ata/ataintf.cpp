@@ -127,6 +127,17 @@ WRITE_LINE_MEMBER( abstract_ata_interface_device::pdiag1_write_line )
  *
  *************************************/
 
+uint16_t abstract_ata_interface_device::read_dma_block(uint16_t* buffer, uint32_t* size)
+{
+	uint16_t result = 0xffff;
+	for (auto& elem : m_slot)
+		if (elem->dev() != nullptr)
+			result &= elem->dev()->read_dma_block(buffer, size);
+
+	//  logerror( "%s: read_dma %04x\n", machine().describe_context(), result );
+	return result;
+}
+
 uint16_t abstract_ata_interface_device::read_dma()
 {
 	uint16_t result = 0xffff;
@@ -170,11 +181,11 @@ uint16_t abstract_ata_interface_device::internal_read_cs1(offs_t offset, uint16_
  *
  *************************************/
 
-void abstract_ata_interface_device::write_dma( uint16_t data )
+void abstract_ata_interface_device::write_dma(uint16_t data)
 {
-//  logerror( "%s: write_dma %04x\n", machine().describe_context(), data );
+	//  logerror( "%s: write_dma %04x\n", machine().describe_context(), data );
 
-	for (auto & elem : m_slot)
+	for (auto& elem : m_slot)
 		if (elem->dev() != nullptr)
 			elem->dev()->write_dma(data);
 }
