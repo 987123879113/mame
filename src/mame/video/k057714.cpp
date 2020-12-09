@@ -8,7 +8,7 @@
 #include "screen.h"
 
 
-#define DUMP_VRAM 0
+#define DUMP_VRAM 1
 #define PRINT_GCU 0
 #define PRINT_CMD_EXEC 0
 
@@ -128,6 +128,21 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 	switch (reg)
 	{
+		/*
+		// Speculatory based on data written to registers
+		case 0x00:
+			if (ACCESSING_BITS_16_31) {
+				visible_width = (data >> 16) & 0xffff;
+			}
+			break;
+
+		case 0x04:
+			if (ACCESSING_BITS_16_31) {
+				visible_height = (data >> 16) & 0xffff;
+			}
+			break;
+		*/
+
 		case 0x10:
 			/* IRQ clear/enable; ppd writes bit off then on in response to interrupt */
 			/* it enables bits 0x41, but 0x01 seems to be the one it cares about */
@@ -455,51 +470,57 @@ int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rect
 
 void k057714_device::draw_object(uint32_t *cmd)
 {
-	// 0x00: xxx----- -------- -------- --------   command (5)
+	// 0x00: -------- -------- ------xx xxxxxxxx   ram x
+	// 0x00: -------- xxxxxxxx xxxxxx-- --------   ram y
+	// 0x00: ----xx-- -------- -------- --------   ?
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
-	// 0x00: ----xx-- -------- -------- --------   ?
-	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   object data address in vram
+	// 0x00: xxx----- -------- -------- --------   command (5)
+	uint32_t address_x = cmd[0] & 0x3ff;
+	uint32_t address_y = (cmd[0] >> 10) & 0x3fff;
+	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 
 	// 0x01: -------- -------- ------xx xxxxxxxx   object x
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
-	// 0x01: -----x-- -------- -------- --------   object x flip
-	// 0x01: ----x--- -------- -------- --------   object y flip
-	// 0x01: --xx---- -------- -------- --------   object alpha enable (different blend modes?)
-	// 0x01: -x------ -------- -------- --------   object transparency enable (?)
-	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
-
-	// 0x02: -------- -------- ------xx xxxxxxxx   object width
-	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
-	// 0x02: -------- ----x--- -------- --------   object x scale sign
-	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
-	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
-	// 0x02: -------- --xx---- -------- --------   ?
-
-	// 0x03: -------- -------- ------xx xxxxxxxx   object height
-	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
-	// 0x03: -------- ----x--- -------- --------   object y scale sign
-	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
-	// 0x03: -----xxx xx------ -------- --------   transparency max value (source, background)
-	// 0x03: -------- --xx---- -------- --------   ?
-
-	bool xflip = (cmd[1] & 0x04000000) ? true : false;
-	bool yflip = (cmd[1] & 0x08000000) ? true : false;
+	// 0x01: -----x-- -------- -------- --------   object x flip (0x4000000)
+	// 0x01: ----x--- -------- -------- --------   object y flip (0x8000000)
+	// 0x01: ---x---- -------- -------- --------   something alpha blend? (0x10000000)
+	// 0x01: --x----- -------- -------- --------   something alpha blend? (0x20000000)
+	// 0x01: -x------ -------- -------- --------   object transparency enable (?) (0x40000000)
+	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm) (0x80000000)
 	int x = cmd[1] & 0x3ff;
 	int y = (cmd[1] >> 10) & 0x3fff;
-	int width = (cmd[2] & 0x3ff) + 1;
-	int height = (cmd[3] & 0x3ff) + 1;
-	int xscale = ((cmd[2] >> 10) & 0x1ff) * (((cmd[2] >> 19) & 1) ? -1 : 1);
-	int yscale = ((cmd[3] >> 10) & 0x1ff) * (((cmd[3] >> 19) & 1) ? -1 : 1);
+	bool xflip = (cmd[1] & 0x04000000) ? true : false;
+	bool yflip = (cmd[1] & 0x08000000) ? true : false;
 	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
-	uint32_t address = cmd[0] & 0xffffff;
-	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
-	//int alpha_level2_max = (cmd[3] >> 22) & 0x1f;
-	int alpha_level = (cmd[2] >> 27) & 0x1f;
-	//int alpha_level_max = (cmd[2] >> 22) & 0x1f;
-	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
+
+	// 0x02: -------- -------- -------x xxxxxxxx   object width
+	// 0x02: -------- --xxxxxx xxxxxx-- --------   object x scale
+	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
+	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
+	int width = (cmd[2] & 0x1ff) + 1;
+	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
+	//int alpha_level_max = (cmd[2] >> 22) & 0x1f;
+	int alpha_level = (cmd[2] >> 27) & 0x1f;
+
+	// 0x03: -------- -------- ------xx xxxxxxxx   object height
+	// 0x03: -------- --xxxxxx xxxxxx-- --------   object y scale
+	// 0x03: -----xxx xx------ -------- --------   transparency max (source, background)
+	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
+	int height = (cmd[3] & 0x3ff) + 1;
+	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
+	//int alpha_level2_max = (cmd[3] >> 22) & 0x1f;
+	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
+
+	if (xflip && ((4 - ((width - 1) & 3)) <= (address_x & 3))) {
+		// This logic is based off the operation done to modify the address in the first place,
+		// as seen in pop'n music 8 @ 0x800b30d0
+		address_x -= 4;
+	}
+
+	uint32_t address = (address_y << 10) | address_x;
 
 	if (relative_coords)
 	{
