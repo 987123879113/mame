@@ -498,7 +498,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	// 0x02: -------- -------- -------x xxxxxxxx   object width
 	// 0x02: -------- --xxxxxx xxxxxx-- --------   object x scale
-	// 0x02: -----xxx xx------ -------- --------   transparency max (front)
+	// 0x02: -----xxx xx------ -------- --------   transparency max? (front)
 	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
 	int width = (cmd[2] & 0x1ff) + 1;
 	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
@@ -507,8 +507,8 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
 	// 0x03: -------- --xxxxxx xxxxxx-- --------   object y scale
-	// 0x03: -----xxx xx------ -------- --------   transparency max (source, background)
-	// 0x03: xxxxx--- -------- -------- --------   transparency (source, background)
+	// 0x03: -----xxx xx------ -------- --------   transparency max? (background)
+	// 0x03: xxxxx--- -------- -------- --------   transparency (background)
 	int height = (cmd[3] & 0x3ff) + 1;
 	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
 	//int alpha_level2_max = (cmd[3] >> 22) & 0x1f;
@@ -534,7 +534,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
 
-	if (xscale <= 0 || yscale <= 0)
+	if (xscale <= 0 || yscale <= 0 || height < 1 || width < 1)
 	{
 		return;
 	}
