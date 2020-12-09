@@ -515,9 +515,13 @@ void k057714_device::draw_object(uint32_t *cmd)
 	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
 
 	if (xflip && ((4 - ((width - 1) & 3)) <= (address_x & 3))) {
-		// This logic is based off the operation done to modify the address in the first place,
-		// as seen in pop'n music 8 @ 0x800b30d0
+		// Based on logic from pop'n music 8 @ 0x800b30d0
 		address_x -= 4;
+	}
+
+	if (yflip) {
+		// Based on logic from pop'n music 8 @ 0x800b3140
+		y -= (((height * 64) - 1) / yscale) - (((height - 1) * 64) / yscale);
 	}
 
 	uint32_t address = (address_y << 10) | address_x;
