@@ -127,12 +127,12 @@ WRITE_LINE_MEMBER( abstract_ata_interface_device::pdiag1_write_line )
  *
  *************************************/
 
-uint16_t abstract_ata_interface_device::read_dma_block(uint16_t* buffer, uint32_t* size)
+uint16_t abstract_ata_interface_device::read_dma_block(uint16_t* buffer, uint32_t* outsize, uint32_t size)
 {
 	uint16_t result = 0xffff;
 	for (auto& elem : m_slot)
 		if (elem->dev() != nullptr)
-			result &= elem->dev()->read_dma_block(buffer, size);
+			result &= elem->dev()->read_dma_block(buffer, outsize, size);
 
 	//  logerror( "%s: read_dma %04x\n", machine().describe_context(), result );
 	return result;

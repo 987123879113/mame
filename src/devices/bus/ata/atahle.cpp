@@ -375,19 +375,28 @@ int ata_hle_device::ultra_dma_mode()
 	return bit_to_mode(m_identify_buffer[88]);
 }
 
-uint16_t ata_hle_device::read_data_block(uint16_t* buffer, uint32_t* size)
+uint16_t ata_hle_device::read_data_block(uint16_t* buffer, uint32_t* outsize, uint32_t size)
 {
 	/* fetch the correct amount of data */
-	while (m_buffer_size - m_buffer_offset > 0) {
-		int len = m_buffer_size - m_buffer_offset;
+	while (size > 0) {
+		if (m_buffer_size - m_buffer_offset > 0) {
+			int len = m_buffer_size - m_buffer_offset;
 
-		//printf("Copying %08x bytes...\n", m_buffer_size - m_buffer_offset);
-		memcpy((uint8_t*)&buffer[*size], &m_buffer[m_buffer_offset], len);
+			if (len > size) {
+				len = size;
+			}
 
-		*size += len / 2;
-		m_buffer_offset += len;
+			//printf("Copying %08x bytes...\n", m_buffer_size - m_buffer_offset);
+			memcpy((uint8_t*)&buffer[*outsize], &m_buffer[m_buffer_offset], len);
 
-		read_buffer_empty();
+			*outsize += len / 2;
+			m_buffer_offset += len;
+			size -= len;
+		}
+
+		if (m_buffer_size - m_buffer_offset <= 0) {
+			read_buffer_empty();
+		}
 	}
 
 	return 0;
@@ -609,7 +618,7 @@ uint16_t ata_hle_device::read_dma()
 	return result;
 }
 
-uint16_t ata_hle_device::read_dma_block(uint16_t* buffer, uint32_t* size)
+uint16_t ata_hle_device::read_dma_block(uint16_t* buffer, uint32_t* outsize, uint32_t size)
 {
 	uint16_t result = 0xffff;
 
@@ -642,7 +651,7 @@ uint16_t ata_hle_device::read_dma_block(uint16_t* buffer, uint32_t* size)
 		}
 		else
 		{
-			result = read_data_block(buffer, size);
+			result = read_data_block(buffer, outsize, size);
 
 			if ((m_status & IDE_STATUS_DRQ) && single_word_dma_mode() >= 0)
 				set_dmarq(ASSERT_LINE);
