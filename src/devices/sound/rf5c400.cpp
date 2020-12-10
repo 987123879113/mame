@@ -394,7 +394,11 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 				// memory. This DMA request completely overwrites the currently playing sample data.
 				//
 				// TODO: There's no reason for the +4 to actually be here in a proper implementation.
-				return (uint16_t)(((channel->offset >> 16) >> 7) + 4) & 0xffff;
+				auto ret = (uint16_t)(((channel->offset >> 16) >> 7) + 4) & 0xffff;
+
+				//printf("SPU read pos: %08x\n", ret);
+
+				return ret;
 			}
 
 			case 0x13:      // memory read

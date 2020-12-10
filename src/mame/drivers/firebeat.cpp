@@ -922,7 +922,10 @@ TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
 		// The blocking issue is the reason why DMAs are implemented using a timer instead of inside
 		// spu_ata_dmarq, and also why read_dma_block was created instead of reading in data one word
 		// at a time.
+		//auto before = m_spu_ata_dma;
 		m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma, 0x2000);
+
+		//printf("%lf: read_dma_block: %08x -> %08x\n", machine().time().as_double(), before, m_spu_ata_dma);
 
 		m_spuata->write_dmack(CLEAR_LINE);
 	}
@@ -1350,7 +1353,7 @@ void firebeat_state::firebeat_spu(machine_config &config)
 	M68000(config, m_audiocpu, 16000000);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &firebeat_state::spu_map);
 	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq1_line_assert), attotime::from_hz(60));
-	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(60));
+	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(500));
 
 	CY7C131(config, m_dpram);
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
@@ -1548,7 +1551,7 @@ void firebeat_state::init_firebeat()
 	init_lights(write32s_delegate(*this), write32s_delegate(*this), write32s_delegate(*this));
 
 	m_spu_dma_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(firebeat_state::spu_dma_callback), this));
-	m_spu_dma_timer->adjust(attotime::from_hz(240), 0, attotime::from_hz(240));
+	m_spu_dma_timer->adjust(attotime::zero, 0, attotime::from_hz(1000));
 }
 
 void firebeat_state::init_ppp()
