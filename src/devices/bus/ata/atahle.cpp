@@ -397,6 +397,10 @@ uint16_t ata_hle_device::read_data_block(uint16_t* buffer, uint32_t* outsize, ui
 		if (m_buffer_size - m_buffer_offset <= 0) {
 			read_buffer_empty();
 		}
+
+		if (!(m_status & IDE_STATUS_DRQ)) {
+			break;
+		}
 	}
 
 	return 0;

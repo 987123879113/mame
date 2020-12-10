@@ -923,7 +923,7 @@ TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
 		// spu_ata_dmarq, and also why read_dma_block was created instead of reading in data one word
 		// at a time.
 		//auto before = m_spu_ata_dma;
-		m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma, 0x2000);
+		m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma, 0x10000);
 
 		//printf("%lf: read_dma_block: %08x -> %08x\n", machine().time().as_double(), before, m_spu_ata_dma);
 
@@ -1551,7 +1551,7 @@ void firebeat_state::init_firebeat()
 	init_lights(write32s_delegate(*this), write32s_delegate(*this), write32s_delegate(*this));
 
 	m_spu_dma_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(firebeat_state::spu_dma_callback), this));
-	m_spu_dma_timer->adjust(attotime::zero, 0, attotime::from_hz(1000));
+	m_spu_dma_timer->adjust(attotime::zero, 0, attotime::from_msec(10));
 }
 
 void firebeat_state::init_ppp()
