@@ -389,16 +389,18 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 				// read, and then the value should match a different value in memory (@ 0x1008ca).
 				// The value seems to correspond to how much data is read during the DMAs.
 				// The first DMA for pop'n music is 0x200000 bytes and then subsequent DMAs are 0x100000 bytes.
-				// The first value matched at 0x1008ca in the SPU program is 2, and then after that 1s.
+				// The first value matched at 0x1008ca in the SPU program is 2, and then after that 1.
 				// When the value matches, the SPU sends off a new DMA request to overwrite the sample data in
 				// memory. This DMA request completely overwrites the currently playing sample data.
 				//
-				// TODO: There's no reason for the +4 to actually be here in a proper implementation.
-				auto ret = (uint16_t)(((channel->offset >> 16) >> 7) + 4) & 0xffff;
-
-				//printf("SPU read pos: %08x\n", ret);
-
-				return ret;
+				// I don't really understand exactly what value is supposed to be returned here or how it's calculated.
+				// This +16 is to give the game enough chance to see the value it needs at least 6 times so it can
+				// start the next DMA transfer. Sometimes the game doesn't read at consistent timings so +16 is to
+				// give it a little bit of extra time figure it out.
+				// Adjust the +16 as required. Remember that triggering the DMA too soon will overwrite the currently
+				// playing BGM data so you will experience skips or slight glitching in cases where the DMA is
+				// triggered too soon.
+				return (uint16_t)(((channel->offset >> 16) >> 7) + 16) & 0xffff;
 			}
 
 			case 0x13:      // memory read
