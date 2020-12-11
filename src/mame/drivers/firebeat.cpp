@@ -923,7 +923,7 @@ TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
 		// spu_ata_dmarq, and also why read_dma_block was created instead of reading in data one word
 		// at a time.
 		//auto before = m_spu_ata_dma;
-		m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma, 0x8000);
+		m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma, 0x4000);
 
 		//printf("%lf: read_dma_block: %08x -> %08x\n", machine().time().as_double(), before, m_spu_ata_dma);
 
