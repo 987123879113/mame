@@ -507,14 +507,14 @@ uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 			//     0x00: -----xx- Rental?
 			// pop'n music Mickey Tunes refers to as the "CPLD", giving an error "CPLD checked NG" or "CPLD checked OK" if it matches the dongle
 			// For Mickey Tunes, the 4th byte of the dongle serial determines the cabinet type
-			return m_cur_cab_data[0] << 4;
+			return m_cur_cab_data[0] << 28;
 		}
 
 		case 2:
-			return m_cur_cab_data[1];
+			return m_cur_cab_data[1] << 28;
 
 		case 4:
-			return m_cur_cab_data[2];
+			return m_cur_cab_data[2] << 28;
 	}
 
 	return 0;
