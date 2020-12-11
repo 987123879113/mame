@@ -8,7 +8,7 @@
 #include "screen.h"
 
 
-#define DUMP_VRAM 1
+#define DUMP_VRAM 0
 #define PRINT_GCU 0
 #define PRINT_CMD_EXEC 0
 
