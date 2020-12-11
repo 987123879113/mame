@@ -1242,7 +1242,6 @@ void firebeat_state::firebeat(machine_config &config)
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_size(512, 384);
-	screen.set_visarea(0, 512-1, 0, 384-1);
 	screen.set_screen_update(FUNC(firebeat_state::screen_update_firebeat_0));
 	screen.set_palette("palette");
 
@@ -1301,7 +1300,6 @@ void firebeat_state::firebeat2(machine_config &config)
 	lscreen.set_refresh_hz(60);
 	lscreen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	lscreen.set_size(512, 384);
-	lscreen.set_visarea(0, 512-1, 0, 384-1);
 	lscreen.set_screen_update(FUNC(firebeat_state::screen_update_firebeat_0));
 	lscreen.set_palette("palette");
 
@@ -1309,7 +1307,6 @@ void firebeat_state::firebeat2(machine_config &config)
 	rscreen.set_refresh_hz(60);
 	rscreen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	rscreen.set_size(512, 384);
-	rscreen.set_visarea(0, 512-1, 0, 384-1);
 	rscreen.set_screen_update(FUNC(firebeat_state::screen_update_firebeat_1));
 	rscreen.set_palette("palette");
 

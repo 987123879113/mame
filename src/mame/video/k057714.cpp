@@ -48,6 +48,9 @@ void k057714_device::device_start()
 	save_item(NAME(m_layer_select));
 	save_item(NAME(m_reg_6c));
 
+	save_item(NAME(m_viewport_width));
+	save_item(NAME(m_viewport_height));
+
 	save_item(STRUCT_MEMBER(m_frame, base));
 	save_item(STRUCT_MEMBER(m_frame, width));
 	save_item(STRUCT_MEMBER(m_frame, height));
@@ -58,6 +61,9 @@ void k057714_device::device_start()
 
 void k057714_device::device_reset()
 {
+	m_viewport_width = 0;
+	m_viewport_height = 0;
+
 	m_vram_read_addr = 0;
 	m_command_fifo0_ptr = 0;
 	m_command_fifo1_ptr = 0;
@@ -128,20 +134,19 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 	switch (reg)
 	{
-		/*
-		// Speculatory based on data written to registers
 		case 0x00:
 			if (ACCESSING_BITS_16_31) {
-				visible_width = (data >> 16) & 0xffff;
+				// Visible width
+				m_viewport_width = (data >> 16) & 0xffff;
 			}
 			break;
 
 		case 0x04:
 			if (ACCESSING_BITS_16_31) {
-				visible_height = (data >> 16) & 0xffff;
+				// Visible height
+				m_viewport_height = (data >> 16) & 0xffff;
 			}
 			break;
-		*/
 
 		case 0x10:
 			/* IRQ clear/enable; ppd writes bit off then on in response to interrupt */
@@ -455,6 +460,17 @@ int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rect
 	bitmap.fill(0, cliprect);
 
 	bool inverse_trans = false;
+
+	if (m_viewport_width != 0 && m_viewport_height != 0)
+	{
+		rectangle visarea = screen.visible_area();
+		if (visarea.max_x != m_viewport_width || visarea.max_y != m_viewport_height)
+		{
+			visarea.max_x = m_viewport_width;
+			visarea.max_y = m_viewport_height;
+			screen.configure(m_viewport_width, m_viewport_height, visarea, screen.frame_period().attoseconds());
+		}
+	}
 
 	// most likely wrong, inverse transparency is only used by kbm
 	if ((m_reg_6c & 0xf) != 0)
