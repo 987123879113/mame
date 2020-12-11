@@ -80,6 +80,7 @@ void k057714_device::device_reset()
 		elem.base = 0;
 		elem.width = 0;
 		elem.height = 0;
+		elem.brightness = 2048;
 	}
 }
 

@@ -220,7 +220,7 @@ private:
 	optional_device_array<k057714_device, 2> m_gcu;
 	optional_device<cy7c131_device> m_dpram;
 	optional_device<ata_interface_device> m_spuata;
-	required_shared_ptr<uint16_t> m_waveram;
+	optional_shared_ptr<uint16_t> m_waveram;
 
 	uint8_t m_extend_board_irq_enable;
 	uint8_t m_extend_board_irq_active;
@@ -492,6 +492,7 @@ static void comm_uart_irq_callback(running_machine &machine, int channel, int va
 static int cab_data[3] = { 0, 0, 0 };
 static int kbm_cab_data[3] = { 2, 0, 0 };
 static int ppd_cab_data[3] = { 1, 0, 0 };
+static int ppp_cab_data[3] = { 8, 0, 0 };
 
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
@@ -1333,11 +1334,6 @@ void firebeat_state::firebeat2(machine_config &config)
 
 	MIDI_KBD(config, m_kbd[0], 31250).tx_callback().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
 	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
-
-	rf5c400_device& rf5c400(RF5C400(config, "rfsnd", XTAL(16'934'400)));
-	rf5c400.set_addrmap(0, &firebeat_state::rf5c400_map);
-	rf5c400.add_route(0, "lspeaker", 1.0);
-	rf5c400.add_route(1, "rspeaker", 1.0);
 }
 
 void firebeat_state::firebeat_spu(machine_config &config)
@@ -1555,6 +1551,8 @@ void firebeat_state::init_ppp()
 {
 	init_firebeat();
 	init_lights(write32s_delegate(*this, FUNC(firebeat_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output3_ppp_w)));
+
+	m_cur_cab_data = ppp_cab_data;
 }
 
 void firebeat_state::init_ppd()
