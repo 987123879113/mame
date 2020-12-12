@@ -461,44 +461,47 @@ void k057714_device::draw_object(uint32_t *cmd)
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
 	// 0x00: ----xx-- -------- -------- --------   ?
-	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   object data address in vram
+	// 0x00: -------- xxxxxxxx xxxxxx-- --------   ram y
+	// 0x00: -------- -------- ------xx xxxxxxxx   ram x
 
 	// 0x01: -------- -------- ------xx xxxxxxxx   object x
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
 	// 0x01: -----x-- -------- -------- --------   object x flip
 	// 0x01: ----x--- -------- -------- --------   object y flip
-	// 0x01: --xx---- -------- -------- --------   object alpha enable (different blend modes?)
+	// 0x01: ---x---- -------- -------- --------   something alpha blend?
+	// 0x01: --x----- -------- -------- --------   something alpha blend?
 	// 0x01: -x------ -------- -------- --------   object transparency enable (?)
 	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
 
-	// 0x02: -------- -------- ------xx xxxxxxxx   object width
-	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
-	// 0x02: xxxxx--- -------- -------- --------   ?
-	// 0x02: -----xxx xx------ -------- --------   translucency
-	// 0x02: -------- --xxx--- -------- --------   ?
+	// 0x02: -------- -------- -------x xxxxxxxx   object width
+	// 0x02: -------- --xxxxxx xxxxxx-- --------   object x scale
+	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
+	// 0x02: -----xxx xx------ -------- --------   transparency max? (front)
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
-	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
-	// 0x03: xxxxx--- -------- -------- --------   ?
-	// 0x03: -----xxx xx------ -------- --------   ?
-	// 0x03: -------- --xxx--- -------- --------   ?
+	// 0x03: -------- --xxxxxx xxxxxx-- --------   object y scale
+	// 0x03: xxxxx--- -------- -------- --------   transparency (background)
+	// 0x03: -----xxx xx------ -------- --------   transparency max? (background)
 
 	int x = cmd[1] & 0x3ff;
 	int y = (cmd[1] >> 10) & 0x3fff;
-	int width = (cmd[2] & 0x3ff) + 1;
-	int height = (cmd[3] & 0x3ff)  + 1;
-	int xscale = (cmd[2] >> 10) & 0x1ff;
-	int yscale = (cmd[3] >> 10) & 0x1ff;
+	int width = (cmd[2] & 0x1ff) + 1;
+	int height = (cmd[3] & 0x3ff) + 1;
+	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
+	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
 	bool xflip = (cmd[1] & 0x04000000) ? true : false;
 	bool yflip = (cmd[1] & 0x08000000) ? true : false;
 	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
-	uint32_t address = cmd[0] & 0xffffff;
+	uint32_t address_x = cmd[0] & 0x3ff;
+	uint32_t address_y = (cmd[0] >> 10) & 0x3fff;
 	int alpha_level = (cmd[2] >> 27) & 0x1f;
 	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
 	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
+
+	uint32_t address = (address_y << 10) | address_x;
 
 	if (relative_coords)
 	{
@@ -508,7 +511,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
 
-	if (xscale == 0 || yscale == 0)
+	if (xscale <= 0 || yscale <= 0 || height <= 0 || width <= 0)
 	{
 		return;
 	}
