@@ -501,6 +501,16 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
 
+	if (xflip && ((4 - ((width - 1) & 3)) <= (address_x & 3))) {
+		// Based on logic from pop'n music 8 @ 0x800b30d0
+		address_x -= 4;
+	}
+
+	if (yflip) {
+		// Based on logic from pop'n music 8 @ 0x800b3140
+		y -= (((height * 64) - 1) / yscale) - (((height - 1) * 64) / yscale);
+	}
+
 	uint32_t address = (address_y << 10) | address_x;
 
 	if (relative_coords)
@@ -520,8 +530,11 @@ void k057714_device::draw_object(uint32_t *cmd)
 	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
 #endif
 
-	width = (((width * 65536) / xscale) * 64) / 65536;
-	height = (((height * 65536) / yscale) * 64) / 65536;
+	int orig_height = height;
+
+	// Fixes some glitching on Animelo's title screen, visible on the right side before the circle goes off screen
+	width = (int)round(width * (64.0f / (float)xscale));
+	height = (int)round(height * (64.0f / (float)yscale));
 
 	int fb_width = m_frame[0].width;
 	int fb_height = m_frame[0].height;
@@ -534,29 +547,24 @@ void k057714_device::draw_object(uint32_t *cmd)
 	int fb_pitch = 1024;
 
 	int v = 0;
+	int xinc = xflip ? -1 : 1;
 	for (int j=0; j < height; j++)
 	{
 		int index;
-		int xinc;
 		uint32_t fbaddr = ((j+y) * fb_pitch) + x;
 
 		if (yflip)
 		{
-			index = address + ((height - 1 - (v >> 6)) * 1024);
+			index = address + ((orig_height - 1 - (v >> 6)) * fb_pitch);
 		}
 		else
 		{
-			index = address + ((v >> 6) * 1024);
+			index = address + ((v >> 6) * fb_pitch);
 		}
 
 		if (xflip)
 		{
-			fbaddr += width;
-			xinc = -1;
-		}
-		else
-		{
-			xinc = 1;
+			fbaddr += width - 1;
 		}
 
 		int u = 0;
