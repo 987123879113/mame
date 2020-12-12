@@ -50,6 +50,7 @@ void k057714_device::device_reset()
 		elem.base = 0;
 		elem.width = 0;
 		elem.height = 0;
+		elem.brightness = 2048; // Default value unknown so set brightness to to 100%
 	}
 }
 
@@ -137,10 +138,20 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			}
 			break;
 
-		case 0x14:      // ?
+		case 0x14:
+			/* Used for fade in/out */
+			if (ACCESSING_BITS_16_31)
+				m_frame[0].brightness = (data >> 16) & 0xffff;
+			if (ACCESSING_BITS_0_15)
+				m_frame[1].brightness = data & 0xffff;
 			break;
 
-		case 0x18:      // ?
+		case 0x18:
+			/* Used for fade in/out */
+			if (ACCESSING_BITS_16_31)
+				m_frame[2].brightness = (data >> 16) & 0xffff;
+			if (ACCESSING_BITS_0_15)
+				m_frame[3].brightness = data & 0xffff;
 			break;
 
 		case 0x1c:      // set to 1 on "media bus" access
@@ -370,6 +381,7 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 {
 	int height = m_frame[frame].height;
 	int width = m_frame[frame].width;
+	int brightness = m_frame[frame].brightness;
 
 	if (width == 0 || height == 0)
 		return;
@@ -393,7 +405,22 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 		{
 			uint16_t pix = vram16[(m_frame[frame].base + li + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
 			if ((pix & 0x8000) != trans_value) {
-				d[i] = pix & 0x7fff;
+				uint32_t r = (pix >> 10) & 0x1f;
+				uint32_t g = (pix >> 5) & 0x1f;
+				uint32_t b = (pix >> 0) & 0x1f;
+
+				// TODO: Determine the proper maximum brightness for here.
+				// In pop'n music 8, I observed a max value of 2115
+				// but it feels like an arbitrary value.
+				r = (r * brightness) >> 11;
+				g = (g * brightness) >> 11;
+				b = (b * brightness) >> 11;
+
+				if (r > 0x1f) r = 0x1f;
+				if (g > 0x1f) g = 0x1f;
+				if (b > 0x1f) b = 0x1f;
+
+				d[i] = (r << 10) | (g << 5) | b;
 			}
 		}
 	}
