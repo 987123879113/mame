@@ -494,7 +494,8 @@ void k057714_device::draw_object(uint32_t *cmd)
 	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
 	uint32_t address = cmd[0] & 0xffffff;
-	int alpha_level = (cmd[2] >> 22) & 0x1f;
+	int alpha_level = (cmd[2] >> 27) & 0x1f;
+	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
 	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
@@ -574,6 +575,10 @@ void k057714_device::draw_object(uint32_t *cmd)
 						uint32_t r = (pix >> 10) & 0x1f;
 						uint32_t g = (pix >>  5) & 0x1f;
 						uint32_t b = (pix >>  0) & 0x1f;
+
+						sr = (sr * alpha_level2) >> 4;
+						sg = (sg * alpha_level2) >> 4;
+						sb = (sb * alpha_level2) >> 4;
 
 						sr += (r * alpha_level) >> 4;
 						sg += (g * alpha_level) >> 4;
