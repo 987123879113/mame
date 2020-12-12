@@ -192,7 +192,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x30:      // Framebuffer 0 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[0].height = (data >> 16) & 0xffff;
+				m_frame[0].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[0].width = data & 0xffff;
 #if PRINT_GCU
@@ -202,7 +202,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x34:      // Framebuffer 1 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[1].height = (data >> 16) & 0xffff;
+				m_frame[1].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[1].width = data & 0xffff;
 #if PRINT_GCU
@@ -212,7 +212,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x38:      // Framebuffer 2 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[2].height = (data >> 16) & 0xffff;
+				m_frame[2].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[2].width = data & 0xffff;
 #if PRINT_GCU
@@ -222,7 +222,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x3c:      // Framebuffer 3 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[3].height = (data >> 16) & 0xffff;
+				m_frame[3].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[3].width = data & 0xffff;
 #if PRINT_GCU
@@ -397,11 +397,11 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 	if (m_frame[frame].x + width > cliprect.max_x)
 		width = cliprect.max_x - m_frame[frame].x;
 
-	for (int j = 0; j < height; j++)
+	for (int j = 0; j <= height; j++)
 	{
 		uint16_t *const d = &bitmap.pix(j + m_frame[frame].y, m_frame[frame].x);
 		int li = (j * fb_pitch);
-		for (int i = 0; i < width; i++)
+		for (int i = 0; i <= width; i++)
 		{
 			uint16_t pix = vram16[(m_frame[frame].base + li + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
 			if ((pix & 0x8000) != trans_value) {
