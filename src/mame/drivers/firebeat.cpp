@@ -201,6 +201,7 @@ public:
 	void init_ppd();
 	void init_kbm();
 	void init_ppp();
+	void init_popn();
 
 protected:
 	virtual void machine_start() override;
@@ -224,7 +225,7 @@ private:
 //  emu_timer *m_keyboard_timer;
 	int m_layer;
 	int m_cab_data_ptr;
-	const int * m_cur_cab_data;
+	int* m_cur_cab_data;
 //  int m_keyboard_state[2];
 	IBUTTON m_ibutton;
 	int m_ibutton_state;
@@ -244,6 +245,7 @@ private:
 //  uint32_t comm_uart_r(offs_t offset, uint32_t mem_mask = ~ 0);
 //  void comm_uart_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t cabinet_r(offs_t offset, uint32_t mem_mask = ~0);
+	void cabinet_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t keyboard_wheel_r(offs_t offset);
 	uint8_t midi_uart_r(offs_t offset);
 	void midi_uart_w(offs_t offset, uint8_t data);
@@ -449,29 +451,55 @@ static void comm_uart_irq_callback(running_machine &machine, int channel, int va
 
 /*****************************************************************************/
 
-static const int cab_data[2] = { 0x0, 0x8 };
-static const int kbm_cab_data[2] = { 0x2, 0x8 };
-static const int ppd_cab_data[2] = { 0x1, 0x9 };
+static int cab_data[3] = { 0, 0, 0 };
+static int kbm_cab_data[3] = { 2, 0, 0 };
+static int ppd_cab_data[3] = { 1, 0, 0 };
+static int ppp_cab_data[3] = { 8, 0, 0 };
 
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
-	uint32_t r = 0;
-
 //  printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
 
 	switch (offset)
 	{
 		case 0:
 		{
-			r = m_cur_cab_data[m_cab_data_ptr & 1] << 28;
-			m_cab_data_ptr++;
-			return r;
+			// Based on pop'n music's code
+			// m_cur_cab_data:
+			//     0x00: -------x Cabinet Region (0 = Japanese, 1 = Overseas)
+			//     0x00: -----xx- Rental?
+			// For Mickey Tunes (and others maybe?), the 4th byte of the dongle serial must correspond to the above cabinet region/type
+			return m_cur_cab_data[0] << 28;
 		}
-		case 2:     return 0x00000000;
-		case 4:     return 0x00000000;
+
+		case 2:
+			return m_cur_cab_data[1] << 28;
+
+		case 4:
+			return m_cur_cab_data[2] << 28;
 	}
 
 	return 0;
+}
+
+void firebeat_state::cabinet_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+//	printf("cabinet_w: %08X, %08x, %08X\n", offset, data, mem_mask);
+
+	switch (offset)
+	{
+	case 0:
+		m_cur_cab_data[0] = data & 0xff;
+		break;
+
+	case 2:
+		m_cur_cab_data[1] = data & 0xff;
+		break;
+
+	case 4:
+		m_cur_cab_data[2] = data & 0xff;
+		break;
+	}
 }
 
 /*****************************************************************************/
@@ -842,7 +870,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_state::keyboard_wheel_r));
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
-	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
+	map(0x7d000200, 0x7d00021f).rw(FUNC(firebeat_state::cabinet_r), FUNC(firebeat_state::cabinet_w));
 	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
@@ -1397,6 +1425,14 @@ void firebeat_state::init_firebeat()
 }
 
 void firebeat_state::init_ppp()
+{
+	init_firebeat();
+	init_lights(write32s_delegate(*this, FUNC(firebeat_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output3_ppp_w)));
+
+	m_cur_cab_data = ppp_cab_data;
+}
+
+void firebeat_state::init_popn()
 {
 	init_firebeat();
 	init_lights(write32s_delegate(*this, FUNC(firebeat_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output3_ppp_w)));
