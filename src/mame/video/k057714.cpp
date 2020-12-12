@@ -566,27 +566,24 @@ void k057714_device::draw_object(uint32_t *cmd)
 				{
 					if (draw)
 					{
-						if ((pix & 0x7fff) != 0)
-						{
-							uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
+						uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
 
-							uint32_t sr = (srcpix >> 10) & 0x1f;
-							uint32_t sg = (srcpix >>  5) & 0x1f;
-							uint32_t sb = (srcpix >>  0) & 0x1f;
-							uint32_t r = (pix >> 10) & 0x1f;
-							uint32_t g = (pix >>  5) & 0x1f;
-							uint32_t b = (pix >>  0) & 0x1f;
+						uint32_t sr = (srcpix >> 10) & 0x1f;
+						uint32_t sg = (srcpix >>  5) & 0x1f;
+						uint32_t sb = (srcpix >>  0) & 0x1f;
+						uint32_t r = (pix >> 10) & 0x1f;
+						uint32_t g = (pix >>  5) & 0x1f;
+						uint32_t b = (pix >>  0) & 0x1f;
 
-							sr += (r * alpha_level) >> 4;
-							sg += (g * alpha_level) >> 4;
-							sb += (b * alpha_level) >> 4;
+						sr += (r * alpha_level) >> 4;
+						sg += (g * alpha_level) >> 4;
+						sb += (b * alpha_level) >> 4;
 
-							if (sr > 0x1f) sr = 0x1f;
-							if (sg > 0x1f) sg = 0x1f;
-							if (sb > 0x1f) sb = 0x1f;
+						if (sr > 0x1f) sr = 0x1f;
+						if (sg > 0x1f) sg = 0x1f;
+						if (sb > 0x1f) sb = 0x1f;
 
-							vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
-						}
+						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
 					}
 				}
 				else
