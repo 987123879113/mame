@@ -31,6 +31,9 @@ void k057714_device::device_start()
 
 void k057714_device::device_reset()
 {
+	m_viewport_width = 0;
+	m_viewport_height = 0;
+
 	m_vram_read_addr = 0;
 	m_command_fifo0_ptr = 0;
 	m_command_fifo1_ptr = 0;
@@ -101,6 +104,20 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 	switch (reg)
 	{
+		case 0x00:
+			if (ACCESSING_BITS_16_31) {
+				// Visible width
+				m_viewport_width = (data >> 16) & 0xffff;
+			}
+			break;
+
+		case 0x04:
+			if (ACCESSING_BITS_16_31) {
+				// Visible height
+				m_viewport_height = (data >> 16) & 0xffff;
+			}
+			break;
+
 		case 0x10:
 			/* IRQ clear/enable; ppd writes bit off then on in response to interrupt */
 			/* it enables bits 0x41, but 0x01 seems to be the one it cares about */
@@ -384,17 +401,14 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 
 int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	int width = m_frame[0].width;
-	int height = m_frame[0].height;
-
-	if (width != 0 && height != 0)
+	if (m_viewport_width != 0 && m_viewport_height != 0)
 	{
 		rectangle visarea = screen.visible_area();
-		if ((visarea.max_x+1) != width || (visarea.max_y+1) != height)
+		if (visarea.max_x != m_viewport_width || visarea.max_y != m_viewport_height)
 		{
-			visarea.max_x = width-1;
-			visarea.max_y = height-1;
-			screen.configure(width, height, visarea, screen.frame_period().attoseconds());
+			visarea.max_x = m_viewport_width;
+			visarea.max_y = m_viewport_height;
+			screen.configure(m_viewport_width, m_viewport_height, visarea, screen.frame_period().attoseconds());
 		}
 	}
 
