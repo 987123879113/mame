@@ -192,7 +192,7 @@ public:
 		m_gcu(*this, "gcu%u", 0),
 		m_dpram(*this, "spuram"),
 		m_spuata(*this, "spu_ata"),
-		m_waveram(*this, "rfsnd"),
+		m_waveram(*this, "rf5c400"),
 		m_spu_ata_dma(0),
 		m_spu_ata_dma_base(0),
 		m_spu_ata_dmarq(0),
@@ -942,7 +942,7 @@ void firebeat_state::spu_map(address_map &map)
 	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
 	map(0x300000, 0x30000f).rw(m_spuata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x340000, 0x34000f).rw(m_spuata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
-	map(0x400000, 0x7fffff).rw("rfsnd", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
+	map(0x400000, 0x7fffff).rw("rf5c400", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
 	map(0x800000, 0xffffff).rw(FUNC(firebeat_state::firebeat_waveram_r), FUNC(firebeat_state::firebeat_waveram_w));
 }
 
@@ -1293,7 +1293,7 @@ void firebeat_state::firebeat_spu(machine_config &config)
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
 	m_dpram->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ3); // address 0x3ff triggers PPC interrupt
 
-	rf5c400_device &rf5c400(RF5C400(config, "rfsnd", XTAL(16'934'400)));
+	rf5c400_device &rf5c400(RF5C400(config, "rf5c400", XTAL(16'934'400)));
 	rf5c400.set_addrmap(0, &firebeat_state::rf5c400_map);
 	rf5c400.add_route(0, "lspeaker", 1.0);
 	rf5c400.add_route(1, "rspeaker", 1.0);
@@ -1305,7 +1305,7 @@ void firebeat_state::firebeat_spu(machine_config &config)
 
 void firebeat_state::rf5c400_map(address_map& map)
 {
-	map(0x0000000, 0x1ffffff).ram().share("rfsnd");
+	map(0x0000000, 0x1ffffff).ram().share("rf5c400");
 }
 
 /*****************************************************************************/
@@ -1602,8 +1602,6 @@ ROM_START( popn4 )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gq986jaa01", 0, SHA1(e5368ac029b0bdf29943ae66677b5521ae1176e1) )
 
@@ -1620,8 +1618,6 @@ ROM_START( popn5 )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP( "a02jaa04.3q",  0x000000, 0x080000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683) )
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a04jaa01", 0, SHA1(87136ddad1d786b4d5f04381fcbf679ab666e6c9) )
@@ -1640,8 +1636,6 @@ ROM_START( popn6 )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqa16jaa01", 0, SHA1(7a7e475d06c74a273f821fdfde0743b33d566e4c) )
 
@@ -1658,8 +1652,6 @@ ROM_START( popn7 )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "b00jab01", 0, SHA1(259c733ca4d30281205b46b7bf8d60c9d01aa818) )
@@ -1678,8 +1670,6 @@ ROM_START( popn8 )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqb30jaa01", 0, SHA1(0ff3e40e3717ce23337b3a2438bdaca01cba9e30) )
 
@@ -1696,8 +1686,6 @@ ROM_START( popnanm2 )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
@@ -1745,8 +1733,6 @@ ROM_START( bm3core )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a05jca01", 0, SHA1(b89eced8a1325b087e3f875d1a643bebe9bad5c0) )
 
@@ -1763,8 +1749,6 @@ ROM_START( bm36th )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a21jca01", 0, SHA1(d1b888379cc0b2c2ab58fa2c5be49258043c3ea1) )
@@ -1783,8 +1767,6 @@ ROM_START( bm37th )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcb07jca01", 0, SHA1(f906379bdebee314e2ca97c7756259c8c25897fd) )
 
@@ -1801,8 +1783,6 @@ ROM_START( bm3final )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcc01jca01", 0, SHA1(3e7af83670d791591ad838823422959987f7aab9) )
