@@ -29,6 +29,11 @@ u16 px320a_device::read_dma()
 	return 0;
 }
 
+u16 px320a_device::read_dma_block(uint16_t* data, uint32_t* outsize, uint32_t size)
+{
+	return 0;
+}
+
 u16 px320a_device::read_cs0(offs_t offset, u16 mem_mask)
 {
 	return 0;

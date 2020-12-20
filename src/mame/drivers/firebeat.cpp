@@ -869,9 +869,7 @@ TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
 		// The blocking issue is the reason why DMAs are implemented using a timer instead of inside
 		// spu_ata_dmarq, and also why read_dma_block was created instead of reading in data one word
 		// at a time.
-		for (int i = 0; i < 0x4000; i++) {
-			m_waveram[m_wave_bank + m_spu_ata_dma++] = m_spuata->read_dma();
-		}
+		m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma, 0x4000);
 
 		m_spuata->write_dmack(CLEAR_LINE);
 	}
