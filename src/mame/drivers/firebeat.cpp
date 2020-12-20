@@ -238,7 +238,7 @@ private:
 	uint32_t m_spu_ata_dma_base;
 	int m_spu_ata_dmarq;
 	uint32_t m_wave_bank;
-	
+
 	void rf5c400_map(address_map & map);
 
 	DECLARE_MACHINE_START(firebeat);
@@ -482,21 +482,21 @@ uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 
 	switch (offset)
 	{
-	case 0:
-	{
-		// Based on pop'n music's code
-		// m_cur_cab_data:
-		//     0x00: -------x Cabinet Region (0 = Japanese, 1 = Overseas)
-		//     0x00: -----xx- Rental?
-		// For Mickey Tunes (and others maybe?), the 4th byte of the dongle serial must correspond to the above cabinet region/type
-		return m_cur_cab_data[0] << 28;
-	}
+		case 0:
+		{
+			// Based on pop'n music's code
+			// m_cur_cab_data:
+			//     0x00: -------x Cabinet Region (0 = Japanese, 1 = Overseas)
+			//     0x00: -----xx- Rental?
+			// For Mickey Tunes (and others maybe?), the 4th byte of the dongle serial must correspond to the above cabinet region/type
+			return m_cur_cab_data[0] << 28;
+		}
 
-	case 2:
-		return m_cur_cab_data[1] << 28;
+		case 2:
+			return m_cur_cab_data[1] << 28;
 
-	case 4:
-		return m_cur_cab_data[2] << 28;
+		case 4:
+			return m_cur_cab_data[2] << 28;
 	}
 
 	return 0;
