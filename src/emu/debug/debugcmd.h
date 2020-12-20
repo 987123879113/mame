@@ -178,6 +178,8 @@ private:
 	void execute_input(int ref, const std::vector<std::string> &params);
 	void execute_dumpkbd(int ref, const std::vector<std::string> &params);
 
+	void execute_memlog(int ref, const std::vector<std::string> &params);
+
 	running_machine&    m_machine;
 	debugger_cpu&       m_cpu;
 	debugger_console&   m_console;
