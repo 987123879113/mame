@@ -31,6 +31,9 @@ void k057714_device::device_start()
 
 void k057714_device::device_reset()
 {
+	m_viewport_width = 0;
+	m_viewport_height = 0;
+
 	m_vram_read_addr = 0;
 	m_command_fifo0_ptr = 0;
 	m_command_fifo1_ptr = 0;
@@ -47,6 +50,7 @@ void k057714_device::device_reset()
 		elem.base = 0;
 		elem.width = 0;
 		elem.height = 0;
+		elem.brightness = 2048; // Default value unknown so set brightness to to 100%
 	}
 }
 
@@ -101,6 +105,20 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 	switch (reg)
 	{
+		case 0x00:
+			if (ACCESSING_BITS_16_31) {
+				// Visible width
+				m_viewport_width = (data >> 16) & 0xffff;
+			}
+			break;
+
+		case 0x04:
+			if (ACCESSING_BITS_16_31) {
+				// Visible height
+				m_viewport_height = (data >> 16) & 0xffff;
+			}
+			break;
+
 		case 0x10:
 			/* IRQ clear/enable; ppd writes bit off then on in response to interrupt */
 			/* it enables bits 0x41, but 0x01 seems to be the one it cares about */
@@ -120,10 +138,20 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			}
 			break;
 
-		case 0x14:      // ?
+		case 0x14:
+			/* Used for fade in/out */
+			if (ACCESSING_BITS_16_31)
+				m_frame[0].brightness = (data >> 16) & 0xffff;
+			if (ACCESSING_BITS_0_15)
+				m_frame[1].brightness = data & 0xffff;
 			break;
 
-		case 0x18:      // ?
+		case 0x18:
+			/* Used for fade in/out */
+			if (ACCESSING_BITS_16_31)
+				m_frame[2].brightness = (data >> 16) & 0xffff;
+			if (ACCESSING_BITS_0_15)
+				m_frame[3].brightness = data & 0xffff;
 			break;
 
 		case 0x1c:      // set to 1 on "media bus" access
@@ -164,7 +192,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x30:      // Framebuffer 0 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[0].height = (data >> 16) & 0xffff;
+				m_frame[0].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[0].width = data & 0xffff;
 #if PRINT_GCU
@@ -174,7 +202,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x34:      // Framebuffer 1 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[1].height = (data >> 16) & 0xffff;
+				m_frame[1].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[1].width = data & 0xffff;
 #if PRINT_GCU
@@ -184,7 +212,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x38:      // Framebuffer 2 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[2].height = (data >> 16) & 0xffff;
+				m_frame[2].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[2].width = data & 0xffff;
 #if PRINT_GCU
@@ -194,7 +222,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x3c:      // Framebuffer 3 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[3].height = (data >> 16) & 0xffff;
+				m_frame[3].height = ((data >> 16) & 0xffff) + 1;
 			if (ACCESSING_BITS_0_15)
 				m_frame[3].width = data & 0xffff;
 #if PRINT_GCU
@@ -353,6 +381,7 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 {
 	int height = m_frame[frame].height;
 	int width = m_frame[frame].width;
+	int brightness = m_frame[frame].brightness;
 
 	if (width == 0 || height == 0)
 		return;
@@ -368,15 +397,30 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 	if (m_frame[frame].x + width > cliprect.max_x)
 		width = cliprect.max_x - m_frame[frame].x;
 
-	for (int j = 0; j < height; j++)
+	for (int j = 0; j <= height; j++)
 	{
 		uint16_t *const d = &bitmap.pix(j + m_frame[frame].y, m_frame[frame].x);
 		int li = (j * fb_pitch);
-		for (int i = 0; i < width; i++)
+		for (int i = 0; i <= width; i++)
 		{
 			uint16_t pix = vram16[(m_frame[frame].base + li + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
 			if ((pix & 0x8000) != trans_value) {
-				d[i] = pix & 0x7fff;
+				uint32_t r = (pix >> 10) & 0x1f;
+				uint32_t g = (pix >> 5) & 0x1f;
+				uint32_t b = (pix >> 0) & 0x1f;
+
+				// TODO: Determine the proper maximum brightness for here.
+				// In pop'n music 8, I observed a max value of 2115
+				// but it feels like an arbitrary value.
+				r = (r * brightness) >> 11;
+				g = (g * brightness) >> 11;
+				b = (b * brightness) >> 11;
+
+				if (r > 0x1f) r = 0x1f;
+				if (g > 0x1f) g = 0x1f;
+				if (b > 0x1f) b = 0x1f;
+
+				d[i] = (r << 10) | (g << 5) | b;
 			}
 		}
 	}
@@ -384,17 +428,14 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 
 int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	int width = m_frame[0].width;
-	int height = m_frame[0].height;
-
-	if (width != 0 && height != 0)
+	if (m_viewport_width != 0 && m_viewport_height != 0)
 	{
 		rectangle visarea = screen.visible_area();
-		if ((visarea.max_x+1) != width || (visarea.max_y+1) != height)
+		if (visarea.max_x != m_viewport_width || visarea.max_y != m_viewport_height)
 		{
-			visarea.max_x = width-1;
-			visarea.max_y = height-1;
-			screen.configure(width, height, visarea, screen.frame_period().attoseconds());
+			visarea.max_x = m_viewport_width;
+			visarea.max_y = m_viewport_height;
+			screen.configure(m_viewport_width, m_viewport_height, visarea, screen.frame_period().attoseconds());
 		}
 	}
 
@@ -420,43 +461,57 @@ void k057714_device::draw_object(uint32_t *cmd)
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
 	// 0x00: ----xx-- -------- -------- --------   ?
-	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   object data address in vram
+	// 0x00: -------- xxxxxxxx xxxxxx-- --------   ram y
+	// 0x00: -------- -------- ------xx xxxxxxxx   ram x
 
 	// 0x01: -------- -------- ------xx xxxxxxxx   object x
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
 	// 0x01: -----x-- -------- -------- --------   object x flip
 	// 0x01: ----x--- -------- -------- --------   object y flip
-	// 0x01: --xx---- -------- -------- --------   object alpha enable (different blend modes?)
+	// 0x01: ---x---- -------- -------- --------   something alpha blend?
+	// 0x01: --x----- -------- -------- --------   something alpha blend?
 	// 0x01: -x------ -------- -------- --------   object transparency enable (?)
 	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
 
-	// 0x02: -------- -------- ------xx xxxxxxxx   object width
-	// 0x02: -------- -----xxx xxxxxx-- --------   object x scale
-	// 0x02: xxxxx--- -------- -------- --------   ?
-	// 0x02: -----xxx xx------ -------- --------   translucency
-	// 0x02: -------- --xxx--- -------- --------   ?
+	// 0x02: -------- -------- -------x xxxxxxxx   object width
+	// 0x02: -------- --xxxxxx xxxxxx-- --------   object x scale
+	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
+	// 0x02: -----xxx xx------ -------- --------   transparency max? (front)
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
-	// 0x03: -------- -----xxx xxxxxx-- --------   object y scale
-	// 0x03: xxxxx--- -------- -------- --------   ?
-	// 0x03: -----xxx xx------ -------- --------   ?
-	// 0x03: -------- --xxx--- -------- --------   ?
+	// 0x03: -------- --xxxxxx xxxxxx-- --------   object y scale
+	// 0x03: xxxxx--- -------- -------- --------   transparency (background)
+	// 0x03: -----xxx xx------ -------- --------   transparency max? (background)
 
 	int x = cmd[1] & 0x3ff;
 	int y = (cmd[1] >> 10) & 0x3fff;
-	int width = (cmd[2] & 0x3ff) + 1;
-	int height = (cmd[3] & 0x3ff)  + 1;
-	int xscale = (cmd[2] >> 10) & 0x1ff;
-	int yscale = (cmd[3] >> 10) & 0x1ff;
+	int width = (cmd[2] & 0x1ff) + 1;
+	int height = (cmd[3] & 0x3ff) + 1;
+	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
+	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
 	bool xflip = (cmd[1] & 0x04000000) ? true : false;
 	bool yflip = (cmd[1] & 0x08000000) ? true : false;
 	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
-	uint32_t address = cmd[0] & 0xffffff;
-	int alpha_level = (cmd[2] >> 22) & 0x1f;
+	uint32_t address_x = cmd[0] & 0x3ff;
+	uint32_t address_y = (cmd[0] >> 10) & 0x3fff;
+	int alpha_level = (cmd[2] >> 27) & 0x1f;
+	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
 	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
+
+	if (xflip && ((4 - ((width - 1) & 3)) <= (address_x & 3))) {
+		// Based on logic from pop'n music 8 @ 0x800b30d0
+		address_x -= 4;
+	}
+
+	if (yflip) {
+		// Based on logic from pop'n music 8 @ 0x800b3140
+		y -= (((height * 64) - 1) / yscale) - (((height - 1) * 64) / yscale);
+	}
+
+	uint32_t address = (address_y << 10) | address_x;
 
 	if (relative_coords)
 	{
@@ -466,7 +521,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
 
-	if (xscale == 0 || yscale == 0)
+	if (xscale <= 0 || yscale <= 0 || height <= 0 || width <= 0)
 	{
 		return;
 	}
@@ -475,8 +530,11 @@ void k057714_device::draw_object(uint32_t *cmd)
 	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
 #endif
 
-	width = (((width * 65536) / xscale) * 64) / 65536;
-	height = (((height * 65536) / yscale) * 64) / 65536;
+	int orig_height = height;
+
+	// Fixes some glitching on Animelo's title screen, visible on the right side before the circle goes off screen
+	width = (int)round(width * (64.0f / (float)xscale));
+	height = (int)round(height * (64.0f / (float)yscale));
 
 	int fb_width = m_frame[0].width;
 	int fb_height = m_frame[0].height;
@@ -489,41 +547,36 @@ void k057714_device::draw_object(uint32_t *cmd)
 	int fb_pitch = 1024;
 
 	int v = 0;
+	int xinc = xflip ? -1 : 1;
 	for (int j=0; j < height; j++)
 	{
 		int index;
-		int xinc;
 		uint32_t fbaddr = ((j+y) * fb_pitch) + x;
 
 		if (yflip)
 		{
-			index = address + ((height - 1 - (v >> 6)) * 1024);
+			index = address + ((orig_height - 1 - (v >> 6)) * fb_pitch);
 		}
 		else
 		{
-			index = address + ((v >> 6) * 1024);
+			index = address + ((v >> 6) * fb_pitch);
 		}
 
 		if (xflip)
 		{
-			fbaddr += width;
-			xinc = -1;
-		}
-		else
-		{
-			xinc = 1;
+			fbaddr += width - 1;
 		}
 
 		int u = 0;
 		for (int i=0; i < width; i++)
 		{
-			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
-			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
-			if (alpha_enable)
+			if (fbaddr <= 0x1000000)
 			{
-				if (draw)
+				uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
+				bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
+				if (alpha_enable)
 				{
-					if ((pix & 0x7fff) != 0)
+					if (draw)
 					{
 						uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
 
@@ -533,6 +586,10 @@ void k057714_device::draw_object(uint32_t *cmd)
 						uint32_t r = (pix >> 10) & 0x1f;
 						uint32_t g = (pix >>  5) & 0x1f;
 						uint32_t b = (pix >>  0) & 0x1f;
+
+						sr = (sr * alpha_level2) >> 4;
+						sg = (sg * alpha_level2) >> 4;
+						sb = (sb * alpha_level2) >> 4;
 
 						sr += (r * alpha_level) >> 4;
 						sg += (g * alpha_level) >> 4;
@@ -545,12 +602,12 @@ void k057714_device::draw_object(uint32_t *cmd)
 						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
 					}
 				}
-			}
-			else
-			{
-				if (draw)
+				else
 				{
-					vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (pix & 0xffff);
+					if (draw)
+					{
+						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (pix & 0xffff);
+					}
 				}
 			}
 
