@@ -149,15 +149,34 @@ void rf5c400_device::device_start()
 	// init channel info
 	for (rf5c400_channel &chan : m_channels)
 	{
+		chan.startH = 0;
+		chan.startL = 0;
+		chan.freq = 0;
+		chan.endL = 0;
+		chan.endHloopH = 0;
+		chan.loopL = 0;
+		chan.pan = 0;
+		chan.effect = 0;
+		chan.volume = 0;
+		chan.attack = 0;
+		chan.decay = 0;
+		chan.release = 0;
+		chan.pos = 0;
+		chan.step = 0;
+		chan.keyon = 0;
 		chan.env_phase = PHASE_NONE;
 		chan.env_level = 0.0;
 		chan.env_step = 0.0;
 		chan.env_scale = 1.0;
+		chan.start_pos = 0;
+		chan.offset = 0;
 	}
 
 	save_item(NAME(m_rf5c400_status));
 	save_item(NAME(m_ext_mem_address));
 	save_item(NAME(m_ext_mem_data));
+	save_item(NAME(m_requested_channel));
+	save_item(NAME(m_requested_cmd));
 
 	save_item(STRUCT_MEMBER(m_channels, startH));
 	save_item(STRUCT_MEMBER(m_channels, startL));
@@ -179,8 +198,10 @@ void rf5c400_device::device_start()
 	save_item(STRUCT_MEMBER(m_channels, env_level));
 	save_item(STRUCT_MEMBER(m_channels, env_step));
 	save_item(STRUCT_MEMBER(m_channels, env_scale));
+	save_item(STRUCT_MEMBER(m_channels, start_pos));
+	save_item(STRUCT_MEMBER(m_channels, offset));
 
-	m_stream = stream_alloc(0, 2, clock() / 384);
+	m_stream = stream_alloc(0, 2, clock() / 384, STREAM_SYNCHRONOUS);
 }
 
 //-------------------------------------------------
@@ -216,7 +237,7 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
 
-//      start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+		auto offset = channel->offset;
 		end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
 		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
 		pos = channel->pos;
@@ -304,15 +325,23 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			buf1.add_int(i, sample * pan_table[rvol], 32768);
 
 			pos += channel->step;
+			offset += channel->step;
 			if ((pos>>16) > end)
 			{
-				pos -= loop<<16;
-				pos &= 0xFFFFFF0000ULL;
+				offset = 0;
+
+				if (loop > end) {
+					pos = channel->start_pos;
+				}
+				else {
+					pos -= loop << 16;
+					pos &= 0xFFFFFF0000ULL;
+				}
 			}
-
 		}
-		channel->pos = pos;
 
+		channel->offset = offset;
+		channel->pos = pos;
 		channel->env_phase = env_phase;
 		channel->env_level = env_level;
 		channel->env_step = env_step;
@@ -342,6 +371,36 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 			case 0x04:      // unknown read
 			{
 				return 0;
+			}
+
+			case 0x09:      // position read?
+			{
+				if (m_requested_cmd != 6) {
+					//printf("Unknown m_requested_cmd: %04x on ch %d\n", m_requested_cmd, m_requested_channel);
+				}
+
+				rf5c400_channel* channel = &m_channels[m_requested_channel];
+
+				if (channel->env_phase == PHASE_NONE) {
+					return 0;
+				}
+
+				// pop'n music's SPU program expects to read this register 6 times with the same value every
+				// read, and then the value should match a different value in memory (@ 0x1008ca).
+				// The value seems to correspond to how much data is read during the DMAs.
+				// The first DMA for pop'n music is 0x200000 bytes and then subsequent DMAs are 0x100000 bytes.
+				// The first value matched at 0x1008ca in the SPU program is 2, and then after that 1.
+				// When the value matches, the SPU sends off a new DMA request to overwrite the sample data in
+				// memory. This DMA request completely overwrites the currently playing sample data.
+				//
+				// I don't really understand exactly what value is supposed to be returned here or how it's calculated.
+				// This +16 is to give the game enough chance to see the value it needs at least 6 times so it can
+				// start the next DMA transfer. Sometimes the game doesn't read at consistent timings so +16 is to
+				// give it a little bit of extra time figure it out.
+				// Adjust the +16 as required. Remember that triggering the DMA too soon will overwrite the currently
+				// playing BGM data so you will experience skips or slight glitching in cases where the DMA is
+				// triggered too soon.
+				return (uint16_t)(((channel->offset >> 16) >> 7) + 16) & 0xffff;
 			}
 
 			case 0x13:      // memory read
@@ -376,6 +435,10 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (offset < 0x400)
 	{
+		if (offset != 8 && offset != 0x11 && offset != 0x12 && offset != 0x13 && offset != 0x14) {
+			//printf("%lf: offset %04x, data %04x\n", machine().time().as_double(), offset, data);
+		}
+
 		switch(offset)
 		{
 			case 0x00:
@@ -390,13 +453,15 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				switch ( data & 0x60 )
 				{
 					case 0x60:
-						m_channels[ch].pos =
-							((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+						m_channels[ch].offset = 0;
+						m_channels[ch].pos = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
 						m_channels[ch].pos <<= 16;
+						m_channels[ch].start_pos = m_channels[ch].pos;
 
 						m_channels[ch].env_phase = PHASE_ATTACK;
 						m_channels[ch].env_level = 0.0;
 						m_channels[ch].env_step  = m_env_tables.ar(m_channels[ch]);
+
 						break;
 					case 0x40:
 						if (m_channels[ch].env_phase != PHASE_NONE)
@@ -418,10 +483,28 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 						m_channels[ch].env_step  = 0.0;
 						break;
 				}
+
+
+				{
+					//auto start = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+					//auto end = ((m_channels[ch].endHloopH & 0xFF) << 16) | m_channels[ch].endL;
+					//auto loop = ((m_channels[ch].endHloopH & 0xFF00) << 8) | m_channels[ch].loopL;
+					//printf("ch %d, start: %08x, stop: %08x, loop: %08x\n", ch, start, end, loop);
+				}
+
 				break;
 			}
 
-			case 0x08:      // relative to env attack (channel no)
+			case 0x08:      // channel request??
+			{
+				// This is called before every 0x09 read in pop'n music's SPU
+				int ch = data & 0x1f;
+				m_requested_channel = ch;
+				m_requested_cmd = data >> 5;
+				break;
+			}
+
+
 			case 0x09:      // relative to env attack (0x0c00/ 0x1c00)
 
 			case 0x11:      // memory r/w address, bits 15 - 0
