@@ -808,7 +808,7 @@ class tx3927le_device : public mips3_device {
 public:
 	// construction/destruction
 	tx3927le_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-		: mips3_device(mconfig, TX3904LE, tag, owner, clock, MIPS3_TYPE_TX3904, ENDIANNESS_LITTLE, 32)
+		: mips3_device(mconfig, TX3904LE, tag, owner, clock, MIPS3_TYPE_TX3927, ENDIANNESS_LITTLE, 32)
 	{
 	}
 };
@@ -817,7 +817,7 @@ class tx3927be_device : public mips3_device {
 public:
 	// construction/destruction
 	tx3927be_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-		: mips3_device(mconfig, TX3904BE, tag, owner, clock, MIPS3_TYPE_TX3904, ENDIANNESS_BIG, 32)
+		: mips3_device(mconfig, TX3904BE, tag, owner, clock, MIPS3_TYPE_TX3927, ENDIANNESS_BIG, 32)
 	{
 	}
 };

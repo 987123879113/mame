@@ -97,6 +97,8 @@ void k573msu_device::amap(address_map &map)
 {
 	map(0x00000000, 0x007fffff).ram(); // TODO: Find out proper size and location
 	map(0x1fc00000, 0x1fc7ffff).rom().region("tmpr3927", 0);
+
+	map(0xfffe0000, 0xfffeffff).ram(); // Hack
 }
 
 ROM_START( k573msu )

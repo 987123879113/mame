@@ -85,6 +85,8 @@ void k573mcr_device::amap(address_map &map)
 {
 	map(0x00000000, 0x007fffff).ram(); // TODO: Find out proper location
 	map(0x1fc00000, 0x1fc7ffff).rom().region("tmpr3904", 0);
+
+	map(0xffff0000, 0xffffffff).ram(); // Hack
 }
 
 const char *k573mcr_device::device_id()
