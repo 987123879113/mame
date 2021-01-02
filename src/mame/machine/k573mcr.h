@@ -12,7 +12,6 @@
 #include "machine/jvsdev.h"
 
 #include "cpu/mips/mips3.h"
-#include "machine/ram.h"
 
 class jvs_host;
 

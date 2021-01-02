@@ -74,6 +74,7 @@
 
 k573npu_device::k573npu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, KONAMI_573_NETWORK_PCB_UNIT, tag, owner, clock)
+	, m_maincpu(*this, "tmpr3927")
 {
 }
 
@@ -81,9 +82,23 @@ void k573npu_device::device_start()
 {
 }
 
+void k573npu_device::device_add_mconfig(machine_config &config)
+{
+	TX3927BE(config, m_maincpu, 8.28_MHz_XTAL);
+	m_maincpu->set_icache_size(8192);
+	m_maincpu->set_dcache_size(4096);
+	m_maincpu->set_addrmap(AS_PROGRAM, &k573npu_device::amap);
+}
+
+void k573npu_device::amap(address_map &map)
+{
+	map(0x00000000, 0x00ffffff).ram(); // TODO: Find out proper size and location
+	map(0x1fc00000, 0x1fc7ffff).rom().region("tmpr3927", 0);
+}
+
 ROM_START( k573npu )
-	ROM_REGION( 0x080000, "tmpr3927", 0 )
-	ROM_LOAD( "29f400.24e",   0x000000, 0x080000, CRC(8dcf294b) SHA1(efac79e18db22c30886463ec1bc448187da7a95a) )
+	ROM_REGION16_BE( 0x080000, "tmpr3927", 0 )
+	ROM_LOAD16_WORD_SWAP( "29f400.24e",   0x000000, 0x080000, CRC(8dcf294b) SHA1(efac79e18db22c30886463ec1bc448187da7a95a) )
 ROM_END
 
 const tiny_rom_entry *k573npu_device::device_rom_region() const

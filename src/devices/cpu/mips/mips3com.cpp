@@ -343,6 +343,7 @@ uint32_t mips3_device::compute_prid_register()
 			return 0x2100;
 
 		case MIPS3_TYPE_TX3904:
+		case MIPS3_TYPE_TX3927:
 		case MIPS3_TYPE_TX4925:
 			return 0x2d23;
 

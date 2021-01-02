@@ -83,7 +83,7 @@ void k573mcr_device::device_add_mconfig(machine_config &config)
 
 void k573mcr_device::amap(address_map &map)
 {
-	map(0x00000000, 0x007fffff).ram();
+	map(0x00000000, 0x007fffff).ram(); // TODO: Find out proper location
 	map(0x1fc00000, 0x1fc7ffff).rom().region("tmpr3904", 0);
 }
 

@@ -40,6 +40,8 @@ DECLARE_DEVICE_TYPE(R4700BE, r4700be_device)
 DECLARE_DEVICE_TYPE(R4700LE, r4700le_device)
 DECLARE_DEVICE_TYPE(TX3904BE, tx3904be_device)
 DECLARE_DEVICE_TYPE(TX3904LE, tx3904le_device)
+DECLARE_DEVICE_TYPE(TX3927BE, tx3927be_device)
+DECLARE_DEVICE_TYPE(TX3927LE, tx3927le_device)
 DECLARE_DEVICE_TYPE(TX4925BE, tx4925be_device)
 DECLARE_DEVICE_TYPE(TX4925LE, tx4925le_device)
 DECLARE_DEVICE_TYPE(R5000BE, r5000be_device)
@@ -287,6 +289,7 @@ protected:
 		MIPS3_TYPE_R4650,
 		MIPS3_TYPE_R4700,
 		MIPS3_TYPE_TX3904,
+		MIPS3_TYPE_TX3927,
 		MIPS3_TYPE_TX4925,
 
 		/* MIPS IV variants */
@@ -797,6 +800,24 @@ public:
 	// construction/destruction
 	tx3904le_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 		: mips3_device(mconfig, TX3904LE, tag, owner, clock, MIPS3_TYPE_TX3904, ENDIANNESS_LITTLE, 32)
+	{
+	}
+};
+
+class tx3927le_device : public mips3_device {
+public:
+	// construction/destruction
+	tx3927le_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+		: mips3_device(mconfig, TX3904LE, tag, owner, clock, MIPS3_TYPE_TX3904, ENDIANNESS_LITTLE, 32)
+	{
+	}
+};
+
+class tx3927be_device : public mips3_device {
+public:
+	// construction/destruction
+	tx3927be_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+		: mips3_device(mconfig, TX3904BE, tag, owner, clock, MIPS3_TYPE_TX3904, ENDIANNESS_BIG, 32)
 	{
 	}
 };
