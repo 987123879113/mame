@@ -73,7 +73,9 @@
 */
 
 k573msu_device::k573msu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	device_t(mconfig, KONAMI_573_MULTI_SESSION_UNIT, tag, owner, clock)
+	device_t(mconfig, KONAMI_573_MULTI_SESSION_UNIT, tag, owner, clock),
+  m_maincpu(*this, "maincpu")
+  //m_ram(*this, "maincpu:ram")
 {
 }
 
@@ -81,9 +83,37 @@ void k573msu_device::device_start()
 {
 }
 
+void k573msu_device::device_add_mconfig(machine_config &config)
+{
+	TX3927BE(config, m_maincpu, 20_MHz_XTAL);
+	m_maincpu->set_icache_size(32768);
+	m_maincpu->set_dcache_size(32768);
+	m_maincpu->set_addrmap(AS_PROGRAM, &k573msu_device::amap);
+
+	//subdevice<ram_device>("maincpu:ram")->set_default_size("32M"); // Probably too large
+
+	//M48T58(config, "m48t58y", 0);
+
+  // https://github.com/torvalds/linux/blob/master/drivers/tty/serial/serial_txx9.c
+  // TODO: SDRAM 0xfffe8000
+  // TODO: DMA 0xfffeb000
+  // TODO: IRC 0xfffec000
+  // TODO: CCFG 0xfffee000
+  // TODO: TMR 0xfffef000
+  // TODO: Implement SIO @ 0xFFFEF300/0xFFFEF400
+  // TODO: PIO 0xfffef500
+}
+
+void k573msu_device::amap(address_map &map)
+{
+  // map(0x00000000, 0x03ffffff).ram().share("mainram");
+  // map(0x1f400800, 0x1f400bff).rw("m48t58y", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask32(0x00ff00ff);
+  map(0x1fc00000, 0x1fc7ffff).rom().region("tmpr3927", 0);
+}
+
 ROM_START( k573msu )
-	ROM_REGION( 0x080000, "tmpr3927", 0 )
-	ROM_LOAD( "flash.20t",    0x000000, 0x080000, CRC(b70c65b0) SHA1(d3b2bf9d3f8b1caf70755a0d7fa50ef8bbd758b8) ) // from "GXA25-PWB(A)(C)2000 KONAMI"
+	ROM_REGION32_BE( 0x080000, "tmpr3927", 0 )
+	ROM_LOAD16_WORD_SWAP( "flash.20t", 0x000000, 0x080000, CRC(b70c65b0) SHA1(d3b2bf9d3f8b1caf70755a0d7fa50ef8bbd758b8) ) // from "GXA25-PWB(A)(C)2000 KONAMI"
 
 	ROM_REGION( 0x002000, "m48t58y", 0 )
 	ROM_LOAD( "m48t58y.6t",   0x000000, 0x002000, CRC(609ef020) SHA1(71b87c8b25b9613b4d4511c53d0a3a3aacf1499d) )

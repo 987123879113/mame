@@ -2719,6 +2719,7 @@ void ksys573_state::drmn10m(machine_config &config)
 	casszi(config);
 
 	KONAMI_573_MULTI_SESSION_UNIT(config, "k573msu", 0);
+	//KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 }
 
 // Guitar Freaks

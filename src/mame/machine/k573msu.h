@@ -9,7 +9,9 @@
 
 #pragma once
 
-
+#include "cpu/mips/mips3.h"
+#include "machine/ram.h"
+#include "machine/timekpr.h"
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MULTI_SESSION_UNIT, k573msu_device)
 
@@ -20,8 +22,15 @@ public:
 
 protected:
 	virtual void device_start() override;
+	virtual void device_add_mconfig(machine_config &config) override;
+
+	void amap(address_map &map);
 
 	virtual const tiny_rom_entry *device_rom_region() const override;
+
+private:
+	required_device<tx3927be_device> m_maincpu;
+	//required_device<ram_device> m_ram;
 };
 
 #endif // MAME_MACHINE_K573MSU_H

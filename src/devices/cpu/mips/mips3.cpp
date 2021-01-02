@@ -118,6 +118,8 @@ DEFINE_DEVICE_TYPE(R4650BE,   r4650be_device,   "r4650be",   "MIPS IDT R4650 (bi
 DEFINE_DEVICE_TYPE(R4650LE,   r4650le_device,   "r4650le",   "MIPS IDT R4650 (little)")
 DEFINE_DEVICE_TYPE(R4700BE,   r4700be_device,   "r4700be",   "MIPS R4700 (big)")
 DEFINE_DEVICE_TYPE(R4700LE,   r4700le_device,   "r4700le",   "MIPS R4700 (little)")
+DEFINE_DEVICE_TYPE(TX3927BE,  tx3927be_device,  "tx3927be",  "Toshiba TX3927 (big)")
+DEFINE_DEVICE_TYPE(TX3927LE,  tx3927le_device,  "tx3927le",  "Toshiba TX3927 (little)")
 DEFINE_DEVICE_TYPE(TX4925BE,  tx4925be_device,  "tx4925be",  "Toshiba TX4925 (big)")
 DEFINE_DEVICE_TYPE(TX4925LE,  tx4925le_device,  "tx4925le",  "Toshiba TX4925 (little)")
 DEFINE_DEVICE_TYPE(R5000BE,   r5000be_device,   "r5000be",   "MIPS R5000 (big)")
