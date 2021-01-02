@@ -352,12 +352,13 @@ G: gun mania only, drives air soft gun (this game uses real BB bullet)
 #include "machine/adc083x.h"
 #include "machine/bankdev.h"
 #include "machine/ds2401.h"
-#include "machine/linflash.h"
+#include "machine/jvshost.h"
 #include "machine/k573cass.h"
 #include "machine/k573dio.h"
 #include "machine/k573mcr.h"
 #include "machine/k573msu.h"
 #include "machine/k573npu.h"
+#include "machine/linflash.h"
 #include "machine/mb89371.h"
 #include "machine/ram.h"
 #include "machine/timekpr.h"
@@ -373,6 +374,28 @@ G: gun mania only, drives air soft gun (this game uses real BB bullet)
 #define VERBOSE_LEVEL ( 0 )
 
 #define ATAPI_CYCLES_PER_SECTOR ( 5000 )  // plenty of time to allow DMA setup etc.  BIOS requires this be at least 2000, individual games may vary.
+
+
+/*
+ * Class declaration for jvs_master
+ */
+
+DECLARE_DEVICE_TYPE(JVS_MASTER, jvs_master)
+
+class jvs_master : public jvs_host
+{
+public:
+	// construction/destruction
+	jvs_master(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+};
+
+DEFINE_DEVICE_TYPE(JVS_MASTER, jvs_master, "jvs_master", "JVS MASTER")
+
+jvs_master::jvs_master(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: jvs_host(mconfig, JVS_MASTER, tag, owner, clock)
+{
+}
+
 
 class ksys573_state : public driver_device
 {
@@ -412,7 +435,8 @@ public:
 		m_encoder(*this, "ENCODER"),
 		m_gunmania_id(*this, "gunmania_id"),
 		m_duart(*this, "mb89371"),
-		m_lamps(*this, "lamp%u", 0U)
+		m_lamps(*this, "lamp%u", 0U),
+		m_jvs_master(*this, "jvs_master")
 	{ }
 
 	void drmn9m(machine_config &config);
@@ -641,6 +665,8 @@ private:
 	optional_device<ds2401_device> m_gunmania_id;
 	optional_device<mb89371_device> m_duart;
 	output_finder<2> m_lamps;
+
+	required_device<jvs_master> m_jvs_master;
 };
 
 void ATTR_PRINTF( 3,4 )  ksys573_state::verboselog( int n_level, const char *s_fmt, ... )
@@ -861,6 +887,7 @@ WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 {
 	update_disc();
 
+#if 0
 	/// TODO: emulate the memory controller board
 	if( strcmp( machine().system().name, "ddr2ml" ) == 0 )
 	{
@@ -899,6 +926,7 @@ WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 			p_n_psxram[ 0x1f850 / 4 ] = 0x08007e22;
 		}
 	}
+#endif
 }
 
 // H8 check at startup (JVS related)
@@ -2259,6 +2287,9 @@ void ksys573_state::konami573(machine_config &config)
 
 	adc0834_device &adc(ADC0834(config, "adc0834"));
 	adc.set_input_callback(FUNC(ksys573_state::analogue_inputs_callback));
+
+	JVS_MASTER(config, "jvs_master", 0);
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 // Variants with additional digital sound board
@@ -2366,7 +2397,6 @@ void ksys573_state::ddr(machine_config &config)
 void ksys573_state::ddr2ml(machine_config &config)
 {
 	k573a(config);
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0);
 
 	pccard1_16mb(config);
 	cassx(config);

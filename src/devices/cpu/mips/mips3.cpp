@@ -118,6 +118,8 @@ DEFINE_DEVICE_TYPE(R4650BE,   r4650be_device,   "r4650be",   "MIPS IDT R4650 (bi
 DEFINE_DEVICE_TYPE(R4650LE,   r4650le_device,   "r4650le",   "MIPS IDT R4650 (little)")
 DEFINE_DEVICE_TYPE(R4700BE,   r4700be_device,   "r4700be",   "MIPS R4700 (big)")
 DEFINE_DEVICE_TYPE(R4700LE,   r4700le_device,   "r4700le",   "MIPS R4700 (little)")
+DEFINE_DEVICE_TYPE(TX3904BE,  tx3904be_device,  "tx3904be",  "Toshiba TX3904 (big)")
+DEFINE_DEVICE_TYPE(TX3904LE,  tx3904le_device,  "tx3904le",  "Toshiba TX3904 (little)")
 DEFINE_DEVICE_TYPE(TX4925BE,  tx4925be_device,  "tx4925be",  "Toshiba TX4925 (big)")
 DEFINE_DEVICE_TYPE(TX4925LE,  tx4925le_device,  "tx4925le",  "Toshiba TX4925 (little)")
 DEFINE_DEVICE_TYPE(R5000BE,   r5000be_device,   "r5000be",   "MIPS R5000 (big)")
@@ -1129,9 +1131,11 @@ void mips3_device::device_reset()
 	/* load the fixed TLB range */
 	vtlb_load(2 * m_tlbentries + 0, (0xa0000000 - 0x80000000) >> MIPS3_MIN_PAGE_SHIFT, 0x80000000, 0x00000000 | VTLB_READ_ALLOWED | VTLB_WRITE_ALLOWED | VTLB_FETCH_ALLOWED | VTLB_FLAG_VALID);
 	vtlb_load(2 * m_tlbentries + 1, (0xc0000000 - 0xa0000000) >> MIPS3_MIN_PAGE_SHIFT, 0xa0000000, 0x00000000 | VTLB_READ_ALLOWED | VTLB_WRITE_ALLOWED | VTLB_FETCH_ALLOWED | VTLB_FLAG_VALID);
+
 	// TX4925 on-board peripherals pass-through
 	if (m_flavor == MIPS3_TYPE_TX4925)
 		vtlb_load(2 * m_tlbentries + 2, (0xff200000 - 0xff1f0000) >> MIPS3_MIN_PAGE_SHIFT, 0xff1f0000, 0xff1f0000 | VTLB_READ_ALLOWED | VTLB_WRITE_ALLOWED | VTLB_FETCH_ALLOWED | VTLB_FLAG_VALID);
+
 	m_tlb_seed = 0;
 
 	m_core->mode = (MODE_KERNEL << 1) | 0;

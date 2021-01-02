@@ -140,6 +140,7 @@ const double XTAL::known_xtals[] = {
 	  7'995'500, /* 7.9955_MHz_XTAL        Used on Electronic Devices Italy Galaxy Gunners sound board */
 	  8'000'000, /* 8_MHz_XTAL             Extremely common, used on 100's of PCBs */
 	  8'200'000, /* 8.2_MHz_XTAL           Universal Mr. Do - Model 8021 PCB */
+	  8'250'000, /* 8.25_MHz_XTAL          Konami System 573 Memory Card Reader PCB */
 	  8'388'000, /* 8.388_MHz_XTAL         Nintendo Game Boy Color */
 	  8'448'000, /* 8.448_MHz_XTAL         Banpresto's Note Chance - Used to drive OKI M6295 chips, usually with /8 divider */
 	  8'467'200, /* 8.4672_MHz_XTAL        Subsino's Ying Hua Lian */
