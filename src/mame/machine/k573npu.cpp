@@ -13,7 +13,7 @@
   System 573 Hard Drive and Network Unit
   --------------------------------------
 
-  This box is used with later Drum Mania and Guitar Freaks (possibly 9 to 11)
+  This box is used for GUITARFREAKS 8thMIX & drummania 7thMIX and later.
 
   PCB Layout
   ----------
@@ -43,7 +43,7 @@
                                     |             |            |             |
                                     |   48LC4M16  |------------|             |
                                     |                                        |
-                                    |                8.28MHz              CN2|
+                                    |                8.25MHz              CN2|
                                     |                                        |
                                     |----------------------------------------|
   Notes: (all IC's shown)
@@ -63,12 +63,32 @@
         SP232    - Sipex Corporation SP232 Enhanced RS-232 Line Drivers/Receiver (SOIC16)
         RJ45     - RJ45 network connector
         DIP40    - Empty DIP40 socket
-        CN1      - Custom multi-pin connector for special cable. The other end of the
-                   cable has a PCMCIA card which plugs into the PCMCIA slot on a
-                   System 573 main board
+        CN1      - HDRA-E68LFDT 68-pin VHDCI connector. Connects via a standard VHDCI-VHDCI
+                   cable to a PCMCIA adapter card that is inserted into the System 573 main
+                   board's PCMCIA slot
         CN2      - 6-pin power input connector
         CN3      - 4-pin connector
         L        - LED
+
+
+  PCMCIA adapter card
+  K5010-2501 CARD-BUS Ver.1.1
+  |-----CON1-----|
+  |              |
+  |     L4       |
+  |              |
+  |        L3    |
+  |   L5         |
+  |         L2   |
+  |              |
+  |  L6      L1  |
+  |              |
+  |-----CON2-----|
+
+  Notes:
+    CON1 - 68-pin VHDCI connector
+    CON2 - PCMCIA 68-pin connector
+    L1-L6 - TDK BD-8 ZBDS5101-8PT filters
 
 */
 
@@ -84,7 +104,7 @@ void k573npu_device::device_start()
 
 void k573npu_device::device_add_mconfig(machine_config &config)
 {
-	TX3927BE(config, m_maincpu, 8.28_MHz_XTAL);
+	TX3927BE(config, m_maincpu, 8.25_MHz_XTAL);
 	m_maincpu->set_icache_size(8192);
 	m_maincpu->set_dcache_size(4096);
 	m_maincpu->set_addrmap(AS_PROGRAM, &k573npu_device::amap);
