@@ -49,7 +49,6 @@ Notes:
 k573mcr_device::k573mcr_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	jvs_device(mconfig, KONAMI_573_MEMORY_CARD_READER, tag, owner, clock)
 	, m_maincpu(*this, "tmpr3904")
-  , m_rs232(*this, "rs232")
 {
 }
 
@@ -69,11 +68,6 @@ void k573mcr_device::device_add_mconfig(machine_config &config)
 	m_maincpu->set_icache_size(4096);
 	m_maincpu->set_dcache_size(1024);
 	m_maincpu->set_addrmap(AS_PROGRAM, &k573mcr_device::amap);
-
-	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
-	// m_rs232->rxd_handler().set(FUNC(k573mcr_device::write_rxd));
-	// m_rs232->cts_handler().set(FUNC(k573mcr_device::write_cts));
-	// m_rs232->dsr_handler().set(FUNC(k573mcr_device::write_dsr));
 }
 
 void k573mcr_device::amap(address_map &map)

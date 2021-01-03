@@ -9,7 +9,6 @@
 
 #pragma once
 
-#include "bus/rs232/rs232.h"
 #include "cpu/mips/mips3.h"
 #include "machine/jvsdev.h"
 
@@ -46,7 +45,6 @@ protected:
 
 private:
     required_device<tx3904be_device> m_maincpu;
-	required_device<rs232_port_device> m_rs232;
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)
