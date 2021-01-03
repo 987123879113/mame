@@ -7,52 +7,41 @@
   ---------------
   GE885-PWB(A)A
   (C)1999 KONAMI CO. LTD.
-  |---------------------------------------------------------|
-  |     PQ30RV11                                            |
-  |                                  |----------|           |
-  |  DIP8          |--------------|  |          |      CN61 |
-  |                |              |  | XCS05/10 |           |
-  |                |              |  |          |           |
-  |                |  TMPR3904AF  |  |----------|           |
-  |                |              |                    CN62 |
-  |                |              |                         |
-  |  CN65          |--------------|                         |
-  |            8.25 MHz                                CN67 |
-  |                                                         |
-  |                                                         |
-  |                                     EP4M16              |
-  |                                                         |
-  |                                                         |
-  |                EDO-DRAM4M-35                            |
-  |                                                         |
-  |                                                         |
-  |                                                 --------|
-  |                                                 |
-  |                                                 |
-  | USB-A                                      CN64 |
-  |                                                 |
-  |          ADM485JR                               |
-  |                                                 |
-  | USB-B                                      CN63 |
-  |                                                 |
-  |-------------------------------------------------|
+  |---------------------------------------|
+  |   PQ30RV11                            |
+  |         |----------|  |-------|  CN61 |
+  | DIP8    |          |  | XCS05 |       |
+  |         |   TMPR   |  | /10   |       |
+  |         |  3904AF  |  |-------|  CN62 |
+  |         |          |                  |
+  | CN65    |----------|                  |
+  |        8.25 MHz                  CN67 |
+  |                       EP4M16          |
+  |             DRAM4M                    |
+  |                                       |
+  |                               --------|
+  | USB-A                    CN64 |
+  |                               |
+  |          ADM485JR             |
+  | USB-B                    CN63 |
+  |-------------------------------|
 
 Notes:
-	DIP8           - 8-position DIP switch
-	CN61           - BS8PSHF1AA 8 pin connector, connects to memory card harness
-	CN62           - BS8PSHF1AA 8 pin connector
-	CN63           - 6P-SHVQ labeled "0", GE885-JB security dongle is connected here
-	CN64           - 6P-SHVQ labeled "1"
-	CN65           - B4PS-VH, 4 pin power connector
-	CN67           - BS15PSHF1AA, 15-pin connector, unpopulated
-	USB-A          - USB-A connector
-	USB-B          - USB-B connector, connects to USB on System 573 motherboard
-	ADM485JR       - Analog Devices ADM485 low power EIA RS-485 transceiver
-	TMPR3904AF     - Toshiba TMPR3904AF RISC Microprocessor
-	XCS05/10       - XILINX XCS10XL VQ100AKP9909 A2026631A
-	EDO-DRAM4M-35  - Silicon Magic 66 MHz C9742 SM81C256K16CJ-35, 256K x 16 EDO DRAM
-	EP4M16         - ROM labeled "855-A01"
- */
+	DIP8       - 8-position DIP switch
+	CN61       - BS8PSHF1AA 8 pin connector, connects to memory card harness
+	CN62       - BS8PSHF1AA 8 pin connector
+	CN63       - 6P-SHVQ labeled "0", GE885-JB security dongle is connected here
+	CN64       - 6P-SHVQ labeled "1"
+	CN65       - B4PS-VH, 4 pin power connector
+	CN67       - BS15PSHF1AA, 15-pin connector, unpopulated
+	USB-A      - USB-A connector
+	USB-B      - USB-B connector, connects to USB on System 573 motherboard
+	ADM485JR   - Analog Devices ADM485 low power EIA RS-485 transceiver
+	TMPR3904AF - Toshiba TMPR3904AF RISC Microprocessor
+	XCS05/10   - XILINX XCS10XL VQ100AKP9909 A2026631A
+	DRAM4M     - Silicon Magic 66 MHz C9742 SM81C256K16CJ-35, 256K x 16 EDO DRAM
+	EP4M16     - ROM labeled "855-A01"
+*/
 
 #include "emu.h"
 #include "k573mcr.h"
@@ -80,7 +69,6 @@ void k573mcr_device::device_add_mconfig(machine_config &config)
 	m_maincpu->set_icache_size(4096);
 	m_maincpu->set_dcache_size(1024);
 	m_maincpu->set_addrmap(AS_PROGRAM, &k573mcr_device::amap);
-
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 	// m_rs232->rxd_handler().set(FUNC(k573mcr_device::write_rxd));
