@@ -47,6 +47,7 @@ void jvs_device::message(uint8_t dest, const uint8_t *send_buffer, uint32_t send
 			next_device->message(dest, send_buffer, send_size, recv_buffer, recv_size);
 		else {
 			jvs_address = send_buffer[1];
+			printf("Setting jvs_address: %02x\n", jvs_address);
 			recv_size = 2;
 			recv_buffer[0] = 0x01;
 			recv_buffer[1] = 0x01;
