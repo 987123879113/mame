@@ -90,10 +90,13 @@ uint8_t k573mcr_device::comm_method_version()
 int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
 {
 	// Returns the size of the parsed message, not the size of the response message
+	// TODO: Fix the jvs interface to allow for null responses (0x70 0x01 returns a null response for buffer writes)
 
 	switch(send_buffer[0]) {
 		case 0xf0:
 		{
+			// Hack but I haven't looked into why this hack is required to pass init
+			// TODO: Fix hack or find justification for it
 			jvs_address = 0xff;
 			return -1;
 		}
@@ -237,6 +240,8 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		case 0x77:
 		{
 			// Playstation controller inputs
+			// TODO: Why isn't this polled like memory cards? Is a flag missing?
+			//
 			// This was used in Guitar Freaks starting with GF 2nd Mix Link Kit 2
 			// which allowed players to bring their own PS1 compatible guitars
 			// to the arcade.
