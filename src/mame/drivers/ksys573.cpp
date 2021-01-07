@@ -873,8 +873,6 @@ void ksys573_state::jvs_output_w(offs_t offset, uint16_t data, uint16_t mem_mask
 
 uint16_t ksys573_state::jvs_output_r(offs_t offset, uint16_t mem_mask)
 {
-	printf("%s: jvs_output_r %08x %08x\n", machine().describe_context().c_str(), offset, mem_mask);
-
 	if (jvs_output_idx_w <= 0) {
 		jvs_output_idx_w = m_jvs_master->received_packet(jvs_output_buffer);
 	}

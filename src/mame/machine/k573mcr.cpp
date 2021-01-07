@@ -91,7 +91,7 @@ uint8_t k573mcr_device::jvs_standard_version()
 
 uint8_t k573mcr_device::comm_method_version()
 {
-	return 0x20;
+	return 0x10;
 }
 
 int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
