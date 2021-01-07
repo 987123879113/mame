@@ -42,7 +42,7 @@ protected:
 	virtual uint8_t jvs_standard_version() override;
 	virtual uint8_t comm_method_version() override;
 
-	virtual int handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer) override;
+	virtual int handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer) override;
 
 private:
     // required_device<tx3904be_device> m_maincpu;

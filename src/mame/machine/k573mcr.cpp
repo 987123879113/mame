@@ -100,12 +100,14 @@ uint8_t k573mcr_device::comm_method_version()
 	return 0x10;
 }
 
-int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
+int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
 {
+	// Returns the size of the parsed message, not the size of the response message
+
 	switch(send_buffer[0]) {
 	case 0xf0:
 		jvs_address = 0xff;
-		return jvs_device::handle_message(send_buffer, send_size, recv_buffer);
+		return -1;
 
 	case 0x70:
 		if (send_buffer[1] == 1) {
@@ -120,19 +122,23 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 			// 00 47
 			memset(pcb_buf, 0x00, 512);
 			memcpy(pcb_buf, send_buffer + 3, send_size - 3);
+
+			*recv_buffer++ = 0x01;
+			*recv_buffer++ = 0x01;
+			return send_size;
 		} else if (send_buffer[1] == 2) {
 			// Sent after writing the firmware
 			// e0 01 06 70 02 01 c0 00 3a 06
-		} else {
-			printf("Unknown command!! 0x70 %02x\n", send_buffer[1]);
+			*recv_buffer++ = 0x01;
+			return 6;
 		}
 
-		*recv_buffer++ = 0x01;
-		*recv_buffer++ = 0x01;
-		return 1;
+		printf("Unknown command!! 0x70 %02x\n", send_buffer[1]);
+		return 0;
 
 	case 0x73:
 		// Firmware finished?
+		// e0 01 02 73 76 05
 		*recv_buffer++ = 0x01;
 		*recv_buffer++ = 0x00;
 		return 1;
@@ -140,9 +146,10 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 	case 0x71:
 	{
 		// Get requested status
-
+		// e0 01 02 71 74 00
 		int status = sec_plate_status;
 
+		/*
 		if (pcb_port == 0) {
 			status |= card1_status;
 		} else if (pcb_port == 1) {
@@ -151,12 +158,13 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 			// Card 3???
 			status |= card3_status;
 		}
+		*/
 
 		*recv_buffer++ = 0x01;
 		*recv_buffer++ = status >> 8;
 		*recv_buffer++ = status & 0xff;
 
-		return 2;
+		return 1;
 	}
 
 	case 0x76:
@@ -168,26 +176,23 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 			pcb_buf_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0xfff;
 			card1_status = 0x0008; // Not inserted
 			card2_status = 0x0008; // Not inserted
+			return 9;
 		} else if (send_buffer[1] == 0x75) {
 			// Write to card
 			card1_status = 0x0000; // Failed to write
 			card2_status = 0x0000; // Failed to write
 		}
 
-		*recv_buffer++ = 0x02;
-		*recv_buffer++ = 0x01;
-		*recv_buffer++ = 0x01;
-		return 2;
+		printf("Unknown command!! 0x76 %02x\n", send_buffer[1]);
+		return 0;
 	}
 
 	case 0x72:
-		*recv_buffer++ = 0x02;
-		*recv_buffer++ = 0x00;
-		*recv_buffer++ = 0x00;
-		return 2;
+		*recv_buffer++ = 0x01;
+		return 1;
 	}
 
-	return jvs_device::handle_message(send_buffer, send_size, recv_buffer);
+	return -1;
 }
 
 ROM_START( k573mcr )

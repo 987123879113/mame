@@ -83,8 +83,19 @@ void jvs_device::message(uint8_t dest, const uint8_t *send_buffer, uint32_t send
 		next_device->message(dest, send_buffer, send_size, recv_buffer, recv_size);
 }
 
+int jvs_device::handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
+{
+	return -1;
+}
+
 int jvs_device::handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
 {
+	int cret = handle_message_callback(send_buffer, send_size, recv_buffer);
+
+	if (cret != -1) {
+		return cret;
+	}
+
 	uint32_t old_reset_counter = jvs_reset_counter;
 	jvs_reset_counter = 0;
 
