@@ -59,7 +59,7 @@ void k573mcr_device::device_start()
 void k573mcr_device::device_reset()
 {
 	jvs_device::device_reset();
-	memset(pcb_buf, 0, 512);
+	memset(pcb_buf, 0, 65535);
 	pcb_buf_addr = 0;
 	pcb_port = 0;
 	card1_status = card2_status = 0x0008;
@@ -105,93 +105,166 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 	// Returns the size of the parsed message, not the size of the response message
 
 	switch(send_buffer[0]) {
-	case 0xf0:
-		jvs_address = 0xff;
-		return -1;
-
-	case 0x70:
-		if (send_buffer[1] == 1) {
-			// Buffer write
-			// e0 01 6f 70 01 01 97 80 68 06 09 9f 1b 39 d3 44
-			// 27 1f f5 00 57 df 40 7b 77 8b a6 70 09 06 b0 17
-			// 04 b1 b1 46 30 90 8d 80 a9 48 da 16 f5 7f bf 0b
-			// a7 36 43 46 0f 01 2f fe 15 a2 e0 1b 35 d7 3f d1
-			// 06 2e 91 c9 bd f7 77 36 ea 97 37 2e b1 17 72 03
-			// 4b d1 d0 59 43 0d f7 f7 df 90 dc f0 91 fe d0 0c
-			// c0 f2 91 0f f7 77 3f f7 1e 63 1d 7f 6b f2 ff 00
-			// 00 47
-			memset(pcb_buf, 0x00, 512);
-			memcpy(pcb_buf, send_buffer + 3, send_size - 3);
-
-			*recv_buffer++ = 0x01;
-			*recv_buffer++ = 0x01;
-			return send_size;
-		} else if (send_buffer[1] == 2) {
-			// Sent after writing the firmware
-			// e0 01 06 70 02 01 c0 00 3a 06
-			*recv_buffer++ = 0x01;
-			return 6;
+		case 0xf0:
+		{
+			jvs_address = 0xff;
+			return -1;
 		}
 
-		printf("Unknown command!! 0x70 %02x\n", send_buffer[1]);
-		return 0;
+		case 0x70:
+		{
+			if (send_buffer[1] == 0) {
+				// Buffer read
+				// e0 01 07 70 00 02 00 00 05 7f
+				int target_offset = ((send_buffer[3] << 8) | send_buffer[4]) & 0x7fff;
+				int target_len = send_buffer[5];
 
-	case 0x73:
-		// Firmware finished?
-		// e0 01 02 73 76 05
-		*recv_buffer++ = 0x01;
-		*recv_buffer++ = 0x00;
-		return 1;
+				*recv_buffer++ = 0x01;
 
-	case 0x71:
-	{
-		// Get requested status
-		// e0 01 02 71 74 00
-		int status = sec_plate_status;
+				for (int i = 0; i < target_len && i + target_offset < 65535; i++) {
+					*recv_buffer++ = pcb_buf[target_offset + i];
+				}
 
-		/*
-		if (pcb_port == 0) {
-			status |= card1_status;
-		} else if (pcb_port == 1) {
-			status |= card2_status;
-		} else if (pcb_port == 2) {
-			// Card 3???
-			status |= card3_status;
-		}
-		*/
+				return 6;
+			} else if (send_buffer[1] == 1) {
+				// Buffer write
+				// e0 01 6f 70 01 01 97 80 68 06 09 9f 1b 39 d3 44
+				// 27 1f f5 00 57 df 40 7b 77 8b a6 70 09 06 b0 17
+				// 04 b1 b1 46 30 90 8d 80 a9 48 da 16 f5 7f bf 0b
+				// a7 36 43 46 0f 01 2f fe 15 a2 e0 1b 35 d7 3f d1
+				// 06 2e 91 c9 bd f7 77 36 ea 97 37 2e b1 17 72 03
+				// 4b d1 d0 59 43 0d f7 f7 df 90 dc f0 91 fe d0 0c
+				// c0 f2 91 0f f7 77 3f f7 1e 63 1d 7f 6b f2 ff 00
+				// 00 47
+				memset(pcb_buf, 0x00, 65535);
+				memcpy(pcb_buf, send_buffer + 3, send_size - 3);
 
-		*recv_buffer++ = 0x01;
-		*recv_buffer++ = status >> 8;
-		*recv_buffer++ = status & 0xff;
+				*recv_buffer++ = 0x01;
+				*recv_buffer++ = 0x01;
+				return send_size;
+			} else if (send_buffer[1] == 2) {
+				// Sent after writing the firmware
+				// e0 01 06 70 02 01 c0 00 3a 06
+				*recv_buffer++ = 0x01;
+				return 6;
+			}
 
-		return 1;
-	}
-
-	case 0x76:
-	{
-		// memory card
-		if (send_buffer[1] == 0x74) {
-			// Read from card
-			pcb_port = (send_buffer[2] & 0xf0) ? 1 : 0;
-			pcb_buf_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0xfff;
-			card1_status = 0x0008; // Not inserted
-			card2_status = 0x0008; // Not inserted
-			return 9;
-		} else if (send_buffer[1] == 0x75) {
-			// Write to card
-			card1_status = 0x0000; // Failed to write
-			card2_status = 0x0000; // Failed to write
+			printf("Unknown command!! 0x70 (buf) %02x\n", send_buffer[1]);
+			return 0;
 		}
 
-		printf("Unknown command!! 0x76 %02x\n", send_buffer[1]);
-		return 0;
+		case 0x71:
+		{
+			// Get requested status
+			// e0 01 02 71 74 00
+			int status = sec_plate_status;
+
+			/*
+			if (pcb_port == 0) {
+				status |= card1_status;
+			} else if (pcb_port == 1) {
+				status |= card2_status;
+			} else if (pcb_port == 2) {
+				// Card 3???
+				status |= card3_status;
+			}
+			*/
+
+			/*
+			if (pcb_slot == 0) {
+				status |= sec_plate_status1;
+			} else if (pcb_port == 1) {
+				status |= sec_plate_status2;
+			}
+			*/
+
+			*recv_buffer++ = 0x01;
+			*recv_buffer++ = status >> 8;
+			*recv_buffer++ = status & 0xff;
+
+			return 1;
+		}
+
+		case 0x72:
+		{
+			// Security plate
+			if (send_buffer[1] == 0x00) {
+				// e0 01 03 72 00 76
+				*recv_buffer++ = 0x01;
+				return 2;
+			} else if (send_buffer[1] == 0x10) {
+				// Check password
+				// e0 01 0b 72 10 a4 60 f0 5d ea c4 5d ec d6
+				// Password part: a4 60 f0 5d ea c4 5d ec
+				*recv_buffer++ = 0x01;
+				return 10;
+			} else if (send_buffer[1] == 0x20) {
+				// e0 01 0a 72 20 00 00 02 00 00 00 08 a7 d6
+				if (pcb_port == 0) {
+					pcb_buf[0] = 0x4A;
+					pcb_buf[1] = 0x42;
+					pcb_buf[2] = 0x00;
+					pcb_buf[3] = 0x00;
+				} else {
+					pcb_buf[0] = 0x4A;
+					pcb_buf[1] = 0x43;
+					pcb_buf[2] = 0x00;
+					pcb_buf[3] = 0x00;
+				}
+
+				pcb_buf[4] = ~(pcb_buf[0] + pcb_buf[1]);
+
+				*recv_buffer++ = 0x01;
+				return 10;
+			} else if (send_buffer[1] == 0x40) {
+				// e0 01 06 72 40 02 00 00 bb 41
+				pcb_buf[0] = 0xFF;
+				pcb_buf[1] = 0xFF;
+				pcb_buf[2] = 0xAC;
+				pcb_buf[3] = 0x09;
+				pcb_buf[4] = 0x00;
+				*recv_buffer++ = 0x01;
+				return 6;
+			}
+
+			printf("Unknown command!! 0x72 (sec plate) %02x\n", send_buffer[1]);
+			return 0;
+		}
+
+		case 0x73:
+		{
+			// Firmware finished?
+			// e0 01 02 73 76 05
+			*recv_buffer++ = 0x01;
+			*recv_buffer++ = 0x01;
+			return 1;
+		}
+
+		case 0x76:
+		{
+			// memory card
+			if (send_buffer[1] == 0x74) {
+				// Read from card
+				// e0 01 0a 76 74 00 00 02 00 00 00 01 f8 39
+				// e0 01 0a 76 74 80 00 02 00 00 00 01 78 39
+				pcb_port = send_buffer[2] >> 7;
+				pcb_buf_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff;
+
+				card1_status = 0x0008; // Not inserted
+				card2_status = 0x0008; // Not inserted
+				return 9;
+			} else if (send_buffer[1] == 0x75) {
+				// Write to card
+				card1_status = 0x0000; // Failed to write
+				card2_status = 0x0000; // Failed to write
+			}
+
+			printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
+			return 0;
+		}
 	}
 
-	case 0x72:
-		*recv_buffer++ = 0x01;
-		return 1;
-	}
-
+	// Command not recognized, pass it off to the base message handler
 	return -1;
 }
 

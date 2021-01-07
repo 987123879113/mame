@@ -47,8 +47,8 @@ protected:
 private:
     // required_device<tx3904be_device> m_maincpu;
 
-	uint8_t pcb_buf[512];
-	uint32_t pcb_buf_addr, pcb_port;
+	uint8_t pcb_buf[65535];
+	uint32_t pcb_buf_addr, pcb_port, pcb_slot;
 	uint16_t card1_status, card2_status, card3_status;
 	uint16_t sec_plate_status;
 };

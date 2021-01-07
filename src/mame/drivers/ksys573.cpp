@@ -1066,47 +1066,6 @@ MACHINE_RESET_MEMBER( ksys573_state,konami573 )
 WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 {
 	update_disc();
-
-#if 0
-	/// TODO: emulate the memory controller board
-	if( strcmp( machine().system().name, "ddr2ml" ) == 0 )
-	{
-		/* patch out security-plate error */
-
-		uint32_t *p_n_psxram = (uint32_t *) m_ram->pointer();
-
-		/* install cd */
-
-		/* 801e1540: jal $801e1f7c */
-		if( p_n_psxram[ 0x1e1540 / 4 ] == 0x0c0787df )
-		{
-			/* 801e1540: j $801e1560 */
-			p_n_psxram[ 0x1e1540 / 4 ] = 0x08078558;
-		}
-
-		/* flash */
-
-		/* 8001f850: jal $80031fd8 */
-		if( p_n_psxram[ 0x1f850 / 4 ] == 0x0c00c7f6 )
-		{
-			/* 8001f850: j $8001f888 */
-			p_n_psxram[ 0x1f850 / 4 ] = 0x08007e22;
-		}
-	}
-	else if( strcmp( machine().system().name, "ddr2mla" ) == 0 )
-	{
-		/* patch out security-plate error */
-
-		uint32_t *p_n_psxram = (uint32_t *) m_ram->pointer();
-
-		/* 8001f850: jal $8003221c */
-		if( p_n_psxram[ 0x1f850 / 4 ] == 0x0c00c887 )
-		{
-			/* 8001f850: j $8001f888 */
-			p_n_psxram[ 0x1f850 / 4 ] = 0x08007e22;
-		}
-	}
-#endif
 }
 
 // H8 check at startup (JVS related)
