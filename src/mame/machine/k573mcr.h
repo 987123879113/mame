@@ -46,6 +46,11 @@ protected:
 
 private:
     // required_device<tx3904be_device> m_maincpu;
+
+	uint8_t pcb_buf[512];
+	uint32_t pcb_buf_addr, pcb_port;
+	uint16_t card1_status, card2_status, card3_status;
+	uint16_t sec_plate_status;
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)

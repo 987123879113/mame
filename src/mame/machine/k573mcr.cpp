@@ -59,6 +59,12 @@ void k573mcr_device::device_start()
 void k573mcr_device::device_reset()
 {
 	jvs_device::device_reset();
+	memset(pcb_buf, 0, 512);
+	pcb_buf_addr = 0;
+	pcb_port = 0;
+	card1_status = card2_status = 0x0008;
+	card3_status = 0;
+	sec_plate_status = 0;
 }
 
 // void k573mcr_device::device_add_mconfig(machine_config &config)
@@ -103,33 +109,82 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 
 	case 0x70:
 		if (send_buffer[1] == 1) {
-			// Firmware upload?
+			// Buffer write
+			// e0 01 6f 70 01 01 97 80 68 06 09 9f 1b 39 d3 44
+			// 27 1f f5 00 57 df 40 7b 77 8b a6 70 09 06 b0 17
+			// 04 b1 b1 46 30 90 8d 80 a9 48 da 16 f5 7f bf 0b
+			// a7 36 43 46 0f 01 2f fe 15 a2 e0 1b 35 d7 3f d1
+			// 06 2e 91 c9 bd f7 77 36 ea 97 37 2e b1 17 72 03
+			// 4b d1 d0 59 43 0d f7 f7 df 90 dc f0 91 fe d0 0c
+			// c0 f2 91 0f f7 77 3f f7 1e 63 1d 7f 6b f2 ff 00
+			// 00 47
+			memset(pcb_buf, 0x00, 512);
+			memcpy(pcb_buf, send_buffer + 3, send_size - 3);
+		} else if (send_buffer[1] == 2) {
+			// Sent after writing the firmware
+			// e0 01 06 70 02 01 c0 00 3a 06
 		} else {
 			printf("Unknown command!! 0x70 %02x\n", send_buffer[1]);
 		}
 
 		*recv_buffer++ = 0x01;
-		*recv_buffer++ = 0x00;
+		*recv_buffer++ = 0x01;
 		return 1;
-
-	case 0x71:
-	case 0x76:
-		*recv_buffer++ = 0x01;
-		*recv_buffer++ = 0x00;
-		*recv_buffer++ = 0x00;
-		return 2;
-
-	case 0x72:
-		*recv_buffer++ = 0x01;
-		*recv_buffer++ = 0x00;
-		*recv_buffer++ = 0x00;
-		return 2;
 
 	case 0x73:
 		// Firmware finished?
 		*recv_buffer++ = 0x01;
 		*recv_buffer++ = 0x00;
 		return 1;
+
+	case 0x71:
+	{
+		// Get requested status
+
+		int status = sec_plate_status;
+
+		if (pcb_port == 0) {
+			status |= card1_status;
+		} else if (pcb_port == 1) {
+			status |= card2_status;
+		} else if (pcb_port == 2) {
+			// Card 3???
+			status |= card3_status;
+		}
+
+		*recv_buffer++ = 0x01;
+		*recv_buffer++ = status >> 8;
+		*recv_buffer++ = status & 0xff;
+
+		return 2;
+	}
+
+	case 0x76:
+	{
+		// memory card
+		if (send_buffer[1] == 0x74) {
+			// Read from card
+			pcb_port = (send_buffer[2] & 0xf0) ? 1 : 0;
+			pcb_buf_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0xfff;
+			card1_status = 0x0008; // Not inserted
+			card2_status = 0x0008; // Not inserted
+		} else if (send_buffer[1] == 0x75) {
+			// Write to card
+			card1_status = 0x0000; // Failed to write
+			card2_status = 0x0000; // Failed to write
+		}
+
+		*recv_buffer++ = 0x02;
+		*recv_buffer++ = 0x01;
+		*recv_buffer++ = 0x01;
+		return 2;
+	}
+
+	case 0x72:
+		*recv_buffer++ = 0x02;
+		*recv_buffer++ = 0x00;
+		*recv_buffer++ = 0x00;
+		return 2;
 	}
 
 	return jvs_device::handle_message(send_buffer, send_size, recv_buffer);
