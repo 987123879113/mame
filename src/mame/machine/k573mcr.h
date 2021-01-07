@@ -31,9 +31,6 @@ protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
 
-    // virtual void device_add_mconfig(machine_config &config) override;
-    // void amap(address_map &map);
-
 	virtual const tiny_rom_entry *device_rom_region() const override;
 
 	// JVS device overrides
@@ -45,12 +42,10 @@ protected:
 	virtual int handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer) override;
 
 private:
-    // required_device<tx3904be_device> m_maincpu;
-
 	uint8_t pcb_buf[65535];
-	uint32_t pcb_buf_addr, pcb_port, pcb_slot;
-	uint16_t card1_status, card2_status, card3_status;
-	uint16_t sec_plate_status;
+	uint32_t pcb_buf_addr;
+	uint32_t controller_port, sec_slot;
+	uint16_t card_status[2];
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)

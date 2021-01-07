@@ -61,24 +61,10 @@ void k573mcr_device::device_reset()
 	jvs_device::device_reset();
 	memset(pcb_buf, 0, 65535);
 	pcb_buf_addr = 0;
-	pcb_port = 0;
-	card1_status = card2_status = 0x0008;
-	card3_status = 0;
-	sec_plate_status = 0;
+	controller_port = 0;
+	sec_slot = 0;
+	card_status[0] = card_status[1] = 0x0008; // Not inserted
 }
-
-// void k573mcr_device::device_add_mconfig(machine_config &config)
-// {
-// 	TX3904BE(config, m_maincpu, 8.25_MHz_XTAL);
-// 	m_maincpu->set_icache_size(4096);
-// 	m_maincpu->set_dcache_size(1024);
-// 	m_maincpu->set_addrmap(AS_PROGRAM, &k573mcr_device::amap);
-// }
-
-// void k573mcr_device::amap(address_map &map)
-// {
-// 	map(0x1fc00000, 0x1fc7ffff).rom().region("tmpr3904", 0);
-// }
 
 const char *k573mcr_device::device_id()
 {
@@ -129,11 +115,10 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			} else if (send_buffer[1] == 1) {
 				// Buffer write
 				// e0 01 6f 70 01 01 ...(payload)... 47
-				memset(pcb_buf, 0x00, 65535);
-				memcpy(pcb_buf, send_buffer + 3, send_size - 3);
-
-				*recv_buffer++ = 0x01;
-				*recv_buffer++ = 0x01;
+				if (send_size - 3 > 0) {
+					memcpy(pcb_buf, send_buffer + 3, send_size - 3);
+				}
+				*recv_buffer++ = 0x01; // Hack because MAME does not support empty responses yet
 				return send_size;
 			} else if (send_buffer[1] == 2) {
 				// Sent after writing the firmware
@@ -143,33 +128,16 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			}
 
 			printf("Unknown command!! 0x70 (buf) %02x\n", send_buffer[1]);
+			exit(1);
+
 			return 0;
 		}
 
 		case 0x71:
 		{
-			// Get requested status
+			// Status request
 			// e0 01 02 71 74 00
-			int status = sec_plate_status;
-
-			/*
-			if (pcb_port == 0) {
-				status |= card1_status;
-			} else if (pcb_port == 1) {
-				status |= card2_status;
-			} else if (pcb_port == 2) {
-				// Card 3???
-				status |= card3_status;
-			}
-			*/
-
-			/*
-			if (pcb_slot == 0) {
-				status |= sec_plate_status1;
-			} else if (pcb_port == 1) {
-				status |= sec_plate_status2;
-			}
-			*/
+			int status = 0;//card_status[controller_port];
 
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = status >> 8;
@@ -180,35 +148,29 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 		case 0x72:
 		{
-			uint8_t cmd = send_buffer[1] & ~1;
-			pcb_slot = send_buffer[1] & 1;
-
 			// Security plate
+			uint8_t cmd = send_buffer[1] & ~1;
+			sec_slot = send_buffer[1] & 1;
+
 			if (cmd == 0x00) {
 				// e0 01 03 72 00 76 slot 1
 				// e0 01 03 72 01 77 slot 2
 				*recv_buffer++ = 0x01;
 				return 2;
 			} else if (cmd == 0x10) {
-				// Check password
-				// e0 01 0b 72 10 a4 60 f0 5d ea c4 5d ec d6
-				// Password part: a4 60 f0 5d ea c4 5d ec
+				// Set password (presumably to read dongle)
 				*recv_buffer++ = 0x01;
 				return 10;
 			} else if (cmd == 0x20) {
-				// Something relating to region?
-				// e0 01 0a 72 20 00 00 02 00 00 00 08 a7 d6
-				if (pcb_port == 0) {
-					pcb_buf[0] = 0x4A;
-					pcb_buf[1] = 0x42;
-					pcb_buf[2] = 0x00;
-					pcb_buf[3] = 0x00;
-				} else {
-					pcb_buf[0] = 0x4A;
-					pcb_buf[1] = 0x43;
-					pcb_buf[2] = 0x00;
-					pcb_buf[3] = 0x00;
-				}
+				// Corresponds to data from CN63 dongle
+				// "GE885-JB" dongle.
+				// A second dongle may exist for GE929
+				// but I have not seen one.
+				// Later games don't seem to check this.
+				pcb_buf[0] = 0x4A; // J
+				pcb_buf[1] = 0x42; // B
+				pcb_buf[2] = 0x00;
+				pcb_buf[3] = 0x00;
 
 				pcb_buf[4] = ~(pcb_buf[0] + pcb_buf[1]); // Checksum byte
 
@@ -228,6 +190,8 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			}
 
 			printf("Unknown command!! 0x72 (sec plate) %02x\n", send_buffer[1]);
+			exit(1);
+
 			return 0;
 		}
 
@@ -247,19 +211,22 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				// Read from card
 				// e0 01 0a 76 74 00 00 02 00 00 00 01 f8 39
 				// e0 01 0a 76 74 80 00 02 00 00 00 01 78 39
-				pcb_port = send_buffer[2] >> 7;
+				controller_port = send_buffer[2] >> 7;
 				pcb_buf_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff;
 
-				card1_status = 0x0008; // Not inserted
-				card2_status = 0x0008; // Not inserted
+				card_status[0] = 0x0008; // Not inserted
+				card_status[1] = 0x0008; // Not inserted
+
 				return 9;
 			} else if (send_buffer[1] == 0x75) {
 				// Write to card
-				card1_status = 0x0000; // Failed to write
-				card2_status = 0x0000; // Failed to write
+				card_status[0] = 0x0000; // Failed to write
+				card_status[1] = 0x0000; // Failed to write
 			}
 
 			printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
+			exit(1);
+
 			return 0;
 		}
 	}
