@@ -749,8 +749,7 @@ void ksys573_state::konami573_map(address_map &map)
 	map(0x1f000000, 0x1f3fffff).m(m_flashbank, FUNC(address_map_bank_device::amap16));
 	map(0x1f400000, 0x1f400003).portr("IN0").portw("OUT0");
 	map(0x1f400004, 0x1f400007).portr("IN1");
-	map(0x1f400008, 0x1f40000b).portr("IN2").umask32(0xffff0000);
-	map(0x1f40000a, 0x1f40000b).rw(FUNC(ksys573_state::jvs_output_r), FUNC(ksys573_state::jvs_output_w));//.umask32(0xffff0000).cswidth(32);
+	map(0x1f400008, 0x1f40000b).rw(FUNC(ksys573_state::jvs_output_r), FUNC(ksys573_state::jvs_output_w));
 	map(0x1f40000c, 0x1f40000f).portr("IN3");
 	map(0x1f480000, 0x1f48000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x1f500000, 0x1f500001).rw(FUNC(ksys573_state::control_r), FUNC(ksys573_state::control_w));    // Konami can't make a game without a "control" register.
@@ -868,11 +867,21 @@ uint16_t ksys573_state::jvs_input_r(offs_t offset, uint16_t mem_mask)
 
 void ksys573_state::jvs_output_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
+	if (offset == 0) {
+		// 0x1f400008-0x1f400009 are for inputs
+		return;
+	}
+
     printf("jvs_output_w( %08x, %08x, %02x %02x )\n", offset, mem_mask, data & 0xff, data >> 8 );
 }
 
 uint16_t ksys573_state::jvs_output_r(offs_t offset, uint16_t mem_mask)
 {
+	if (offset == 0) {
+		// 0x1f400008-0x1f400009 are for inputs
+		return ioport("IN2")->read();
+	}
+
 	if (jvs_output_idx_w <= 0) {
 		jvs_output_idx_w = m_jvs_master->received_packet(jvs_output_buffer);
 	}
