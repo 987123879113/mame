@@ -128,14 +128,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				return 6;
 			} else if (send_buffer[1] == 1) {
 				// Buffer write
-				// e0 01 6f 70 01 01 97 80 68 06 09 9f 1b 39 d3 44
-				// 27 1f f5 00 57 df 40 7b 77 8b a6 70 09 06 b0 17
-				// 04 b1 b1 46 30 90 8d 80 a9 48 da 16 f5 7f bf 0b
-				// a7 36 43 46 0f 01 2f fe 15 a2 e0 1b 35 d7 3f d1
-				// 06 2e 91 c9 bd f7 77 36 ea 97 37 2e b1 17 72 03
-				// 4b d1 d0 59 43 0d f7 f7 df 90 dc f0 91 fe d0 0c
-				// c0 f2 91 0f f7 77 3f f7 1e 63 1d 7f 6b f2 ff 00
-				// 00 47
+				// e0 01 6f 70 01 01 ...(payload)... 47
 				memset(pcb_buf, 0x00, 65535);
 				memcpy(pcb_buf, send_buffer + 3, send_size - 3);
 
@@ -187,18 +180,23 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 		case 0x72:
 		{
+			uint8_t cmd = send_buffer[1] & ~1;
+			pcb_slot = send_buffer[1] & 1;
+
 			// Security plate
-			if (send_buffer[1] == 0x00) {
-				// e0 01 03 72 00 76
+			if (cmd == 0x00) {
+				// e0 01 03 72 00 76 slot 1
+				// e0 01 03 72 01 77 slot 2
 				*recv_buffer++ = 0x01;
 				return 2;
-			} else if (send_buffer[1] == 0x10) {
+			} else if (cmd == 0x10) {
 				// Check password
 				// e0 01 0b 72 10 a4 60 f0 5d ea c4 5d ec d6
 				// Password part: a4 60 f0 5d ea c4 5d ec
 				*recv_buffer++ = 0x01;
 				return 10;
-			} else if (send_buffer[1] == 0x20) {
+			} else if (cmd == 0x20) {
+				// Something relating to region?
 				// e0 01 0a 72 20 00 00 02 00 00 00 08 a7 d6
 				if (pcb_port == 0) {
 					pcb_buf[0] = 0x4A;
@@ -212,11 +210,13 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 					pcb_buf[3] = 0x00;
 				}
 
-				pcb_buf[4] = ~(pcb_buf[0] + pcb_buf[1]);
+				pcb_buf[4] = ~(pcb_buf[0] + pcb_buf[1]); // Checksum byte
 
 				*recv_buffer++ = 0x01;
 				return 10;
-			} else if (send_buffer[1] == 0x40) {
+			} else if (cmd == 0x40) {
+				// "config register"
+				// Some kind of registration info?
 				// e0 01 06 72 40 02 00 00 bb 41
 				pcb_buf[0] = 0xFF;
 				pcb_buf[1] = 0xFF;
