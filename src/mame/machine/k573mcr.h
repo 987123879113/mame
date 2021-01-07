@@ -46,6 +46,7 @@ private:
 	uint32_t pcb_buf_addr;
 	uint32_t controller_port, sec_slot;
 	uint16_t card_status[2];
+	bool is_controller_connected[2];
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)

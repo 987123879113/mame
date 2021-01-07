@@ -63,7 +63,8 @@ void k573mcr_device::device_reset()
 	pcb_buf_addr = 0;
 	controller_port = 0;
 	sec_slot = 0;
-	card_status[0] = card_status[1] = 0x0008; // Not inserted
+	card_status[0] = card_status[1] = 0;
+	is_controller_connected[0] = is_controller_connected[1] = false;
 }
 
 const char *k573mcr_device::device_id()
@@ -137,7 +138,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		{
 			// Status request
 			// e0 01 02 71 74 00
-			int status = 0;//card_status[controller_port];
+			int status = card_status[controller_port];
 
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = status >> 8;
@@ -217,11 +218,14 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				card_status[0] = 0x0008; // Not inserted
 				card_status[1] = 0x0008; // Not inserted
 
-				return 9;
+				*recv_buffer++ = 0x01;
+
+				return 10;
 			} else if (send_buffer[1] == 0x75) {
 				// Write to card
 				card_status[0] = 0x0000; // Failed to write
 				card_status[1] = 0x0000; // Failed to write
+				*recv_buffer++ = 0x01;
 			}
 
 			printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
@@ -229,6 +233,48 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 			return 0;
 		}
+
+		case 0x77:
+		{
+			// Playstation controller inputs
+			// This was used in Guitar Freaks starting with GF 2nd Mix Link Kit 2
+			// which allowed players to bring their own PS1 compatible guitars
+			// to the arcade.
+			// e0 01 02 77 7a
+
+			// ref: psx_controller_port_device's PSXPAD0 and PSXPAD1 definitions
+			// The only difference seems to be that 0x02 determines if the controller
+			// is connected or not.
+			uint8_t p1_psxpad0, p1_psxpad1, p2_psxpad0, p2_psxpad1;
+
+			p1_psxpad0 = 0xff;
+			p1_psxpad1 = 0xff;
+			p2_psxpad0 = 0xff;
+			p2_psxpad1 = 0xff;
+
+			if (!is_controller_connected[0]) {
+				p1_psxpad0 = 0;
+				p1_psxpad1 = 0;
+			}
+
+			if (!is_controller_connected[1]) {
+				p2_psxpad0 = 0;
+				p2_psxpad1 = 0;
+			}
+
+			*recv_buffer++ = 0x01;
+			*recv_buffer++ = p1_psxpad0; // P1 PSXPAD0
+			*recv_buffer++ = p1_psxpad1; // P1 PSXPAD1
+			*recv_buffer++ = p2_psxpad0; // P2 PSXPAD0
+			*recv_buffer++ = p2_psxpad1; // P2 PSXPAD1
+			*recv_buffer++ = 0x00; // ?
+			return 2;
+		}
+	}
+
+	if (send_buffer[0] > 0x70) {
+		printf("Found unimplemented opcode: %02x\n", send_buffer[0]);
+		exit(1);
 	}
 
 	// Command not recognized, pass it off to the base message handler
