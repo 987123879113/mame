@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "bus/psx/memcard.h" // MAME's build system hurts my brain. Can't get bus/psx building without this
+#include "bus/psx/memcard_single.h"
 #include "machine/jvsdev.h"
 
 class jvs_host;
@@ -30,6 +32,7 @@ protected:
 
 	virtual void device_start() override;
 	virtual void device_reset() override;
+	virtual void device_add_mconfig(machine_config &config) override;
 
 	virtual const tiny_rom_entry *device_rom_region() const override;
 
@@ -44,9 +47,15 @@ protected:
 private:
 	uint8_t pcb_buf[65535];
 	uint32_t pcb_buf_addr;
-	uint32_t controller_port, sec_slot;
+	uint32_t controller_port, sec_slot, controller_base_addr;
 	uint16_t card_status[2];
 	bool is_controller_connected[2];
+	uint32_t buf_mode;
+
+	required_device<psxcard_single_device> m_cards[2];
+
+	bool memcard_read(uint32_t port, uint16_t addr, uint8_t *output);
+	bool is_memcard_inserted(uint32_t port);
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)

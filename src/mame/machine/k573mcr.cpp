@@ -47,7 +47,8 @@ Notes:
 #include "k573mcr.h"
 
 k573mcr_device::k573mcr_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	jvs_device(mconfig, KONAMI_573_MEMORY_CARD_READER, tag, owner, clock)
+	jvs_device(mconfig, KONAMI_573_MEMORY_CARD_READER, tag, owner, clock),
+	m_cards{{*this, "port1"}, {*this, "port2"}}
 {
 }
 
@@ -61,10 +62,20 @@ void k573mcr_device::device_reset()
 	jvs_device::device_reset();
 	memset(pcb_buf, 0, 65535);
 	pcb_buf_addr = 0;
-	controller_port = 0;
+	controller_port = controller_base_addr = 0;
 	sec_slot = 0;
 	card_status[0] = card_status[1] = 0;
 	is_controller_connected[0] = is_controller_connected[1] = false;
+	buf_mode = 0;
+
+	m_cards[0]->reset();
+	m_cards[1]->reset();
+}
+
+void k573mcr_device::device_add_mconfig(machine_config &config)
+{
+	PSXCARD_SINGLE(config, m_cards[0], 0);
+	PSXCARD_SINGLE(config, m_cards[1], 0);
 }
 
 const char *k573mcr_device::device_id()
@@ -85,6 +96,38 @@ uint8_t k573mcr_device::jvs_standard_version()
 uint8_t k573mcr_device::comm_method_version()
 {
 	return 0x10;
+}
+
+bool k573mcr_device::memcard_read(uint32_t port, uint16_t addr, uint8_t *output)
+{
+	uint8_t from = 0;
+
+	if (!m_cards[port]->transfer(0, &from)) {
+        return false; // No card inserted
+    }
+
+	m_cards[port]->transfer('R', &from); // state_command, Request read
+	m_cards[port]->transfer(0, &from); // state_cmdack
+	m_cards[port]->transfer(0, &from); // state_wait
+	m_cards[port]->transfer(addr >> 8, &from); // state_addr_hi, set addr = (x << 8)
+	m_cards[port]->transfer(addr & 0xff, &from); // state_addr_lo, set addr |= (x & 0xff), execute command specified in state_command
+
+	for (int i = 0; i < 6+128 - 1; i++) {
+		m_cards[port]->transfer(0, &from); // state_read
+
+		if (output != nullptr) {
+			*output++ = from;
+		}
+	}
+
+	m_cards[port]->transfer(0, &from); // state_end
+
+	return true;
+}
+
+bool k573mcr_device::is_memcard_inserted(uint32_t port)
+{
+	return memcard_read(port, 0, nullptr);
 }
 
 int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
@@ -109,7 +152,18 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				int target_offset = ((send_buffer[3] << 8) | send_buffer[4]) & 0x7fff;
 				int target_len = send_buffer[5];
 
+				printf("jvs buf read: %d %04x, mode = %d\n", target_offset, target_len, buf_mode);
+				printf("\t");
+				for (int i = 0; i < 6; i++) {
+					printf("%02x ", send_buffer[i]);
+				}
+				printf("\n\n");
+
 				*recv_buffer++ = 0x01;
+
+				if (buf_mode == 1) {
+					memcard_read(controller_port, controller_base_addr + target_offset, pcb_buf + target_offset);
+				}
 
 				for (int i = 0; i < target_len && i + target_offset < 65535; i++) {
 					*recv_buffer++ = pcb_buf[target_offset + i];
@@ -178,6 +232,8 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 				pcb_buf[4] = ~(pcb_buf[0] + pcb_buf[1]); // Checksum byte
 
+				buf_mode = 2;
+
 				*recv_buffer++ = 0x01;
 				return 10;
 			} else if (cmd == 0x40) {
@@ -189,6 +245,9 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				pcb_buf[2] = 0xAC;
 				pcb_buf[3] = 0x09;
 				pcb_buf[4] = 0x00;
+
+				buf_mode = 2;
+
 				*recv_buffer++ = 0x01;
 				return 6;
 			}
@@ -215,20 +274,41 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				// Read from card
 				// e0 01 0a 76 74 00 00 02 00 00 00 01 f8 39
 				// e0 01 0a 76 74 80 00 02 00 00 00 01 78 39
+				buf_mode = 1;
+
 				controller_port = send_buffer[2] >> 7;
-				pcb_buf_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff;
+				controller_base_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff;
 
-				card_status[0] = 0x0008; // Not inserted
-				card_status[1] = 0x0008; // Not inserted
+				printf("jvs memcard read: %d %04x\n", controller_port, controller_base_addr);
+				printf("\t");
+				for (int i = 0; i < 10; i++) {
+					printf("%02x ", send_buffer[i]);
+				}
+				printf("\n");
 
+				card_status[0] = is_memcard_inserted(0) ? card_status[0] : 0x0008;
+				card_status[1] = is_memcard_inserted(1) ? card_status[0] : 0x0008;
+
+				if (buf_mode == 1 && memcard_read(controller_port, controller_base_addr, nullptr)) {
+					card_status[controller_port] = 0x8000;
+				}
+
+				printf("\nstatus: 1[%04x] 2[%04x]\n\n", card_status[0], card_status[1]);
+
+				*recv_buffer++ = 0x01;
 				*recv_buffer++ = 0x01;
 
 				return 10;
 			} else if (send_buffer[1] == 0x75) {
 				// Write to card
-				card_status[0] = 0x0000; // Failed to write
-				card_status[1] = 0x0000; // Failed to write
+				// e0 01 0a 76 75 02 00 00 00 3f 00 01 38 ff
+				card_status[0] = 0x8000; // Failed to write
+				card_status[1] = 0x8000; // Failed to write
+
 				*recv_buffer++ = 0x01;
+				*recv_buffer++ = 0x01;
+
+				return 10;
 			}
 
 			printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);

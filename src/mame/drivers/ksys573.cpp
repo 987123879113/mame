@@ -1,3 +1,5 @@
+#define JVS_DEBUG
+
 // license:BSD-3-Clause
 // copyright-holders:R. Belmont, smf
 /***************************************************************************
@@ -431,7 +433,9 @@ int jvs_master::received_packet(uint8_t *buffer)
 
 void jvs_master::send_packet(uint8_t *data, int length)
 {
+#ifdef JVS_DEBUG
 	printf("jvs send_packet %04x\n", length);
+#endif
 
 	while (length > 0)
 	{
@@ -831,6 +835,7 @@ void ksys573_state::jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask)
     jvs_input_buffer[jvs_input_idx_w++] = data >> 8;
 
     if (jvs_is_valid_command()) {
+#ifdef JVS_DEBUG
 	    printf("jvs_input_w( %08x, %08x, %02x %02x )\n", offset, mem_mask, data & 0xff, data >> 8 );
 
 		for (int i = 0; i < jvs_input_idx_w; i++) {
@@ -838,6 +843,7 @@ void ksys573_state::jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 		}
 
 		printf("\n");
+#endif
 
 		int command_size = jvs_input_buffer[2] + 3;
 
@@ -872,7 +878,9 @@ void ksys573_state::jvs_output_w(offs_t offset, uint16_t data, uint16_t mem_mask
 		return;
 	}
 
+#ifdef JVS_DEBUG
     printf("jvs_output_w( %08x, %08x, %02x %02x )\n", offset, mem_mask, data & 0xff, data >> 8 );
+#endif
 }
 
 uint16_t ksys573_state::jvs_output_r(offs_t offset, uint16_t mem_mask)
@@ -899,7 +907,9 @@ uint16_t ksys573_state::jvs_output_r(offs_t offset, uint16_t mem_mask)
 
     memmove(jvs_output_buffer, jvs_output_buffer + 2, 512 - 2);
 
+#ifdef JVS_DEBUG
     printf("%s: jvs_output_r %08x %08x | %02x %02x | %02x\n", machine().describe_context().c_str(), offset, mem_mask, data & 0xff, data >> 8, jvs_output_idx_w);
+#endif
 
     return data;
 }
