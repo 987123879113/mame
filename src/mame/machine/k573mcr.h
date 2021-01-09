@@ -54,17 +54,29 @@ private:
 		MEMCARD_AVAILABLE     = 0x8000  // 0x8200 can be seen in packet captures so perhaps this isn't exactly "ready for next command"
 	};
 
-	uint8_t pcb_buf[65535];
-	uint32_t pcb_buf_addr;
-	uint32_t controller_port, sec_slot, controller_base_addr;
-	uint16_t card_status[2];
-	bool is_controller_connected[2];
-	uint32_t buf_mode;
+	enum {
+		DEVICE_SELF = 0, // Used for writing firmware
+		DEVICE_MEMORY_CARD,
+		DEVICE_SECURITY_PLATE,
+		DEVICE_CONTROLLER
+	};
+
+	enum {
+		RAM_SIZE = 0x400000,
+		MEMCARD_BLOCK_SIZE = 128
+	};
+
+	bool memcard_read(uint32_t port, uint16_t block_addr, uint8_t *output);
+	bool memcard_write(uint32_t port, uint16_t block_addr, uint8_t *input);
+
+	uint8_t m_ram[RAM_SIZE];
+	uint32_t m_ram_addr;
+	uint32_t m_current_device;
+	uint32_t m_memcard_port, m_memcard_addr;
+	uint16_t m_memcard_status[2];
+	uint32_t m_sec_slot;
 
 	required_device<psxcard_single_device> m_cards[2];
-
-	bool memcard_read(uint32_t port, uint16_t addr, uint8_t *output);
-	bool memcard_write(uint32_t port, uint16_t addr, uint8_t *input);
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)

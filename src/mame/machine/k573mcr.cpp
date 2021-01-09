@@ -58,26 +58,28 @@ void k573mcr_device::device_start()
 {
 	jvs_device::device_start();
 
-	// TODO: Add save state code here
+	save_item(NAME(m_ram));
+	save_item(NAME(m_ram_addr));
+	save_item(NAME(m_current_device));
+	save_item(NAME(m_memcard_port));
+	save_item(NAME(m_memcard_addr));
+	save_item(NAME(m_memcard_status));
+	save_item(NAME(m_sec_slot));
 }
 
 void k573mcr_device::device_reset()
 {
-	jvs_device::device_reset(); // TODO: Is this really needed?
-
-	// TODO: Clean up ports, variable names, buffer size, etc
-	sec_slot = 0;
-	controller_port = controller_base_addr = 0;
-
-	memset(pcb_buf, 0, 65535);
-	pcb_buf_addr = 0;
-	buf_mode = 0;
-
-	card_status[0] = card_status[1] = MEMCARD_UNINITIALIZED;
-	is_controller_connected[0] = is_controller_connected[1] = false;
-
+	jvs_device::device_reset();
 	m_cards[0]->reset();
 	m_cards[1]->reset();
+
+	memset(m_ram, 0, RAM_SIZE);
+	m_ram_addr = 0;
+	m_current_device = DEVICE_SELF;
+
+	m_sec_slot = 0;
+	m_memcard_port = m_memcard_addr = 0;
+	m_memcard_status[0] = m_memcard_status[1] = MEMCARD_UNINITIALIZED;
 }
 
 void k573mcr_device::device_add_mconfig(machine_config &config)
@@ -106,7 +108,7 @@ uint8_t k573mcr_device::comm_method_version()
 	return 0x10;
 }
 
-bool k573mcr_device::memcard_read(uint32_t port, uint16_t addr, uint8_t *output)
+bool k573mcr_device::memcard_read(uint32_t port, uint16_t block_addr, uint8_t *output)
 {
 	uint8_t from = 0;
 
@@ -117,8 +119,8 @@ bool k573mcr_device::memcard_read(uint32_t port, uint16_t addr, uint8_t *output)
 	m_cards[port]->transfer('R', &from); // state_command, Request read
 	m_cards[port]->transfer(0, &from); // state_command -> state_cmdack
 	m_cards[port]->transfer(0, &from); // state_cmdack -> state_wait
-	m_cards[port]->transfer(addr >> 8, &from); // state_wait -> state_addr_hi
-	m_cards[port]->transfer(addr & 0xff, &from); // state_addr_hi -> state_addr_lo
+	m_cards[port]->transfer(block_addr >> 8, &from); // state_wait -> state_addr_hi
+	m_cards[port]->transfer(block_addr & 0xff, &from); // state_addr_hi -> state_addr_lo
 	m_cards[port]->transfer(0, &from); // state_addr_lo -> state_read
 	m_cards[port]->transfer(0, &from); // Skip read byte
 	m_cards[port]->transfer(0, &from); // Skip read byte
@@ -138,7 +140,7 @@ bool k573mcr_device::memcard_read(uint32_t port, uint16_t addr, uint8_t *output)
 	return true;
 }
 
-bool k573mcr_device::memcard_write(uint32_t port, uint16_t addr, uint8_t *input)
+bool k573mcr_device::memcard_write(uint32_t port, uint16_t block_addr, uint8_t *input)
 {
 	uint8_t from = 0;
 
@@ -149,10 +151,10 @@ bool k573mcr_device::memcard_write(uint32_t port, uint16_t addr, uint8_t *input)
 	m_cards[port]->transfer('W', &from); // state_command, Request read
 	m_cards[port]->transfer(0, &from); // state_command -> state_cmdack
 	m_cards[port]->transfer(0, &from); // state_cmdack -> state_wait
-	m_cards[port]->transfer(addr >> 8, &from); // state_wait -> state_addr_hi
-	m_cards[port]->transfer(addr & 0xff, &from); // state_addr_hi -> state_addr_lo
+	m_cards[port]->transfer(block_addr >> 8, &from); // state_wait -> state_addr_hi
+	m_cards[port]->transfer(block_addr & 0xff, &from); // state_addr_hi -> state_addr_lo
 
-	uint8_t checksum = (addr >> 8) ^ (addr & 0xff);
+	uint8_t checksum = (block_addr >> 8) ^ (block_addr & 0xff);
 	for (int i = 0; i < 128; i++) {
 		m_cards[port]->transfer(input[i], &from); // state_read
     	checksum ^= input[i];
@@ -201,7 +203,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		case 0x70:
 		{
 			int target_len = send_buffer[5];
-			pcb_buf_addr = ((send_buffer[3] << 8) | send_buffer[4]) & 0x7fff;
+			m_ram_addr = ((send_buffer[3] << 8) | send_buffer[4]) & 0x7fff;
 
 			if (send_buffer[1] == 0) {
 				// Buffer read
@@ -216,7 +218,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
 				//       :00:00:00:00:00:00:
 				#ifdef K573MCR_DEBUG
-					printf("jvs buf read: %04x %04x, mode = %d\n", pcb_buf_addr, target_len, buf_mode);
+					printf("jvs buf read: %04x %04x, mode = %d\n", m_ram_addr, target_len, m_current_device);
 					printf("\t");
 					for (int i = 0; i < 6; i++) {
 						printf("%02x ", send_buffer[i]);
@@ -226,18 +228,18 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 				*recv_buffer++ = 0x01;
 
-				if (buf_mode == 1) {
-					memcard_read(controller_port, controller_base_addr + pcb_buf_addr / 128, pcb_buf + pcb_buf_addr);
+				if (m_current_device == DEVICE_MEMORY_CARD) {
+					memcard_read(m_memcard_port, m_memcard_addr + m_ram_addr / MEMCARD_BLOCK_SIZE, m_ram + m_ram_addr);
 				}
 
-				for (int i = 0; i < target_len && i + pcb_buf_addr < 65535; i++) {
-					*recv_buffer++ = pcb_buf[pcb_buf_addr + i];
+				for (int i = 0; i < target_len && i + m_ram_addr < RAM_SIZE; i++) {
+					*recv_buffer++ = m_ram[m_ram_addr + i];
 				}
 
 				return 6;
 			} else if (send_buffer[1] == 1) {
 				// Buffer write
-				// Real packet, non-success?
+				// Real packet
 				// 77524::E0:01:87:70:01:02:03:00:80:00:1A:ED:00:FF:85:38
 				//       :21:00:07:38:42:3C:EF:05:00:FF:34:00:AC:00:40:30
 				//       :F9:21:02:18:41:09:46:10:23:00:45:10:E2:1C:FF:1C
@@ -245,7 +247,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				//       :00:00:F7:00:88:46:
 				// 77544::E0:01:
 				//
-				// Real packet, non-success?
+				// Real packet
 				// 77545::E0:01:87:70:01:02:03:80:80:12:FB:00:0C:02:3C:50
 				//       :5E:D0:CF:8E:04:FF:00:00:8E:05:00:04:8E:06:DF:00
 				//       :08:02:12:80:00:98:03:43:FF:26:31:00:22:EF:40:41
@@ -253,7 +255,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				//       :AC:42:00:31:06:01:
 				// 77563::E0:03:05:
 				//
-				// Real packet, successful, returns an empty response
+				// Real packet
 				// 77565::E0:01:87:70:01:02:04:00:80:24:A5:04:70:30:30:7A
 				//       :24:87:C6:85:10:00:64:05:58:02:44:45:CA:8C:FD:A2
 				//       :00:04:A3:00:04:8C:A6:00:FF:08:8C:00:82:00:20:00
@@ -261,10 +263,10 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				//       :14:40:51:73:77:
 				// 77583::E0:00:01:
 				if (target_len > 0) {
-					memcpy(pcb_buf + pcb_buf_addr, send_buffer + 6, target_len);
+					memcpy(m_ram + m_ram_addr, send_buffer + 6, target_len);
 				}
 
-				*recv_buffer++ = 0x01; // Hack because MAME does not support empty responses yet
+				*recv_buffer++ = 0x01; // Hack because MAME does not support empty responses
 
 				return 6 + target_len;
 			} else if (send_buffer[1] == 2) {
@@ -289,32 +291,29 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			// Status request
 			// 81681::E0:01:02:71:74:
 			// 81682::E0:00:05:01:01:00:00:07:
-			int status = card_status[controller_port];
+			int status = m_memcard_status[m_memcard_port];
 
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = status >> 8;
 			*recv_buffer++ = status & 0xff;
 
-			if (card_status[0] == MEMCARD_UNINITIALIZED)
-				card_status[0] = memcard_read(0, 0, nullptr) ? MEMCARD_AVAILABLE : MEMCARD_UNAVAILABLE;
+			if (m_memcard_status[m_memcard_port] == MEMCARD_UNINITIALIZED)
+				m_memcard_status[m_memcard_port] = memcard_read(m_memcard_port, 0, nullptr) ? MEMCARD_AVAILABLE : MEMCARD_UNAVAILABLE;
 
-			if (card_status[1] == MEMCARD_UNINITIALIZED)
-				card_status[1] = memcard_read(1, 0, nullptr) ? MEMCARD_AVAILABLE : MEMCARD_UNAVAILABLE;
-
-			if (card_status[controller_port] & MEMCARD_READING) {
+			if (m_memcard_status[m_memcard_port] & MEMCARD_READING) {
 				// Real device packets
 				// 39542::E0:01:02:71:74:
 				// 39543::E0:00:05:01:01:02:00:09:
 				// 39578::E0:01:02:71:74:
 				// 39579::E0:00:05:01:01:80:00:87:
-				card_status[controller_port] = MEMCARD_AVAILABLE;
-			} else if (card_status[controller_port] & MEMCARD_WRITING) {
+				m_memcard_status[m_memcard_port] = MEMCARD_AVAILABLE;
+			} else if (m_memcard_status[m_memcard_port] & MEMCARD_WRITING) {
 				// Real device packets
 				// 39358::E0:01:02:71:74:
 				// 39359::E0:00:05:01:01:04:00:0B:
 				// 39394::E0:01:02:71:74:
 				// 39395::E0:00:05:01:01:00:00:07:
-				card_status[controller_port] = MEMCARD_UNINITIALIZED;
+				m_memcard_status[m_memcard_port] = MEMCARD_UNINITIALIZED;
 			}
 
 			return 1;
@@ -323,8 +322,9 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		case 0x72:
 		{
 			// Security plate
+			// TODO: Verify all of this in-game
 			uint8_t cmd = send_buffer[1] & ~1;
-			sec_slot = send_buffer[1] & 1;
+			m_sec_slot = send_buffer[1] & 1;
 
 			if (cmd == 0x00) {
 				// Packet: e0 01 03 72 00 76 slot 0 (CN63)
@@ -333,7 +333,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 				return 2;
 			} else if (cmd == 0x10) {
-				// Set password (presumably to read dongle)
+				// Set password (presumably to unlock/read security dongle)
 				// Packet: e0 01 0b 72 10 a4 60 f0 5d ea c4 5d ec d6
 				*recv_buffer++ = 0x01;
 
@@ -341,28 +341,28 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			} else if (cmd == 0x20) {
 				// Get dongle data? (slot 0: GE885-JB, slot 1: ?)
 				// Packet: e0 01 0a 72 20 00 00 02 00 00 00 08 a7
-				pcb_buf[0] = 0x4A; // J
-				pcb_buf[1] = 0x42; // B
-				pcb_buf[2] = 0x00;
-				pcb_buf[3] = 0x00;
-				pcb_buf[4] = ~(pcb_buf[0] + pcb_buf[1]); // Checksum byte
+				m_ram[0] = 'J';
+				m_ram[1] = 'B';
+				m_ram[2] = 0x00;
+				m_ram[3] = 0x00;
+				m_ram[4] = ~(m_ram[0] + m_ram[1]); // Checksum byte
 
-				buf_mode = 2;
+				m_current_device = DEVICE_SECURITY_PLATE;
 
 				*recv_buffer++ = 0x01;
 
 				return 9;
 			} else if (cmd == 0x40) {
-				// Some kind of registration info?
+				// Get some kind of registration info from dongle?
 				// Game code calls it "config register"
 				// Packet: e0 01 06 72 40 02 00 00 bb
-				pcb_buf[0] = 0xFF;
-				pcb_buf[1] = 0xFF;
-				pcb_buf[2] = 0xAC;
-				pcb_buf[3] = 0x09;
-				pcb_buf[4] = 0x00;
+				m_ram[0] = 0xFF;
+				m_ram[1] = 0xFF;
+				m_ram[2] = 0xAC;
+				m_ram[3] = 0x09;
+				m_ram[4] = 0x00;
 
-				buf_mode = 2;
+				m_current_device = DEVICE_SECURITY_PLATE;
 
 				*recv_buffer++ = 0x01;
 
@@ -394,13 +394,13 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				// Read from card
 				// Packet (port 1): e0 01 0a 76 74 00 00 02 00 00 00 01 f8
 				// Packet (port 2): e0 01 0a 76 74 80 00 02 00 00 00 01 78
-				buf_mode = 1;
+				m_current_device = DEVICE_MEMORY_CARD;
 
-				controller_port = send_buffer[2] >> 7;
-				controller_base_addr = (((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff);
+				m_memcard_port = send_buffer[2] >> 7;
+				m_memcard_addr = (((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff);
 
 				#ifdef K573MCR_DEBUG
-					printf("jvs memcard read: %d %04x\n", controller_port, controller_base_addr);
+					printf("jvs memcard read: %d %04x\n", m_memcard_port, m_memcard_addr);
 					printf("\t");
 					for (int i = 0; i < 10; i++) {
 						printf("%02x ", send_buffer[i]);
@@ -408,18 +408,18 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 					printf("\n");
 				#endif
 
-				if (card_status[controller_port] != MEMCARD_UNAVAILABLE) {
-					if (memcard_read(controller_port, controller_base_addr, nullptr)) {
-						card_status[controller_port] = MEMCARD_READING;
+				if (m_memcard_status[m_memcard_port] != MEMCARD_UNAVAILABLE) {
+					if (memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
+						m_memcard_status[m_memcard_port] = MEMCARD_READING;
 					} else {
-						card_status[controller_port] = MEMCARD_ERROR;
+						m_memcard_status[m_memcard_port] = MEMCARD_ERROR;
 					}
 				} else {
-					card_status[controller_port] = MEMCARD_UNAVAILABLE;
+					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
 				}
 
 				#ifdef K573MCR_DEBUG
-					printf("\nstatus: 1[%04x] 2[%04x]\n\n", card_status[0], card_status[1]);
+					printf("\nstatus: 1[%04x] 2[%04x]\n\n", m_memcard_status[0], m_memcard_status[1]);
 				#endif
 
 				*recv_buffer++ = 0x01;
@@ -432,19 +432,19 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				// Packet: e0 01 0a 76 75 02 00 00 00 83 00 01 7c
 				// Packet: e0 01 0a 76 75 02 00 00 00 88 00 01 81
 				// Packet: e0 01 0a 76 75 02 00 00 00 b4 00 01 ad
-				buf_mode = 1;
+				m_current_device = DEVICE_MEMORY_CARD;
 
-				controller_port = send_buffer[5] >> 7;
-				controller_base_addr = (((send_buffer[5] << 8) | send_buffer[6]) & 0x7fff);
+				m_memcard_port = send_buffer[5] >> 7;
+				m_memcard_addr = (((send_buffer[5] << 8) | send_buffer[6]) & 0x7fff);
 
-				if (card_status[controller_port] != MEMCARD_UNAVAILABLE) {
-					if (memcard_write(controller_port, controller_base_addr, pcb_buf + pcb_buf_addr)) {
-						card_status[controller_port] = MEMCARD_WRITING;
+				if (m_memcard_status[m_memcard_port] != MEMCARD_UNAVAILABLE) {
+					if (memcard_write(m_memcard_port, m_memcard_addr, m_ram + m_ram_addr)) {
+						m_memcard_status[m_memcard_port] = MEMCARD_WRITING;
 					} else {
-						card_status[controller_port] = MEMCARD_ERROR;
+						m_memcard_status[m_memcard_port] = MEMCARD_ERROR;
 					}
 				} else {
-					card_status[controller_port] = MEMCARD_UNAVAILABLE;
+					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
 				}
 
 				*recv_buffer++ = 0x01;
@@ -465,30 +465,20 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		{
 			// Controller ports
 			// Packet: e0 01 02 77 7a
+			//
 			// This was used in Guitar Freaks starting with GF 2nd Mix Link Kit 2
 			// which allowed players to bring their own PS1 compatible guitars
 			// to the arcade.
-			//
-			// TODO: Why isn't this polled like memory cards? Is a flag missing?
-			//
+			// There's no other benefits to the functionality vs what MAME provides
+			// already, so it's only worth implementing this part if a complete
+			// reimplementation is desired.
 
-			// ref: psx_controller_port_device's PSXPAD0 and PSXPAD1 definitions
+			// ref: psx_m_memcard_port_device's PSXPAD0 and PSXPAD1 definitions
+			// TODO: Return real controller port information.
 			uint8_t p1_psxpad0 = 0;
 			uint8_t p1_psxpad1 = 0;
 			uint8_t p2_psxpad0 = 0;
 			uint8_t p2_psxpad1 = 0;
-
-			if (is_controller_connected[0]) {
-				// TODO: Read real controller port information here
-				p1_psxpad0 = 0xff;
-				p1_psxpad1 = 0xff;
-			}
-
-			if (is_controller_connected[1]) {
-				// TODO: Read real controller port information here
-				p2_psxpad0 = 0xff;
-				p2_psxpad1 = 0xff;
-			}
 
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = p1_psxpad0;
@@ -513,8 +503,8 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 }
 
 ROM_START( k573mcr )
-	ROM_REGION16_BE( 0x080000, "tmpr3904", 0 )
-	ROM_LOAD16_WORD_SWAP( "885a01.bin",   0x000000, 0x080000, CRC(e22d093f) SHA1(927f62f63b5caa7899392decacd12fea0e6fdbea) )
+	ROM_REGION( 0x080000, "tmpr3904", 0 )
+	ROM_LOAD( "885a01.bin",   0x000000, 0x080000, CRC(e22d093f) SHA1(927f62f63b5caa7899392decacd12fea0e6fdbea) )
 ROM_END
 
 const tiny_rom_entry *k573mcr_device::device_rom_region() const
