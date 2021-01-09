@@ -65,7 +65,6 @@ private:
 
 	bool memcard_read(uint32_t port, uint16_t addr, uint8_t *output);
 	bool memcard_write(uint32_t port, uint16_t addr, uint8_t *input);
-	bool is_memcard_inserted(uint32_t port);
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)

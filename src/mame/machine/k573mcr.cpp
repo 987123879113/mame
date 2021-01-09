@@ -43,6 +43,8 @@ Notes:
 	EP4M16     - ROM labeled "855-A01"
 */
 
+#define K573MCR_DEBUG
+
 #include "emu.h"
 #include "k573mcr.h"
 
@@ -55,18 +57,24 @@ k573mcr_device::k573mcr_device(const machine_config &mconfig, const char *tag, d
 void k573mcr_device::device_start()
 {
 	jvs_device::device_start();
+
+	// TODO: Add save state code here
 }
 
 void k573mcr_device::device_reset()
 {
-	jvs_device::device_reset();
+	jvs_device::device_reset(); // TODO: Is this really needed?
+
+	// TODO: Clean up ports, variable names, buffer size, etc
+	sec_slot = 0;
+	controller_port = controller_base_addr = 0;
+
 	memset(pcb_buf, 0, 65535);
 	pcb_buf_addr = 0;
-	controller_port = controller_base_addr = 0;
-	sec_slot = 0;
+	buf_mode = 0;
+
 	card_status[0] = card_status[1] = MEMCARD_UNKNOWN;
 	is_controller_connected[0] = is_controller_connected[1] = false;
-	buf_mode = 0;
 
 	m_cards[0]->reset();
 	m_cards[1]->reset();
@@ -109,11 +117,11 @@ bool k573mcr_device::memcard_read(uint32_t port, uint16_t addr, uint8_t *output)
 	m_cards[port]->transfer('R', &from); // state_command, Request read
 	m_cards[port]->transfer(0, &from); // state_command -> state_cmdack
 	m_cards[port]->transfer(0, &from); // state_cmdack -> state_wait
-	m_cards[port]->transfer(addr >> 8, &from); // state_wait -> state_addr_hi, set addr = (x << 8)
-	m_cards[port]->transfer(addr & 0xff, &from); // state_addr_hi -> state_addr_lo, set addr |= (x & 0xff), execute command specified in state_command
+	m_cards[port]->transfer(addr >> 8, &from); // state_wait -> state_addr_hi
+	m_cards[port]->transfer(addr & 0xff, &from); // state_addr_hi -> state_addr_lo
 	m_cards[port]->transfer(0, &from); // state_addr_lo -> state_read
-	m_cards[port]->transfer(0, &from); // Skip byte
-	m_cards[port]->transfer(0, &from); // Skip byte
+	m_cards[port]->transfer(0, &from); // Skip read byte
+	m_cards[port]->transfer(0, &from); // Skip read byte
 
 	for (int i = 0; i < 128; i++) {
 		m_cards[port]->transfer(0, &from); // state_read
@@ -123,8 +131,8 @@ bool k573mcr_device::memcard_read(uint32_t port, uint16_t addr, uint8_t *output)
 		}
 	}
 
-	m_cards[port]->transfer(0, &from); // Skip byte
-	m_cards[port]->transfer(0, &from); // Skip byte
+	m_cards[port]->transfer(0, &from); // Skip read byte
+	m_cards[port]->transfer(0, &from); // Skip read byte
 	m_cards[port]->transfer(0, &from); // state_read -> state_end
 
 	return true;
@@ -141,8 +149,8 @@ bool k573mcr_device::memcard_write(uint32_t port, uint16_t addr, uint8_t *input)
 	m_cards[port]->transfer('W', &from); // state_command, Request read
 	m_cards[port]->transfer(0, &from); // state_command -> state_cmdack
 	m_cards[port]->transfer(0, &from); // state_cmdack -> state_wait
-	m_cards[port]->transfer(addr >> 8, &from); // state_wait -> state_addr_hi, set addr = (x << 8)
-	m_cards[port]->transfer(addr & 0xff, &from); // state_addr_hi -> state_addr_lo, set addr |= (x & 0xff), execute command specified in state_command
+	m_cards[port]->transfer(addr >> 8, &from); // state_wait -> state_addr_hi
+	m_cards[port]->transfer(addr & 0xff, &from); // state_addr_hi -> state_addr_lo
 
 	uint8_t checksum = (addr >> 8) ^ (addr & 0xff);
 	for (int i = 0; i < 128; i++) {
@@ -156,15 +164,10 @@ bool k573mcr_device::memcard_write(uint32_t port, uint16_t addr, uint8_t *input)
 	m_cards[port]->transfer(0, &from); // state_writechk -> state_end
 
 	if (from == 'N') {
-		return false;
+		return false; // Failed to write data (invalid checksum is most suspect in this case)
 	}
 
 	return true;
-}
-
-bool k573mcr_device::is_memcard_inserted(uint32_t port)
-{
-	return memcard_read(port, 0, nullptr);
 }
 
 int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
@@ -177,7 +180,9 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		{
 			// Hack but I haven't looked into why this hack is required to pass init
 			// TODO: Fix hack or find justification for it
+			// 0xf0 -> sense change, 0xf1 -> sense change??
 			jvs_address = 0xff;
+
 			return -1;
 		}
 
@@ -189,12 +194,14 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			if (send_buffer[1] == 0) {
 				// Buffer read
 				// e0 01 07 70 00 02 00 00 05 7f
-				printf("jvs buf read: %04x %04x, mode = %d\n", pcb_buf_addr, target_len, buf_mode);
-				printf("\t");
-				for (int i = 0; i < 6; i++) {
-					printf("%02x ", send_buffer[i]);
-				}
-				printf("\n\n");
+				#ifdef K573MCR_DEBUG
+					printf("jvs buf read: %04x %04x, mode = %d\n", pcb_buf_addr, target_len, buf_mode);
+					printf("\t");
+					for (int i = 0; i < 6; i++) {
+						printf("%02x ", send_buffer[i]);
+					}
+					printf("\n\n");
+				#endif
 
 				*recv_buffer++ = 0x01;
 
@@ -222,13 +229,16 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				// Sent after writing the firmware
 				// e0 01 06 70 02 01 c0 00 3a 06
 				*recv_buffer++ = 0x01;
+
 				return 6;
 			}
 
-			printf("Unknown command!! 0x70 (buf) %02x\n", send_buffer[1]);
-			exit(1);
+			#ifdef K573MCR_DEBUG
+				printf("Unknown command!! 0x70 (buf) %02x\n", send_buffer[1]);
+				exit(1);
+			#endif
 
-			return 0;
+			return -1;
 		}
 
 		case 0x71:
@@ -243,7 +253,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 			for (int i = 0; i < 2; i++) {
 				if (card_status[i] == MEMCARD_UNKNOWN) {
-					card_status[i] = is_memcard_inserted(i) ? MEMCARD_READY : MEMCARD_UNAVAILABLE;
+					card_status[i] = memcard_read(i, 0, nullptr) ? MEMCARD_READY : MEMCARD_UNAVAILABLE;
 				}
 			}
 
@@ -287,6 +297,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				buf_mode = 2;
 
 				*recv_buffer++ = 0x01;
+
 				return 10;
 			} else if (cmd == 0x40) {
 				// "config register"
@@ -304,10 +315,12 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				return 6;
 			}
 
-			printf("Unknown command!! 0x72 (sec plate) %02x\n", send_buffer[1]);
-			exit(1);
+			#ifdef K573MCR_DEBUG
+				printf("Unknown command!! 0x72 (sec plate) %02x\n", send_buffer[1]);
+				exit(1);
+			#endif
 
-			return 0;
+			return -1;
 		}
 
 		case 0x73:
@@ -316,6 +329,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			// e0 01 02 73 76 05
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = 0x01;
+
 			return 1;
 		}
 
@@ -331,12 +345,14 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				controller_port = send_buffer[2] >> 7;
 				controller_base_addr = (((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff);
 
-				printf("jvs memcard read: %d %04x\n", controller_port, controller_base_addr);
-				printf("\t");
-				for (int i = 0; i < 10; i++) {
-					printf("%02x ", send_buffer[i]);
-				}
-				printf("\n");
+				#ifdef K573MCR_DEBUG
+					printf("jvs memcard read: %d %04x\n", controller_port, controller_base_addr);
+					printf("\t");
+					for (int i = 0; i < 10; i++) {
+						printf("%02x ", send_buffer[i]);
+					}
+					printf("\n");
+				#endif
 
 				if (card_status[controller_port] != MEMCARD_UNAVAILABLE) {
 					if (memcard_read(controller_port, controller_base_addr, nullptr)) {
@@ -348,7 +364,9 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 					card_status[controller_port] = MEMCARD_UNAVAILABLE;
 				}
 
-				printf("\nstatus: 1[%04x] 2[%04x]\n\n", card_status[0], card_status[1]);
+				#ifdef K573MCR_DEBUG
+					printf("\nstatus: 1[%04x] 2[%04x]\n\n", card_status[0], card_status[1]);
+				#endif
 
 				*recv_buffer++ = 0x01;
 				*recv_buffer++ = 0x01;
@@ -381,10 +399,12 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				return 10;
 			}
 
-			printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
-			exit(1);
+			#ifdef K573MCR_DEBUG
+				printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
+				exit(1);
+			#endif
 
-			return 0;
+			return -1;
 		}
 
 		case 0x77:
@@ -424,14 +444,17 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			*recv_buffer++ = p2_psxpad0; // P2 PSXPAD0
 			*recv_buffer++ = p2_psxpad1; // P2 PSXPAD1
 			*recv_buffer++ = 0x00; // ?
+
 			return 2;
 		}
 	}
 
-	if (send_buffer[0] > 0x70) {
-		printf("Found unimplemented opcode: %02x\n", send_buffer[0]);
-		exit(1);
-	}
+	#ifdef K573MCR_DEBUG
+		if (send_buffer[0] > 0x70) {
+			printf("Found unimplemented opcode: %02x\n", send_buffer[0]);
+			exit(1);
+		}
+	#endif
 
 	// Command not recognized, pass it off to the base message handler
 	return -1;
