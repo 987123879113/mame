@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:smf
+// copyright-holders:smf, windyfairy
 /*
  * Konami 573 Memory Card Reader
  *
@@ -9,19 +9,76 @@
 
 #pragma once
 
+#include "bus/psx/memcard.h" // MAME's build system hurts my brain. Can't get bus/psx building without this
+#include "bus/psx/memcard_single.h"
+#include "machine/jvsdev.h"
 
+class jvs_host;
 
-DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)
-
-class k573mcr_device : public device_t
+class k573mcr_device : public jvs_device
 {
 public:
+	template <typename T>
+	k573mcr_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, T &&jvs_host_tag)
+		: k573mcr_device(mconfig, tag, owner, clock)
+	{
+		host.set_tag(std::forward<T>(jvs_host_tag));
+	}
+
 	k573mcr_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
 protected:
+	template <uint8_t First> void set_port_tags() { }
+
 	virtual void device_start() override;
+	virtual void device_reset() override;
+	virtual void device_add_mconfig(machine_config &config) override;
 
 	virtual const tiny_rom_entry *device_rom_region() const override;
+
+	// JVS device overrides
+	virtual const char *device_id() override;
+	virtual uint8_t command_format_version() override;
+	virtual uint8_t jvs_standard_version() override;
+	virtual uint8_t comm_method_version() override;
+
+	virtual int device_handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer) override;
+
+private:
+	enum {
+		MEMCARD_UNINITIALIZED = 0x0000, // Default value, also used after writing?
+		MEMCARD_ERROR         = 0x0002,
+		MEMCARD_UNAVAILABLE   = 0x0008, // Card is not inserted
+		MEMCARD_READING       = 0x0200, // Read request is executing
+		MEMCARD_WRITING       = 0x0400, // Write request is executing
+		MEMCARD_AVAILABLE     = 0x8000  // 0x8200 can be seen in packet captures so perhaps this isn't exactly "ready for next command"
+	};
+
+	enum {
+		DEVICE_SELF = 0, // Used for writing firmware
+		DEVICE_MEMORY_CARD,
+		DEVICE_SECURITY_PLATE,
+		DEVICE_CONTROLLER
+	};
+
+	enum {
+		RAM_SIZE = 0x400000,
+		MEMCARD_BLOCK_SIZE = 128
+	};
+
+	bool memcard_read(uint32_t port, uint16_t block_addr, uint8_t *output);
+	bool memcard_write(uint32_t port, uint16_t block_addr, uint8_t *input);
+
+	uint8_t m_ram[RAM_SIZE];
+	uint32_t m_ram_addr;
+	uint32_t m_current_device;
+	uint32_t m_memcard_port, m_memcard_addr;
+	uint16_t m_memcard_status[2];
+	uint32_t m_sec_slot;
+
+	required_device<psxcard_single_device> m_cards[2];
 };
+
+DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)
 
 #endif // MAME_MACHINE_K573_MCR_H
