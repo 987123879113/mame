@@ -46,12 +46,12 @@ protected:
 
 private:
 	enum {
-		MEMCARD_UNKNOWN     = 0x0000,
-		MEMCARD_ERROR       = 0x0002,
-		MEMCARD_UNAVAILABLE = 0x0008,
-		MEMCARD_READING     = 0x0200,
-		MEMCARD_WRITING     = 0x0400,
-		MEMCARD_READY       = 0x8000
+		MEMCARD_UNINITIALIZED = 0x0000, // Default value, also used after writing?
+		MEMCARD_ERROR         = 0x0002,
+		MEMCARD_UNAVAILABLE   = 0x0008, // Card is not inserted
+		MEMCARD_READING       = 0x0200, // Read request is executing
+		MEMCARD_WRITING       = 0x0400, // Write request is executing
+		MEMCARD_AVAILABLE     = 0x8000  // 0x8200 can be seen in packet captures so perhaps this isn't exactly "ready for next command"
 	};
 
 	uint8_t pcb_buf[65535];

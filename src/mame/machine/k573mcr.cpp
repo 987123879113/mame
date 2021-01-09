@@ -73,7 +73,7 @@ void k573mcr_device::device_reset()
 	pcb_buf_addr = 0;
 	buf_mode = 0;
 
-	card_status[0] = card_status[1] = MEMCARD_UNKNOWN;
+	card_status[0] = card_status[1] = MEMCARD_UNINITIALIZED;
 	is_controller_connected[0] = is_controller_connected[1] = false;
 
 	m_cards[0]->reset();
@@ -172,7 +172,19 @@ bool k573mcr_device::memcard_write(uint32_t port, uint16_t addr, uint8_t *input)
 
 int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
 {
-	// Returns the size of the parsed message, not the size of the response message
+	// Notes:
+	// 80678::E0:01:06:70:02:01:C0:00:3A: <- Command from game (E0:01:...)
+	// 80681::E0:00:03:01:01:05: <- Response from memory card reader device (E0:00:...)
+	//
+	// The returned value of this function should be 0 (invalid parameters), -1 (unknown command), or the number of bytes in the message.
+	// The number of bytes to return is covered by the xx section:
+	// 80678::E0:01:yy:xx:xx:xx:xx:xx:3A:
+	// This should correspond to yy - 1, but you don't actually get access to yy in the message handler so you must calculate it yourself.
+	//
+	// recv_buffer will correspond to this part when returning data:
+	// 80681::E0:00:03:01:rr:05:
+	// In some special cases there is an empty respond but that is not supported in MAME currently so a single byte is returned instead.
+
 	// TODO: Fix the jvs interface to allow for null responses (0x70 0x01 returns a null response for buffer writes)
 
 	switch(send_buffer[0]) {
@@ -193,7 +205,16 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 			if (send_buffer[1] == 0) {
 				// Buffer read
-				// e0 01 07 70 00 02 00 00 05 7f
+				// Real packet capture, does *not* include a checksum at the end
+				// 39595::E0:01:07:70:00:02:00:00:80:FA:
+				// 39596::E0:00:83:01:01:4D:43:00:00:00:00:00:00:00:00:00
+				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+				//       :00:00:00:00:00:00:
 				#ifdef K573MCR_DEBUG
 					printf("jvs buf read: %04x %04x, mode = %d\n", pcb_buf_addr, target_len, buf_mode);
 					printf("\t");
@@ -216,21 +237,43 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				return 6;
 			} else if (send_buffer[1] == 1) {
 				// Buffer write
-				// e0 01 87 70 01 01 02 00 00 80 ...(payload)... 47
-
+				// Real packet, non-success?
+				// 77524::E0:01:87:70:01:02:03:00:80:00:1A:ED:00:FF:85:38
+				//       :21:00:07:38:42:3C:EF:05:00:FF:34:00:AC:00:40:30
+				//       :F9:21:02:18:41:09:46:10:23:00:45:10:E2:1C:FF:1C
+				//       :42:8E:FD:2C:04:E8:C0:25:FF:04:02:5D:31:60:D0:AF
+				//       :00:00:F7:00:88:46:
+				// 77544::E0:01:
+				//
+				// Real packet, non-success?
+				// 77545::E0:01:87:70:01:02:03:80:80:12:FB:00:0C:02:3C:50
+				//       :5E:D0:CF:8E:04:FF:00:00:8E:05:00:04:8E:06:DF:00
+				//       :08:02:12:80:00:98:03:43:FF:26:31:00:22:EF:40:41
+				//       :00:EC:8F:8F:8F:D1:4C:20:10:24:7C:70:87:00:00:03
+				//       :AC:42:00:31:06:01:
+				// 77563::E0:03:05:
+				//
+				// Real packet, successful, returns an empty response
+				// 77565::E0:01:87:70:01:02:04:00:80:24:A5:04:70:30:30:7A
+				//       :24:87:C6:85:10:00:64:05:58:02:44:45:CA:8C:FD:A2
+				//       :00:04:A3:00:04:8C:A6:00:FF:08:8C:00:82:00:20:00
+				//       :E8:00:F4:00:DD:F8:C0:24:EF:85:FC:21:20:20:04:5B
+				//       :14:40:51:73:77:
+				// 77583::E0:00:01:
 				if (target_len > 0) {
 					memcpy(pcb_buf + pcb_buf_addr, send_buffer + 6, target_len);
 				}
 
 				*recv_buffer++ = 0x01; // Hack because MAME does not support empty responses yet
 
-				return send_size;
+				return 6 + target_len;
 			} else if (send_buffer[1] == 2) {
 				// Sent after writing the firmware
-				// e0 01 06 70 02 01 c0 00 3a 06
+				// 80678::E0:01:06:70:02:01:C0:00:3A:
+				// 80681::E0:00:03:01:01:05:
 				*recv_buffer++ = 0x01;
 
-				return 6;
+				return 5;
 			}
 
 			#ifdef K573MCR_DEBUG
@@ -244,23 +287,34 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		case 0x71:
 		{
 			// Status request
-			// e0 01 02 71 74 00
+			// 81681::E0:01:02:71:74:
+			// 81682::E0:00:05:01:01:00:00:07:
 			int status = card_status[controller_port];
 
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = status >> 8;
 			*recv_buffer++ = status & 0xff;
 
-			for (int i = 0; i < 2; i++) {
-				if (card_status[i] == MEMCARD_UNKNOWN) {
-					card_status[i] = memcard_read(i, 0, nullptr) ? MEMCARD_READY : MEMCARD_UNAVAILABLE;
-				}
-			}
+			if (card_status[0] == MEMCARD_UNINITIALIZED)
+				card_status[0] = memcard_read(0, 0, nullptr) ? MEMCARD_AVAILABLE : MEMCARD_UNAVAILABLE;
+
+			if (card_status[1] == MEMCARD_UNINITIALIZED)
+				card_status[1] = memcard_read(1, 0, nullptr) ? MEMCARD_AVAILABLE : MEMCARD_UNAVAILABLE;
 
 			if (card_status[controller_port] & MEMCARD_READING) {
-				card_status[controller_port] = MEMCARD_READY;
+				// Real device packets
+				// 39542::E0:01:02:71:74:
+				// 39543::E0:00:05:01:01:02:00:09:
+				// 39578::E0:01:02:71:74:
+				// 39579::E0:00:05:01:01:80:00:87:
+				card_status[controller_port] = MEMCARD_AVAILABLE;
 			} else if (card_status[controller_port] & MEMCARD_WRITING) {
-				card_status[controller_port] = MEMCARD_UNKNOWN;
+				// Real device packets
+				// 39358::E0:01:02:71:74:
+				// 39359::E0:00:05:01:01:04:00:0B:
+				// 39394::E0:01:02:71:74:
+				// 39395::E0:00:05:01:01:00:00:07:
+				card_status[controller_port] = MEMCARD_UNINITIALIZED;
 			}
 
 			return 1;
@@ -273,36 +327,35 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 			sec_slot = send_buffer[1] & 1;
 
 			if (cmd == 0x00) {
-				// e0 01 03 72 00 76 slot 1
-				// e0 01 03 72 01 77 slot 2
+				// Packet: e0 01 03 72 00 76 slot 0 (CN63)
+				// Packet: e0 01 03 72 01 77 slot 1 (CN64)
 				*recv_buffer++ = 0x01;
+
 				return 2;
 			} else if (cmd == 0x10) {
 				// Set password (presumably to read dongle)
+				// Packet: e0 01 0b 72 10 a4 60 f0 5d ea c4 5d ec d6
 				*recv_buffer++ = 0x01;
+
 				return 10;
 			} else if (cmd == 0x20) {
-				// Corresponds to data from CN63 dongle
-				// "GE885-JB" dongle.
-				// A second dongle may exist for GE929
-				// but I have not seen one.
-				// Later games don't seem to check this.
+				// Get dongle data? (slot 0: GE885-JB, slot 1: ?)
+				// Packet: e0 01 0a 72 20 00 00 02 00 00 00 08 a7
 				pcb_buf[0] = 0x4A; // J
 				pcb_buf[1] = 0x42; // B
 				pcb_buf[2] = 0x00;
 				pcb_buf[3] = 0x00;
-
 				pcb_buf[4] = ~(pcb_buf[0] + pcb_buf[1]); // Checksum byte
 
 				buf_mode = 2;
 
 				*recv_buffer++ = 0x01;
 
-				return 10;
+				return 9;
 			} else if (cmd == 0x40) {
-				// "config register"
 				// Some kind of registration info?
-				// e0 01 06 72 40 02 00 00 bb 41
+				// Game code calls it "config register"
+				// Packet: e0 01 06 72 40 02 00 00 bb
 				pcb_buf[0] = 0xFF;
 				pcb_buf[1] = 0xFF;
 				pcb_buf[2] = 0xAC;
@@ -312,7 +365,8 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				buf_mode = 2;
 
 				*recv_buffer++ = 0x01;
-				return 6;
+
+				return 5;
 			}
 
 			#ifdef K573MCR_DEBUG
@@ -326,8 +380,8 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 		case 0x73:
 		{
 			// Firmware finished?
-			// e0 01 02 73 76 05
-			*recv_buffer++ = 0x01;
+			// 81674::E0:01:02:73:76:
+			// 81675::E0:00:03:01:01:05:
 			*recv_buffer++ = 0x01;
 
 			return 1;
@@ -335,11 +389,11 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 		case 0x76:
 		{
-			// memory card
+			// Memory card
 			if (send_buffer[1] == 0x74) {
 				// Read from card
-				// e0 01 0a 76 74 00 00 02 00 00 00 01 f8 39
-				// e0 01 0a 76 74 80 00 02 00 00 00 01 78 39
+				// Packet (port 1): e0 01 0a 76 74 00 00 02 00 00 00 01 f8
+				// Packet (port 2): e0 01 0a 76 74 80 00 02 00 00 00 01 78
 				buf_mode = 1;
 
 				controller_port = send_buffer[2] >> 7;
@@ -371,13 +425,13 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				*recv_buffer++ = 0x01;
 				*recv_buffer++ = 0x01;
 
-				return 10;
+				return 9;
 			} else if (send_buffer[1] == 0x75) {
 				// Write to card
-				// e0 01 0a 76 75 02 00 00 00 3f 00 01 38 ff
-				// e0 01 0a 76 75 02 00 00 00 83 00 01 7c 00
-				// e0 01 0a 76 75 02 00 00 00 88 00 01 81 00
-				// e0 01 0a 76 75 02 00 00 00 b4 00 01 ad 00
+				// Packet: e0 01 0a 76 75 02 00 00 00 3f 00 01 38
+				// Packet: e0 01 0a 76 75 02 00 00 00 83 00 01 7c
+				// Packet: e0 01 0a 76 75 02 00 00 00 88 00 01 81
+				// Packet: e0 01 0a 76 75 02 00 00 00 b4 00 01 ad
 				buf_mode = 1;
 
 				controller_port = send_buffer[5] >> 7;
@@ -396,7 +450,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 				*recv_buffer++ = 0x01;
 				*recv_buffer++ = 0x01;
 
-				return 10;
+				return 9;
 			}
 
 			#ifdef K573MCR_DEBUG
@@ -409,43 +463,41 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 		case 0x77:
 		{
-			// Playstation controller inputs
-			// e0 01 02 77 7a
-			//
-			// TODO: Why isn't this polled like memory cards? Is a flag missing?
-			//
+			// Controller ports
+			// Packet: e0 01 02 77 7a
 			// This was used in Guitar Freaks starting with GF 2nd Mix Link Kit 2
 			// which allowed players to bring their own PS1 compatible guitars
 			// to the arcade.
+			//
+			// TODO: Why isn't this polled like memory cards? Is a flag missing?
+			//
 
 			// ref: psx_controller_port_device's PSXPAD0 and PSXPAD1 definitions
-			// The only difference seems to be that 0x02 determines if the controller
-			// is connected or not.
-			uint8_t p1_psxpad0, p1_psxpad1, p2_psxpad0, p2_psxpad1;
+			uint8_t p1_psxpad0 = 0;
+			uint8_t p1_psxpad1 = 0;
+			uint8_t p2_psxpad0 = 0;
+			uint8_t p2_psxpad1 = 0;
 
-			p1_psxpad0 = 0xff;
-			p1_psxpad1 = 0xff;
-			p2_psxpad0 = 0xff;
-			p2_psxpad1 = 0xff;
-
-			if (!is_controller_connected[0]) {
-				p1_psxpad0 = 0;
-				p1_psxpad1 = 0;
+			if (is_controller_connected[0]) {
+				// TODO: Read real controller port information here
+				p1_psxpad0 = 0xff;
+				p1_psxpad1 = 0xff;
 			}
 
-			if (!is_controller_connected[1]) {
-				p2_psxpad0 = 0;
-				p2_psxpad1 = 0;
+			if (is_controller_connected[1]) {
+				// TODO: Read real controller port information here
+				p2_psxpad0 = 0xff;
+				p2_psxpad1 = 0xff;
 			}
 
 			*recv_buffer++ = 0x01;
-			*recv_buffer++ = p1_psxpad0; // P1 PSXPAD0
-			*recv_buffer++ = p1_psxpad1; // P1 PSXPAD1
-			*recv_buffer++ = p2_psxpad0; // P2 PSXPAD0
-			*recv_buffer++ = p2_psxpad1; // P2 PSXPAD1
+			*recv_buffer++ = p1_psxpad0;
+			*recv_buffer++ = p1_psxpad1;
+			*recv_buffer++ = p2_psxpad0;
+			*recv_buffer++ = p2_psxpad1;
 			*recv_buffer++ = 0x00; // ?
 
-			return 2;
+			return 1;
 		}
 	}
 
