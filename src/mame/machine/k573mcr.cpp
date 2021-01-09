@@ -43,7 +43,7 @@ Notes:
 	EP4M16     - ROM labeled "855-A01"
 */
 
-#define K573MCR_DEBUG
+// #define K573MCR_DEBUG
 
 #include "emu.h"
 #include "k573mcr.h"
@@ -191,14 +191,24 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 
 	switch(send_buffer[0]) {
 		case 0xf0:
-		{
-			// Hack but I haven't looked into why this hack is required to pass init
-			// TODO: Fix hack or find justification for it
-			// 0xf0 -> sense change, 0xf1 -> sense change??
+			// The bootloader for System 573 games checks for the master calendar which initializes the JVS device.
+			// After the bootloader, the actual game's code tries to initialize the JVS device again and (seemingly)
+			// expects it to be in a fresh state. Since it was already initialized in the bootloader, it will throw
+			// the error message "JVS SUBS RESET ERROR".
+			// There might be something else that happens on real hardware between when it loads the bootloader
+			// and when it starts the actual game's code that resets the JVS device, but I do not have hands on
+			// access to test such a thing.
+			// To hack around that error, set jvs_address back to 0xff whenever the reset command is called.
 			jvs_address = 0xff;
-
 			return -1;
-		}
+
+		case 0x14:
+			// Function list returns nothing on
+			// 75502::E0:01:02:14:17:
+			// 75503::E0:00:04:01:01:00:06:
+			*recv_buffer++ = 0x01;
+			*recv_buffer++ = 0x00;
+			return 1;
 
 		case 0x70:
 		{
@@ -492,7 +502,7 @@ int k573mcr_device::handle_message_callback(const uint8_t *send_buffer, uint32_t
 	}
 
 	#ifdef K573MCR_DEBUG
-		if (send_buffer[0] > 0x70) {
+		if (send_buffer[0] > 0x38 && send_buffer[0] < 0xf0) {
 			printf("Found unimplemented opcode: %02x\n", send_buffer[0]);
 			exit(1);
 		}
