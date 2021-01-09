@@ -165,6 +165,7 @@ bool psxcard_single_device::transfer(uint8_t to, uint8_t *from)
 				}
 				case 'W':   // 0x57
 				{
+					printf("memcard: writing addr = %x\n", addr);
 					pkt[0]=addr>>8;
 					pkt[1]=addr&0xff;
 					pkt_sz=129+2;

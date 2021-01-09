@@ -45,6 +45,15 @@ protected:
 	virtual int handle_message_callback(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer) override;
 
 private:
+	enum {
+		MEMCARD_UNKNOWN     = 0x0000,
+		MEMCARD_ERROR       = 0x0002,
+		MEMCARD_UNAVAILABLE = 0x0008,
+		MEMCARD_READING     = 0x0200,
+		MEMCARD_WRITING     = 0x0400,
+		MEMCARD_READY       = 0x8000
+	};
+
 	uint8_t pcb_buf[65535];
 	uint32_t pcb_buf_addr;
 	uint32_t controller_port, sec_slot, controller_base_addr;
@@ -55,6 +64,7 @@ private:
 	required_device<psxcard_single_device> m_cards[2];
 
 	bool memcard_read(uint32_t port, uint16_t addr, uint8_t *output);
+	bool memcard_write(uint32_t port, uint16_t addr, uint8_t *input);
 	bool is_memcard_inserted(uint32_t port);
 };
 
