@@ -3616,7 +3616,7 @@ void debugger_commands::execute_memlog(int ref, const std::vector<std::string> &
 	if (params.size() > 1 && !validate_number_parameter(params[1], length))
 		return;
 
-	printf("execute_memlog: offset: %08llx, length: %08llx\n", offset, length);
+	printf("execute_memlog: offset: %08lx, length: %08lx\n", offset, length);
 
 	u64 width = 0;
 

@@ -225,7 +225,6 @@ private:
 //  emu_timer *m_keyboard_timer;
 	emu_timer* m_spu_dma_timer;
 	int m_layer;
-	int m_cab_data_ptr;
 	int* m_cur_cab_data;
 //  int m_keyboard_state[2];
 	IBUTTON m_ibutton;
@@ -233,7 +232,6 @@ private:
 	int m_ibutton_read_subkey_ptr;
 	uint8_t m_ibutton_subkey_data[0x40];
 
-	uint16_t m_spu_ctrl;      // SPU board control register
 	uint32_t m_spu_ata_dma;
 	uint32_t m_spu_ata_dma_base;
 	int m_spu_ata_dmarq;
