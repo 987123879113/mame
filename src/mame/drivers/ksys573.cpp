@@ -433,10 +433,6 @@ int jvs_master::received_packet(uint8_t *buffer)
 
 void jvs_master::send_packet(uint8_t *data, int length)
 {
-#ifdef JVS_DEBUG
-	printf("jvs send_packet %04x\n", length);
-#endif
-
 	while (length > 0)
 	{
 		push(*data);
@@ -596,17 +592,12 @@ public:
 	optional_ioport m_pads;
 
 private:
-	int jvs_input_idx_r, jvs_input_idx_w;
-	int jvs_output_idx_w, jvs_output_len_w;
-	uint8_t jvs_input_buffer[512];
-	uint8_t jvs_output_buffer[512];
-
 	bool jvs_is_valid_packet();
 
 	void jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	uint16_t jvs_input_r(offs_t offset, uint16_t mem_mask = ~0);
 
-	uint16_t port_in2_r(offs_t offset, uint16_t mem_mask = ~0);
+	uint16_t port_in2_jvs_r(offs_t offset, uint16_t mem_mask = ~0);
 
 	uint16_t control_r(offs_t offset, uint16_t mem_mask = ~0);
 	void control_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
@@ -715,6 +706,11 @@ private:
 	int m_tank_shutter_position;
 	int m_cable_holder_release;
 
+	int m_jvs_input_idx_r, m_jvs_input_idx_w;
+	int m_jvs_output_idx_w, m_jvs_output_len_w;
+	uint8_t m_jvs_input_buffer[512];
+	uint8_t m_jvs_output_buffer[512];
+
 	required_device<psxcpu_device> m_maincpu;
 	required_device<ram_device> m_ram;
 	required_device<address_map_bank_device> m_flashbank;
@@ -751,7 +747,7 @@ void ksys573_state::konami573_map(address_map &map)
 	map(0x1f000000, 0x1f3fffff).m(m_flashbank, FUNC(address_map_bank_device::amap16));
 	map(0x1f400000, 0x1f400003).portr("IN0").portw("OUT0");
 	map(0x1f400004, 0x1f400007).portr("IN1");
-	map(0x1f400008, 0x1f40000b).r(FUNC(ksys573_state::port_in2_r));
+	map(0x1f400008, 0x1f40000b).r(FUNC(ksys573_state::port_in2_jvs_r));
 	map(0x1f40000c, 0x1f40000f).portr("IN3");
 	map(0x1f480000, 0x1f48000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x1f500000, 0x1f500001).rw(FUNC(ksys573_state::control_r), FUNC(ksys573_state::control_w));    // Konami can't make a game without a "control" register.
@@ -810,7 +806,7 @@ void ksys573_state::gbbchmp_map(address_map& map)
 
 bool ksys573_state::jvs_is_valid_packet()
 {
-    if (jvs_input_idx_w < 5) {
+    if (m_jvs_input_idx_w < 5) {
 		// A valid packet will have at the very least
 		//  - sync (0xe0 or 0xd0)
 		//  - node number (non-zero)
@@ -820,86 +816,82 @@ bool ksys573_state::jvs_is_valid_packet()
 		return false;
     }
 
-	if ((jvs_input_buffer[0] != 0xe0 && jvs_input_buffer[0] != 0xd0) || jvs_input_buffer[1] == 0x00) {
+	if ((m_jvs_input_buffer[0] != 0xe0 && m_jvs_input_buffer[0] != 0xd0) || m_jvs_input_buffer[1] == 0x00) {
 		return false;
 	}
 
-    int command_size = jvs_input_buffer[2] + 3;
-    if (jvs_input_idx_w < command_size) {
+    int command_size = m_jvs_input_buffer[2] + 3;
+    if (m_jvs_input_idx_w < command_size) {
 		return false;
     }
 
     uint8_t checksum = 0;
     for (int i = 1; i < command_size - 1; i++) {
-		checksum += jvs_input_buffer[i];
+		checksum += m_jvs_input_buffer[i];
     }
 
-    return checksum == jvs_input_buffer[command_size - 1];
+    return checksum == m_jvs_input_buffer[command_size - 1];
 }
 
 void ksys573_state::jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-    jvs_input_buffer[jvs_input_idx_w++] = data & 0xff;
-    jvs_input_buffer[jvs_input_idx_w++] = data >> 8;
+    m_jvs_input_buffer[m_jvs_input_idx_w++] = data & 0xff;
+    m_jvs_input_buffer[m_jvs_input_idx_w++] = data >> 8;
 
-	if (jvs_input_buffer[0] != 0xe0 && jvs_input_buffer[0] != 0xd0) {
-		jvs_input_idx_w = 0;
+	if (m_jvs_input_buffer[0] != 0xe0 && m_jvs_input_buffer[0] != 0xd0) {
+		m_jvs_input_idx_w = 0;
 	}
 
     if (jvs_is_valid_packet()) {
 #ifdef JVS_DEBUG
 		printf("jvs_input_w( %08x, %08x, %02x %02x )\n", offset, mem_mask, data & 0xff, data >> 8 );
 
-		for (int i = 0; i < jvs_input_idx_w; i++) {
-			printf("%02x ", jvs_input_buffer[i]);
+		for (int i = 0; i < m_jvs_input_idx_w; i++) {
+			printf("%02x ", m_jvs_input_buffer[i]);
 		}
 
 		printf("\n");
 #endif
 
-		int command_size = jvs_input_buffer[2] + 3;
-		m_jvs_master->send_packet(jvs_input_buffer + 1, command_size - 2); // jvshost doesn't actually check the checksum, so don't send it
+		int command_size = m_jvs_input_buffer[2] + 3;
+		m_jvs_master->send_packet(m_jvs_input_buffer + 1, command_size - 2); // jvshost doesn't actually check the checksum, so don't send it
 
-		jvs_input_idx_w = 0;
-		jvs_input_idx_r = 0;
+		m_jvs_input_idx_w = 0;
+		m_jvs_input_idx_r = 0;
 
-		jvs_input_buffer[0] = 0;
+		m_jvs_input_buffer[0] = 0;
     }
 }
 
 uint16_t ksys573_state::jvs_input_r(offs_t offset, uint16_t mem_mask)
 {
-    uint16_t data = jvs_input_buffer[jvs_input_idx_r++];
-    data |= jvs_input_buffer[jvs_input_idx_r++] << 8;
-
-#ifdef JVS_DEBUG
-    //logerror("jvs_input_r( %08x, %08x ) %02x %02x\n", offset, mem_mask, data & 0xff, data >> 8 );
-#endif
+    uint16_t data = m_jvs_input_buffer[m_jvs_input_idx_r++];
+    data |= m_jvs_input_buffer[m_jvs_input_idx_r++] << 8;
 
     return data;
 }
 
-uint16_t ksys573_state::port_in2_r(offs_t offset, uint16_t mem_mask)
+uint16_t ksys573_state::port_in2_jvs_r(offs_t offset, uint16_t mem_mask)
 {
 	if (offset == 0) {
 		// 0x1f400008-0x1f400009 are for inputs
 		return ioport("IN2")->read();
 	}
 
-    if (jvs_output_len_w <= 0) {
+    if (m_jvs_output_len_w <= 0) {
 		return 0;
     }
 
-    uint16_t data = jvs_output_buffer[jvs_output_idx_w] | (jvs_output_buffer[jvs_output_idx_w+1] << 8);
-    jvs_output_idx_w += 2;
+    uint16_t data = m_jvs_output_buffer[m_jvs_output_idx_w] | (m_jvs_output_buffer[m_jvs_output_idx_w+1] << 8);
+    m_jvs_output_idx_w += 2;
 
-    if (jvs_output_idx_w >= jvs_output_len_w) {
-		jvs_output_idx_w = 0;
-		jvs_output_len_w = 0;
+    if (m_jvs_output_idx_w >= m_jvs_output_len_w) {
+		m_jvs_output_idx_w = 0;
+		m_jvs_output_len_w = 0;
     }
 
 #ifdef JVS_DEBUG
-    printf("jvs_output_r %08x %08x | %02x %02x | %02x\n", offset, mem_mask, data & 0xff, data >> 8, jvs_output_idx_w);
+    printf("m_jvs_output_r %08x %08x | %02x %02x | %02x\n", offset, mem_mask, data & 0xff, data >> 8, m_jvs_output_idx_w);
 #endif
 
     return data;
@@ -907,11 +899,11 @@ uint16_t ksys573_state::port_in2_r(offs_t offset, uint16_t mem_mask)
 
 READ_LINE_MEMBER( ksys573_state::jvs_rx_r )
 {
-	if (jvs_output_len_w <= 0) {
-		jvs_output_len_w = m_jvs_master->received_packet(jvs_output_buffer);
+	if (m_jvs_output_len_w <= 0) {
+		m_jvs_output_len_w = m_jvs_master->received_packet(m_jvs_output_buffer);
 	}
 
-	return jvs_output_len_w > 0;
+	return m_jvs_output_len_w > 0;
 }
 
 uint16_t ksys573_state::control_r(offs_t offset, uint16_t mem_mask)
@@ -1042,10 +1034,10 @@ void ksys573_state::driver_start()
 	m_control = 0;
 	m_h8_index = 0;
 
-	jvs_input_idx_r = jvs_input_idx_w = 0;
-	jvs_output_idx_w = jvs_output_len_w = 0;
-	memset(jvs_input_buffer, 0, 512);
-	memset(jvs_output_buffer, 0, 512);
+	m_jvs_input_idx_r = m_jvs_input_idx_w = 0;
+	m_jvs_output_idx_w = m_jvs_output_len_w = 0;
+	memset(m_jvs_input_buffer, 0, 512);
+	memset(m_jvs_output_buffer, 0, 512);
 
 	save_item( NAME( m_n_security_control ) );
 	save_item( NAME( m_control ) );
@@ -5562,7 +5554,7 @@ GAME( 2001, gtrfrk7m,  sys573,   gtrfrk7m,   gtrfrks,   ksys573_state, empty_ini
 GAME( 2001, ddrmax,    sys573,   ddr5m,      ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "DDR Max - Dance Dance Revolution 6th Mix (G*B19 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.9 */
 GAME( 2002, ddrmax2,   sys573,   ddr5m,      ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "DDR Max 2 - Dance Dance Revolution 7th Mix (G*B20 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, mrtlbeat,  sys573,   ddr5m,      ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "Martial Beat (G*B47 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.9 */
-GAME( 2002, gbbchmp,   sys573,   gbbchmp,    hyperbbc,  ksys573_state, init_serlamp, ROT0,  "Konami", "Great Bishi Bashi Champ (GBA48 VER. JAB)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, gbbchmp,   sys573,   gbbchmp,    hyperbbc,  ksys573_state, init_serlamp,  ROT0,  "Konami", "Great Bishi Bashi Champ (GBA48 VER. JAB)", MACHINE_IMPERFECT_SOUND )
 GAME( 2002, drmn7m,    sys573,   drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 7th Mix power-up ver. (G*C07 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, drmn7ma,   drmn7m,   drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 7th Mix (G*C07 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, gtrfrk8m,  sys573,   gtrfrk7m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 8th Mix power-up ver. (G*C08 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
