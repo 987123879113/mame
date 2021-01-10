@@ -12,8 +12,6 @@
 #include "bus/psx/ctlrport.h"
 #include "machine/jvsdev.h"
 
-class jvs_host;
-
 class k573mcr_device : public jvs_device
 {
 public:

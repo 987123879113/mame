@@ -220,8 +220,8 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			// There might be something else that happens on real hardware between when it loads the bootloader
 			// and when it starts the actual game's code that resets the JVS device, but I do not have hands on
 			// access to test such a thing.
-			// To hack around that error, set jvs_address back to 0xff whenever the reset command is called.
-			jvs_address = 0xff;
+			// Reset immediately to hack around that error.
+			device_reset();
 			return -1;
 
 		case 0x14:
@@ -427,8 +427,8 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				*recv_buffer++ = 0x01;
 
 				// The game will write a block of 0xffs to block 3f immediately after inserting a memory card for the first time.
-				// My best guess is that it's some kind of initialization. Bbased on information from someone who has done a lot
-				// more hardware testing of the memory card unit, the 0xff block doesn't actually get written to the memory card.
+				// I believe it's some kind of initialization, and based on the game's code, the 0xff buffer is prepared when the firmware is being sent.
+				// Based on someone else's research with real hardware, the 0xff block doesn't actually get written to the memory card.
 				m_is_memcard_initialized = true;
 
 				return 9;
@@ -442,9 +442,9 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			// Controller ports
 			// Packet: e0 01 02 77 7a
 			//
-			// This was used in Guitar Freaks starting with GF 2nd Mix Link Kit 2
-			// which allowed players to bring their own PS1 compatible guitars
-			// to the arcade.
+			// Only used by Guitar Freaks.
+			// This was introduced in Guitar Freaks 2nd Mix Link Kit 2, which allowed players to bring their own PS1 guitar controllers to the arcade
+			// and plug it into the machine to use as a controller instead of the normal machine's guitar controllers.
 
 			*recv_buffer++ = 0x01;
 			pad_read(0, recv_buffer);
