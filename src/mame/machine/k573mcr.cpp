@@ -335,7 +335,15 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			// Status request
 			// 81681::E0:01:02:71:74:
 			// 81682::E0:00:05:01:01:00:00:07:
-			int status = m_memcard_status[m_memcard_port];
+			int status;
+
+			if (!(ioport("META")->read() & (1 << m_memcard_port))) {
+				// If the card istoggled off then just force the card
+				// status to always return unavailable.
+				m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
+			}
+
+			status = m_memcard_status[m_memcard_port];
 
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = status >> 8;
@@ -562,6 +570,18 @@ ROM_END
 const tiny_rom_entry *k573mcr_device::device_rom_region() const
 {
 	return ROM_NAME( k573mcr );
+}
+
+
+INPUT_PORTS_START( k573mcr_meta_controls )
+	PORT_START("META")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1) PORT_TOGGLE PORT_NAME("Insert/Eject Memory Card 1 Toggle")
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE2) PORT_TOGGLE PORT_NAME("Insert/Eject Memory Card 2 Toggle")
+INPUT_PORTS_END
+
+ioport_constructor k573mcr_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME(k573mcr_meta_controls);
 }
 
 DEFINE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device, "k573mcr", "Konami 573 Memory Card Reader")
