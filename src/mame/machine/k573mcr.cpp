@@ -314,7 +314,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 
 				return 6 + target_len;
 			} else if (send_buffer[1] == 2) {
-				// Sent after writing the firmware
+				// Set execution address
 				// 80678::E0:01:06:70:02:01:C0:00:3A:
 				// 80681::E0:00:03:01:01:05:
 				*recv_buffer++ = 0x01;
@@ -444,7 +444,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 
 		case 0x73:
 		{
-			// Firmware finished?
+			// Execute previously set address (0x70 0x02)
 			// 81674::E0:01:02:73:76:
 			// 81675::E0:00:03:01:01:05:
 			*recv_buffer++ = 0x01;
