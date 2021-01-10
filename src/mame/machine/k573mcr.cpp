@@ -50,13 +50,14 @@ k573mcr_device::k573mcr_device(const machine_config &mconfig, const char *tag, d
 	jvs_device(mconfig, KONAMI_573_MEMORY_CARD_READER, tag, owner, clock),
 	m_ports{{*this, "port1"}, {*this, "port2"}}
 {
+	m_ram = std::make_unique<uint8_t[]>(RAM_SIZE);
 }
 
 void k573mcr_device::device_start()
 {
 	jvs_device::device_start();
 
-	save_item(NAME(m_ram));
+	save_pointer(NAME(m_ram), RAM_SIZE);
 	save_item(NAME(m_is_memcard_initialized));
 }
 
@@ -64,7 +65,7 @@ void k573mcr_device::device_reset()
 {
 	jvs_device::device_reset();
 
-	memset(m_ram, 0, RAM_SIZE);
+	memset(m_ram.get(), 0, RAM_SIZE);
 	m_is_memcard_initialized = false;
 }
 
@@ -251,7 +252,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				*recv_buffer++ = 0x01;
 
 				if (target_len > 0 && ram_addr + target_len < RAM_SIZE) {
-					memcpy(recv_buffer, m_ram + ram_addr, target_len);
+					memcpy(recv_buffer, &m_ram[ram_addr], target_len);
 					recv_buffer += target_len;
 				}
 
@@ -265,7 +266,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				//       :14:40:51:73:77:
 				// 77583::E0:00:01:
 				if (target_len > 0) {
-					memcpy(m_ram + ram_addr, send_buffer + 6, target_len);
+					memcpy(&m_ram[ram_addr], send_buffer + 6, target_len);
 				}
 
 				*recv_buffer++ = 0x01;
@@ -381,7 +382,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 					for (int i = 0; i < block_count; i++) {
 						m_status |= MEMCARD_READING;
 
-						if (memcard_read(memcard_port, memcard_addr + i, m_ram + ram_addr + (i * MEMCARD_BLOCK_SIZE))) {
+						if (memcard_read(memcard_port, memcard_addr + i, &m_ram[ram_addr + (i * MEMCARD_BLOCK_SIZE)])) {
 							m_status = MEMCARD_AVAILABLE;
 						} else {
 							m_status = MEMCARD_ERROR;
@@ -414,7 +415,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 					for (int i = 0; i < block_count; i++) {
 						m_status |= MEMCARD_WRITING;
 
-						if (memcard_write(memcard_port, memcard_addr + i, m_ram + ram_addr + (i * MEMCARD_BLOCK_SIZE))) {
+						if (memcard_write(memcard_port, memcard_addr + i, &m_ram[ram_addr + (i * MEMCARD_BLOCK_SIZE)])) {
 							m_status = MEMCARD_AVAILABLE;
 						} else {
 							m_status = MEMCARD_ERROR;

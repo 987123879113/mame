@@ -63,7 +63,7 @@ private:
 	bool memcard_read(uint32_t port_no, uint16_t block_addr, uint8_t *output);
 	bool memcard_write(uint32_t port_no, uint16_t block_addr, uint8_t *input);
 
-	uint8_t m_ram[RAM_SIZE];
+	std::unique_ptr<uint8_t[]> m_ram;
 	uint16_t m_status;
 	bool m_is_memcard_initialized;
 
