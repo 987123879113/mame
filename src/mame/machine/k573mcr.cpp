@@ -59,12 +59,6 @@ void k573mcr_device::device_start()
 	jvs_device::device_start();
 
 	save_item(NAME(m_ram));
-	save_item(NAME(m_ram_addr));
-	save_item(NAME(m_current_device));
-	save_item(NAME(m_memcard_port));
-	save_item(NAME(m_memcard_addr));
-	save_item(NAME(m_memcard_status));
-	save_item(NAME(m_sec_slot));
 }
 
 void k573mcr_device::device_reset()
@@ -72,12 +66,6 @@ void k573mcr_device::device_reset()
 	jvs_device::device_reset();
 
 	memset(m_ram, 0, RAM_SIZE);
-	m_ram_addr = 0;
-	m_current_device = DEVICE_SELF;
-
-	m_sec_slot = 0;
-	m_memcard_port = m_memcard_addr = 0;
-	m_memcard_status[0] = m_memcard_status[1] = MEMCARD_UNINITIALIZED;
 }
 
 void k573mcr_device::device_add_mconfig(machine_config &config)
@@ -247,7 +235,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 		case 0x70:
 		{
 			int target_len = send_buffer[5];
-			m_ram_addr = ((send_buffer[3] << 8) | send_buffer[4]) & 0x7fff;
+			int m_ram_addr = (send_buffer[2] << 16) | (send_buffer[3] << 8) | send_buffer[4];
 
 			if (send_buffer[1] == 0) {
 				// Buffer read
@@ -262,7 +250,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
 				//       :00:00:00:00:00:00:
 #ifdef K573MCR_DEBUG
-				printf("jvs buf read: %04x %04x, mode = %d\n", m_ram_addr, target_len, m_current_device);
+				printf("jvs buf read: %04x %04x\n", m_ram_addr, target_len);
 				printf("\t");
 				for (int i = 0; i < 6; i++) {
 					printf("%02x ", send_buffer[i]);
@@ -271,10 +259,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 #endif
 
 				*recv_buffer++ = 0x01;
-
-				if (m_current_device == DEVICE_MEMORY_CARD && m_memcard_status[m_memcard_port] == MEMCARD_AVAILABLE) {
-					memcard_read(m_memcard_port, m_memcard_addr + m_ram_addr / MEMCARD_BLOCK_SIZE, m_ram + m_ram_addr);
-				}
 
 				for (int i = 0; i < target_len && i + m_ram_addr < RAM_SIZE; i++) {
 					*recv_buffer++ = m_ram[m_ram_addr + i];
@@ -335,51 +319,13 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			// Status request
 			// 81681::E0:01:02:71:74:
 			// 81682::E0:00:05:01:01:00:00:07:
-			int status;
-
-			if (!(ioport("META")->read() & (1 << m_memcard_port))) {
-				// If the card istoggled off then just force the card
-				// status to always return unavailable.
-				m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
-			}
-
-			status = m_memcard_status[m_memcard_port];
-
 			*recv_buffer++ = 0x01;
-			*recv_buffer++ = status >> 8;
-			*recv_buffer++ = status & 0xff;
+			*recv_buffer++ = m_status >> 8;
+			*recv_buffer++ = m_status & 0xff;
 
 #ifdef K573MCR_DEBUG
-			printf("jvs status %d %04x\n", m_memcard_port, status);
+			printf("jvs status %04x\n", m_status);
 #endif
-
-			if (m_memcard_status[m_memcard_port] == MEMCARD_UNINITIALIZED || m_memcard_status[m_memcard_port] == MEMCARD_UNAVAILABLE) {
-				m_memcard_status[m_memcard_port] = memcard_read(m_memcard_port, 0, nullptr) ? MEMCARD_AVAILABLE : MEMCARD_UNAVAILABLE;
-			}
-
-			if (m_memcard_status[m_memcard_port] & MEMCARD_READING) {
-				// 39542::E0:01:02:71:74:
-				// 39543::E0:00:05:01:01:02:00:09:
-				// 39578::E0:01:02:71:74:
-				// 39579::E0:00:05:01:01:80:00:87:
-				if (memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
-					m_memcard_status[m_memcard_port] = MEMCARD_AVAILABLE;
-				} else {
-					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
-				}
-			} else if (m_memcard_status[m_memcard_port] & MEMCARD_WRITING) {
-				// 39358::E0:01:02:71:74:
-				// 39359::E0:00:05:01:01:04:00:0B:
-				// 39394::E0:01:02:71:74:
-				// 39395::E0:00:05:01:01:00:00:07:
-				if (memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
-					m_memcard_status[m_memcard_port] = MEMCARD_UNINITIALIZED;
-				} else {
-					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
-				}
-			} else if (m_memcard_status[m_memcard_port] == MEMCARD_ERROR) {
-				m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
-			}
 
 			return 1;
 		}
@@ -388,7 +334,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 		{
 			// Security plate
 			uint8_t cmd = send_buffer[1] & ~1;
-			m_sec_slot = send_buffer[1] & 1;
+			int m_sec_slot = send_buffer[1] & 1;
 
 			if (cmd == 0x00) {
 				// Packet: e0 01 03 72 00 76 slot 0 (CN63)
@@ -406,13 +352,13 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				// Get dongle data? (slot 0: GE885-JB, slot 1: ?)
 				// Packet: e0 01 0a 72 20 00 00 02 00 00 00 08 a7
 				// It seems that as long as the checksum matches, the game will accept it as valid
-				m_ram[0] = 'J';
-				m_ram[1] = 'B';
-				m_ram[2] = 0x00;
-				m_ram[3] = 0x00;
-				m_ram[4] = ~(m_ram[0] + m_ram[1]); // Checksum byte
+				int m_ram_addr = (send_buffer[4] << 16) | (send_buffer[5] << 8) | send_buffer[6];
 
-				m_current_device = DEVICE_SECURITY_PLATE;
+				m_ram[m_ram_addr] = 'J';
+				m_ram[m_ram_addr + 1] = m_sec_slot == 1 ? 'A' : 'B'; // GF uses GE929-JA, but the games will accept anything
+				m_ram[m_ram_addr + 2] = 0x00;
+				m_ram[m_ram_addr + 3] = 0x00;
+				m_ram[m_ram_addr + 4] = ~(m_ram[m_ram_addr] + m_ram[m_ram_addr + 1]); // Checksum byte
 
 				*recv_buffer++ = 0x01;
 
@@ -421,13 +367,13 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				// Get some kind of registration info from dongle?
 				// Game code calls it "config register"
 				// Packet: e0 01 06 72 40 02 00 00 bb
-				m_ram[0] = 0xFF;
-				m_ram[1] = 0xFF;
-				m_ram[2] = 0xAC;
-				m_ram[3] = 0x09;
-				m_ram[4] = 0x00;
+				int m_ram_addr = (send_buffer[2] << 16) | (send_buffer[3] << 8) | send_buffer[4];
 
-				m_current_device = DEVICE_SECURITY_PLATE;
+				m_ram[m_ram_addr] = 0xFF;
+				m_ram[m_ram_addr + 1] = 0xFF;
+				m_ram[m_ram_addr + 2] = 0xAC;
+				m_ram[m_ram_addr + 3] = 0x09;
+				m_ram[m_ram_addr + 4] = 0x00;
 
 				*recv_buffer++ = 0x01;
 
@@ -459,10 +405,11 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				// Read from card
 				// Packet (port 1): e0 01 0a 76 74 00 00 02 00 00 00 01 f8
 				// Packet (port 2): e0 01 0a 76 74 80 00 02 00 00 00 01 78
-				m_current_device = DEVICE_MEMORY_CARD;
+				int m_memcard_port = send_buffer[2] >> 7;
+				int m_memcard_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff;
+				int m_ram_addr = (send_buffer[4] << 16) | (send_buffer[5] << 8) | send_buffer[6];
+				int block_count = (send_buffer[7] << 8) | send_buffer[8];
 
-				m_memcard_port = send_buffer[2] >> 7;
-				m_memcard_addr = (((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff);
 
 #ifdef K573MCR_DEBUG
 				printf("jvs memcard read: %d %04x\n", m_memcard_port, m_memcard_addr);
@@ -473,18 +420,29 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				printf("\n");
 #endif
 
-				if (m_memcard_status[m_memcard_port] != MEMCARD_UNAVAILABLE) {
-					if (memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
-						m_memcard_status[m_memcard_port] = MEMCARD_READING;
-					} else {
-						m_memcard_status[m_memcard_port] = MEMCARD_ERROR;
-					}
+				bool is_ejected = !(ioport("META")->read() & (1 << m_memcard_port)); // Forcefully ejected using hotkey
+				if (!is_ejected && memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
+					// Check if card is inserted
+					m_status = MEMCARD_AVAILABLE;
 				} else {
-					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
+					m_status = MEMCARD_UNAVAILABLE;
+				}
+
+				if (m_status == MEMCARD_AVAILABLE) {
+					for (int i = 0; i < block_count; i++) {
+						m_status |= MEMCARD_READING;
+
+						if (memcard_read(m_memcard_port, m_memcard_addr + i, m_ram + m_ram_addr + (i * MEMCARD_BLOCK_SIZE))) {
+							m_status = MEMCARD_AVAILABLE;
+						} else {
+							m_status = MEMCARD_ERROR;
+							break;
+						}
+					}
 				}
 
 #ifdef K573MCR_DEBUG
-				printf("\nstatus: 1[%04x] 2[%04x]\n\n", m_memcard_status[0], m_memcard_status[1]);
+				printf("\nstatus: %d[%04x]\n\n", m_memcard_port, m_status);
 #endif
 
 				*recv_buffer++ = 0x01;
@@ -497,19 +455,30 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				// Packet: e0 01 0a 76 75 02 00 00 00 83 00 01 7c
 				// Packet: e0 01 0a 76 75 02 00 00 00 88 00 01 81
 				// Packet: e0 01 0a 76 75 02 00 00 00 b4 00 01 ad
-				m_current_device = DEVICE_MEMORY_CARD;
+				int m_ram_addr = (send_buffer[2] << 16) | (send_buffer[3] << 8) | send_buffer[4];
+				int m_memcard_port = send_buffer[5] >> 7;
+				int m_memcard_addr = ((send_buffer[5] << 8) | send_buffer[6]) & 0x7fff;
+				int block_count = (send_buffer[7] << 8) | send_buffer[8];
 
-				m_memcard_port = send_buffer[5] >> 7;
-				m_memcard_addr = (((send_buffer[5] << 8) | send_buffer[6]) & 0x7fff);
-
-				if (m_memcard_status[m_memcard_port] != MEMCARD_UNAVAILABLE) {
-					if (memcard_write(m_memcard_port, m_memcard_addr, m_ram + m_ram_addr)) {
-						m_memcard_status[m_memcard_port] = MEMCARD_WRITING;
-					} else {
-						m_memcard_status[m_memcard_port] = MEMCARD_ERROR;
-					}
+				bool is_ejected = !(ioport("META")->read() & (1 << m_memcard_port)); // Forcefully ejected using hotkey
+				if (!is_ejected && memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
+					// Check if card is inserted
+					m_status = MEMCARD_AVAILABLE;
 				} else {
-					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
+					m_status = MEMCARD_UNAVAILABLE;
+				}
+
+				if (m_status == MEMCARD_AVAILABLE) {
+					for (int i = 0; i < block_count; i++) {
+						m_status |= MEMCARD_WRITING;
+
+						if (memcard_write(m_memcard_port, m_memcard_addr + i, m_ram + m_ram_addr + (i * MEMCARD_BLOCK_SIZE))) {
+							m_status = MEMCARD_AVAILABLE;
+						} else {
+							m_status = MEMCARD_ERROR;
+							break;
+						}
+					}
 				}
 
 				*recv_buffer++ = 0x01;
