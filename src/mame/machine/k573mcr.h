@@ -26,6 +26,8 @@ public:
 
 	k573mcr_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	virtual ioport_constructor device_input_ports() const override;
+
 protected:
 	template <uint8_t First> void set_port_tags() { }
 
