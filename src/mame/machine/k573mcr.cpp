@@ -220,8 +220,8 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			// There might be something else that happens on real hardware between when it loads the bootloader
 			// and when it starts the actual game's code that resets the JVS device, but I do not have hands on
 			// access to test such a thing.
-			// To hack around that error, set jvs_address back to 0xff whenever the reset command is called.
-			jvs_address = 0xff;
+			// Reset immediately to hack around that error.
+			device_reset();
 			return -1;
 
 		case 0x14:
