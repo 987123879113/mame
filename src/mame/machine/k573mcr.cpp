@@ -43,8 +43,6 @@ Notes:
 	EP4M16     - ROM labeled "855-A01"
 */
 
-// #define K573MCR_DEBUG
-
 #include "emu.h"
 #include "k573mcr.h"
 
@@ -59,6 +57,7 @@ void k573mcr_device::device_start()
 	jvs_device::device_start();
 
 	save_item(NAME(m_ram));
+	save_item(NAME(m_is_memcard_initialized));
 }
 
 void k573mcr_device::device_reset()
@@ -66,6 +65,7 @@ void k573mcr_device::device_reset()
 	jvs_device::device_reset();
 
 	memset(m_ram, 0, RAM_SIZE);
+	m_is_memcard_initialized = false;
 }
 
 void k573mcr_device::device_add_mconfig(machine_config &config)
@@ -239,7 +239,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 
 			if (send_buffer[1] == 0) {
 				// Buffer read
-				// Real packet capture, does *not* include a checksum at the end
 				// 39595::E0:01:07:70:00:02:00:00:80:FA:
 				// 39596::E0:00:83:01:01:4D:43:00:00:00:00:00:00:00:00:00
 				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
@@ -249,15 +248,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
 				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
 				//       :00:00:00:00:00:00:
-#ifdef K573MCR_DEBUG
-				printf("jvs buf read: %04x %04x\n", m_ram_addr, target_len);
-				printf("\t");
-				for (int i = 0; i < 6; i++) {
-					printf("%02x ", send_buffer[i]);
-				}
-				printf("\n\n");
-#endif
-
 				*recv_buffer++ = 0x01;
 
 				for (int i = 0; i < target_len && i + m_ram_addr < RAM_SIZE; i++) {
@@ -267,23 +257,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				return 6;
 			} else if (send_buffer[1] == 1) {
 				// Buffer write
-				// Real packet
-				// 77524::E0:01:87:70:01:02:03:00:80:00:1A:ED:00:FF:85:38
-				//       :21:00:07:38:42:3C:EF:05:00:FF:34:00:AC:00:40:30
-				//       :F9:21:02:18:41:09:46:10:23:00:45:10:E2:1C:FF:1C
-				//       :42:8E:FD:2C:04:E8:C0:25:FF:04:02:5D:31:60:D0:AF
-				//       :00:00:F7:00:88:46:
-				// 77544::E0:01:
-				//
-				// Real packet
-				// 77545::E0:01:87:70:01:02:03:80:80:12:FB:00:0C:02:3C:50
-				//       :5E:D0:CF:8E:04:FF:00:00:8E:05:00:04:8E:06:DF:00
-				//       :08:02:12:80:00:98:03:43:FF:26:31:00:22:EF:40:41
-				//       :00:EC:8F:8F:8F:D1:4C:20:10:24:7C:70:87:00:00:03
-				//       :AC:42:00:31:06:01:
-				// 77563::E0:03:05:
-				//
-				// Real packet
 				// 77565::E0:01:87:70:01:02:04:00:80:24:A5:04:70:30:30:7A
 				//       :24:87:C6:85:10:00:64:05:58:02:44:45:CA:8C:FD:A2
 				//       :00:04:A3:00:04:8C:A6:00:FF:08:8C:00:82:00:20:00
@@ -306,11 +279,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				return 5;
 			}
 
-#ifdef K573MCR_DEBUG
-			printf("Unknown command!! 0x70 (buf) %02x\n", send_buffer[1]);
-			exit(1);
-#endif
-
 			return -1;
 		}
 
@@ -322,10 +290,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			*recv_buffer++ = 0x01;
 			*recv_buffer++ = m_status >> 8;
 			*recv_buffer++ = m_status & 0xff;
-
-#ifdef K573MCR_DEBUG
-			printf("jvs status %04x\n", m_status);
-#endif
 
 			return 1;
 		}
@@ -380,11 +344,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				return 5;
 			}
 
-#ifdef K573MCR_DEBUG
-			printf("Unknown command!! 0x72 (sec plate) %02x\n", send_buffer[1]);
-			exit(1);
-#endif
-
 			return -1;
 		}
 
@@ -403,24 +362,13 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			// Memory card
 			if (send_buffer[1] == 0x74) {
 				// Read from card
-				// Packet (port 1): e0 01 0a 76 74 00 00 02 00 00 00 01 f8
 				// Packet (port 2): e0 01 0a 76 74 80 00 02 00 00 00 01 78
 				int m_memcard_port = send_buffer[2] >> 7;
 				int m_memcard_addr = ((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff;
 				int m_ram_addr = (send_buffer[4] << 16) | (send_buffer[5] << 8) | send_buffer[6];
 				int block_count = (send_buffer[7] << 8) | send_buffer[8];
-
-
-#ifdef K573MCR_DEBUG
-				printf("jvs memcard read: %d %04x\n", m_memcard_port, m_memcard_addr);
-				printf("\t");
-				for (int i = 0; i < 10; i++) {
-					printf("%02x ", send_buffer[i]);
-				}
-				printf("\n");
-#endif
-
 				bool is_ejected = !(ioport("META")->read() & (1 << m_memcard_port)); // Forcefully ejected using hotkey
+
 				if (!is_ejected && memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
 					// Check if card is inserted
 					m_status = MEMCARD_AVAILABLE;
@@ -441,10 +389,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 					}
 				}
 
-#ifdef K573MCR_DEBUG
-				printf("\nstatus: %d[%04x]\n\n", m_memcard_port, m_status);
-#endif
-
 				*recv_buffer++ = 0x01;
 				*recv_buffer++ = 0x01;
 
@@ -452,15 +396,12 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			} else if (send_buffer[1] == 0x75) {
 				// Write to card
 				// Packet: e0 01 0a 76 75 02 00 00 00 3f 00 01 38
-				// Packet: e0 01 0a 76 75 02 00 00 00 83 00 01 7c
-				// Packet: e0 01 0a 76 75 02 00 00 00 88 00 01 81
-				// Packet: e0 01 0a 76 75 02 00 00 00 b4 00 01 ad
 				int m_ram_addr = (send_buffer[2] << 16) | (send_buffer[3] << 8) | send_buffer[4];
 				int m_memcard_port = send_buffer[5] >> 7;
 				int m_memcard_addr = ((send_buffer[5] << 8) | send_buffer[6]) & 0x7fff;
 				int block_count = (send_buffer[7] << 8) | send_buffer[8];
-
 				bool is_ejected = !(ioport("META")->read() & (1 << m_memcard_port)); // Forcefully ejected using hotkey
+
 				if (!is_ejected && memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
 					// Check if card is inserted
 					m_status = MEMCARD_AVAILABLE;
@@ -468,7 +409,7 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 					m_status = MEMCARD_UNAVAILABLE;
 				}
 
-				if (m_status == MEMCARD_AVAILABLE) {
+				if (m_status == MEMCARD_AVAILABLE && m_is_memcard_initialized) {
 					for (int i = 0; i < block_count; i++) {
 						m_status |= MEMCARD_WRITING;
 
@@ -484,13 +425,13 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				*recv_buffer++ = 0x01;
 				*recv_buffer++ = 0x01;
 
+				// The game will write a block of 0xffs to block 3f immediately after inserting a memory card for the first time.
+				// My best guess is that it's some kind of initialization. Bbased on information from someone who has done a lot
+				// more hardware testing of the memory card unit, the 0xff block doesn't actually get written to the memory card.
+				m_is_memcard_initialized = true;
+
 				return 9;
 			}
-
-#ifdef K573MCR_DEBUG
-			printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
-			exit(1);
-#endif
 
 			return -1;
 		}
@@ -508,22 +449,11 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			pad_read(0, recv_buffer);
 			pad_read(1, recv_buffer + 2);
 
-#ifdef K573MCR_DEBUG
-			printf("pad: %02x %02x %02x %02x\n", recv_buffer[0], recv_buffer[1], recv_buffer[2], recv_buffer[3]);
-#endif
-
 			recv_buffer += 4;
 
 			return 1;
 		}
 	}
-
-#ifdef K573MCR_DEBUG
-	if (send_buffer[0] > 0x60 && send_buffer[0] < 0x80) {
-		printf("Found unimplemented opcode: %02x\n", send_buffer[0]);
-		exit(1);
-	}
-#endif
 
 	// Command not recognized, pass it off to the base message handler
 	return -1;

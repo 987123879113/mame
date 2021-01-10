@@ -67,6 +67,7 @@ private:
 
 	uint8_t m_ram[RAM_SIZE];
 	uint16_t m_status;
+	bool m_is_memcard_initialized;
 
 	required_device<psx_controller_port_device> m_ports[2];
 };
