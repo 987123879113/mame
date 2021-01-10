@@ -198,7 +198,7 @@ bool k573mcr_device::memcard_write(uint32_t port_no, uint16_t block_addr, uint8_
 	uint8_t checksum = (block_addr >> 8) ^ (block_addr & 0xff);
 	for (int i = 0; i < 128; i++) {
 		controller_port_send_byte(port_no, input[i]); // state_read
-    	checksum ^= input[i];
+		checksum ^= input[i];
 	}
 
 	controller_port_send_byte(port_no, checksum);
@@ -358,7 +358,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			}
 
 			if (m_memcard_status[m_memcard_port] & MEMCARD_READING) {
-				// Real device packets
 				// 39542::E0:01:02:71:74:
 				// 39543::E0:00:05:01:01:02:00:09:
 				// 39578::E0:01:02:71:74:
@@ -369,7 +368,6 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
 				}
 			} else if (m_memcard_status[m_memcard_port] & MEMCARD_WRITING) {
-				// Real device packets
 				// 39358::E0:01:02:71:74:
 				// 39359::E0:00:05:01:01:04:00:0B:
 				// 39394::E0:01:02:71:74:
