@@ -50,7 +50,7 @@ Notes:
 
 k573mcr_device::k573mcr_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	jvs_device(mconfig, KONAMI_573_MEMORY_CARD_READER, tag, owner, clock),
-	m_cards{{*this, "port1"}, {*this, "port2"}}
+	m_ports{{*this, "port1"}, {*this, "port2"}}
 {
 }
 
@@ -70,8 +70,6 @@ void k573mcr_device::device_start()
 void k573mcr_device::device_reset()
 {
 	jvs_device::device_reset();
-	m_cards[0]->reset();
-	m_cards[1]->reset();
 
 	memset(m_ram, 0, RAM_SIZE);
 	m_ram_addr = 0;
@@ -84,8 +82,15 @@ void k573mcr_device::device_reset()
 
 void k573mcr_device::device_add_mconfig(machine_config &config)
 {
-	PSXCARD_SINGLE(config, m_cards[0], 0);
-	PSXCARD_SINGLE(config, m_cards[1], 0);
+	// The actual controllers are only used in Guitar Freaks and it was
+	// meant to be used with the home version PS1 guitar controller.
+	// The PS1 guitar controller isn't emulated in MAME and it doesn't
+	// make much sense to have it enabled by default. You can still select
+	// a controller through the slots menu.
+	// The memory card ports are still usable even without a controller
+	// enabled which is the main reason for using the PSX controller ports.
+	PSX_CONTROLLER_PORT(config, m_ports[0], psx_controllers, nullptr);
+	PSX_CONTROLLER_PORT(config, m_ports[1], psx_controllers, nullptr);
 }
 
 const char *k573mcr_device::device_id()
@@ -108,68 +113,99 @@ uint8_t k573mcr_device::comm_method_version()
 	return 0x10;
 }
 
-bool k573mcr_device::memcard_read(uint32_t port, uint16_t block_addr, uint8_t *output)
+uint8_t k573mcr_device::controller_port_send_byte(uint32_t port_no, uint8_t data)
 {
-	uint8_t from = 0;
+	auto port = m_ports[port_no];
+	uint8_t output = 0;
 
-	if (!m_cards[port]->transfer(0x81, &from)) {
-        return false; // No card inserted
-    }
+	for (int i = 0; i < 8; i++) {
+		port->clock_w(0);
+		port->tx_w(!!(data & (1 << i)));
+		port->clock_w(1);
+		output |= port->rx_r() << i;
+	}
 
-	m_cards[port]->transfer('R', &from); // state_command, Request read
-	m_cards[port]->transfer(0, &from); // state_command -> state_cmdack
-	m_cards[port]->transfer(0, &from); // state_cmdack -> state_wait
-	m_cards[port]->transfer(block_addr >> 8, &from); // state_wait -> state_addr_hi
-	m_cards[port]->transfer(block_addr & 0xff, &from); // state_addr_hi -> state_addr_lo
-	m_cards[port]->transfer(0, &from); // state_addr_lo -> state_read
-	m_cards[port]->transfer(0, &from); // Skip read byte
-	m_cards[port]->transfer(0, &from); // Skip read byte
+	return output;
+}
+
+bool k573mcr_device::pad_read(uint32_t port_no, uint8_t *output)
+{
+	m_ports[port_no]->sel_w(1);
+	m_ports[port_no]->sel_w(0);
+
+	controller_port_send_byte(port_no, 0x01);
+	uint8_t a = controller_port_send_byte(port_no, 'B');
+	uint8_t b = controller_port_send_byte(port_no, 0);
+	*output++ = controller_port_send_byte(port_no, 0);
+	*output++ = controller_port_send_byte(port_no, 0);
+
+	return a == 0x41 && b == 0x5a;
+}
+
+bool k573mcr_device::memcard_read(uint32_t port_no, uint16_t block_addr, uint8_t *output)
+{
+	m_ports[port_no]->sel_w(1);
+	m_ports[port_no]->sel_w(0);
+
+	controller_port_send_byte(port_no, 0x81);
+
+	if (controller_port_send_byte(port_no, 'R') == 0xff) { // state_command, Request read
+		return false;
+	}
+
+	controller_port_send_byte(port_no, 0); // state_command -> state_cmdack
+	controller_port_send_byte(port_no, 0); // state_cmdack -> state_wait
+	controller_port_send_byte(port_no, block_addr >> 8); // state_wait -> state_addr_hi
+	controller_port_send_byte(port_no, block_addr & 0xff); // state_addr_hi -> state_addr_lo
+
+	if (controller_port_send_byte(port_no, 0) != 0x5c) {  // state_addr_lo -> state_read
+		// If the command wasn't correct then it transitions to state_illegal at this point
+		return false;
+	}
+
+	controller_port_send_byte(port_no, 0); // Skip 0x5d
+	controller_port_send_byte(port_no, 0); // Skip addr hi
+	controller_port_send_byte(port_no, 0); // Skip addr lo
 
 	for (int i = 0; i < 128; i++) {
-		m_cards[port]->transfer(0, &from); // state_read
-
+		auto c = controller_port_send_byte(port_no, 0);
 		if (output != nullptr) {
-			*output++ = from;
+			*output++ = c;
 		}
 	}
 
-	m_cards[port]->transfer(0, &from); // Skip read byte
-	m_cards[port]->transfer(0, &from); // Skip read byte
-	m_cards[port]->transfer(0, &from); // state_read -> state_end
+	controller_port_send_byte(port_no, 0);
 
-	return true;
+	return controller_port_send_byte(port_no, 0) == 'G';
 }
 
-bool k573mcr_device::memcard_write(uint32_t port, uint16_t block_addr, uint8_t *input)
+bool k573mcr_device::memcard_write(uint32_t port_no, uint16_t block_addr, uint8_t *input)
 {
-	uint8_t from = 0;
+	m_ports[port_no]->sel_w(1);
+	m_ports[port_no]->sel_w(0);
 
-	if (!m_cards[port]->transfer(0x01, &from)) {
-        return false; // No card inserted
-    }
+	controller_port_send_byte(port_no, 0x81);
 
-	m_cards[port]->transfer('W', &from); // state_command, Request read
-	m_cards[port]->transfer(0, &from); // state_command -> state_cmdack
-	m_cards[port]->transfer(0, &from); // state_cmdack -> state_wait
-	m_cards[port]->transfer(block_addr >> 8, &from); // state_wait -> state_addr_hi
-	m_cards[port]->transfer(block_addr & 0xff, &from); // state_addr_hi -> state_addr_lo
+	if (controller_port_send_byte(port_no, 'W') == 0xff) { // state_command, Request write
+		return false;
+	}
+
+	controller_port_send_byte(port_no, 0); // state_command -> state_cmdack
+	controller_port_send_byte(port_no, 0); // state_cmdack -> state_wait
+	controller_port_send_byte(port_no, block_addr >> 8); // state_wait -> state_addr_hi
+	controller_port_send_byte(port_no, block_addr & 0xff); // state_addr_hi -> state_addr_lo
 
 	uint8_t checksum = (block_addr >> 8) ^ (block_addr & 0xff);
 	for (int i = 0; i < 128; i++) {
-		m_cards[port]->transfer(input[i], &from); // state_read
+		controller_port_send_byte(port_no, input[i]); // state_read
     	checksum ^= input[i];
 	}
-	m_cards[port]->transfer(checksum, &from);
 
-	m_cards[port]->transfer(0, &from); // state_write -> state_writeack_2
-	m_cards[port]->transfer(0, &from); // state_write -> state_writechk
-	m_cards[port]->transfer(0, &from); // state_writechk -> state_end
+	controller_port_send_byte(port_no, checksum);
+	controller_port_send_byte(port_no, 0);
+	controller_port_send_byte(port_no, 0);
 
-	if (from == 'N') {
-		return false; // Failed to write data (invalid checksum is most suspect in this case)
-	}
-
-	return true;
+	return controller_port_send_byte(port_no, 0) == 'G';
 }
 
 int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
@@ -225,14 +261,14 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
 				//       :00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
 				//       :00:00:00:00:00:00:
-				#ifdef K573MCR_DEBUG
-					printf("jvs buf read: %04x %04x, mode = %d\n", m_ram_addr, target_len, m_current_device);
-					printf("\t");
-					for (int i = 0; i < 6; i++) {
-						printf("%02x ", send_buffer[i]);
-					}
-					printf("\n\n");
-				#endif
+#ifdef K573MCR_DEBUG
+				printf("jvs buf read: %04x %04x, mode = %d\n", m_ram_addr, target_len, m_current_device);
+				printf("\t");
+				for (int i = 0; i < 6; i++) {
+					printf("%02x ", send_buffer[i]);
+				}
+				printf("\n\n");
+#endif
 
 				*recv_buffer++ = 0x01;
 
@@ -286,10 +322,10 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				return 5;
 			}
 
-			#ifdef K573MCR_DEBUG
-				printf("Unknown command!! 0x70 (buf) %02x\n", send_buffer[1]);
-				exit(1);
-			#endif
+#ifdef K573MCR_DEBUG
+			printf("Unknown command!! 0x70 (buf) %02x\n", send_buffer[1]);
+			exit(1);
+#endif
 
 			return -1;
 		}
@@ -305,8 +341,13 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			*recv_buffer++ = status >> 8;
 			*recv_buffer++ = status & 0xff;
 
-			if (m_memcard_status[m_memcard_port] == MEMCARD_UNINITIALIZED || m_memcard_status[m_memcard_port] == MEMCARD_UNAVAILABLE)
+#ifdef K573MCR_DEBUG
+			printf("jvs status %d %04x\n", m_memcard_port, status);
+#endif
+
+			if (m_memcard_status[m_memcard_port] == MEMCARD_UNINITIALIZED || m_memcard_status[m_memcard_port] == MEMCARD_UNAVAILABLE) {
 				m_memcard_status[m_memcard_port] = memcard_read(m_memcard_port, 0, nullptr) ? MEMCARD_AVAILABLE : MEMCARD_UNAVAILABLE;
+			}
 
 			if (m_memcard_status[m_memcard_port] & MEMCARD_READING) {
 				// Real device packets
@@ -314,20 +355,22 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				// 39543::E0:00:05:01:01:02:00:09:
 				// 39578::E0:01:02:71:74:
 				// 39579::E0:00:05:01:01:80:00:87:
-				if (memcard_read(m_memcard_port, m_memcard_addr, nullptr))
+				if (memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
 					m_memcard_status[m_memcard_port] = MEMCARD_AVAILABLE;
-				else
+				} else {
 					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
+				}
 			} else if (m_memcard_status[m_memcard_port] & MEMCARD_WRITING) {
 				// Real device packets
 				// 39358::E0:01:02:71:74:
 				// 39359::E0:00:05:01:01:04:00:0B:
 				// 39394::E0:01:02:71:74:
 				// 39395::E0:00:05:01:01:00:00:07:
-				if (memcard_read(m_memcard_port, m_memcard_addr, nullptr))
+				if (memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
 					m_memcard_status[m_memcard_port] = MEMCARD_UNINITIALIZED;
-				else
+				} else {
 					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
+				}
 			} else if (m_memcard_status[m_memcard_port] == MEMCARD_ERROR) {
 				m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
 			}
@@ -385,10 +428,10 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				return 5;
 			}
 
-			#ifdef K573MCR_DEBUG
-				printf("Unknown command!! 0x72 (sec plate) %02x\n", send_buffer[1]);
-				exit(1);
-			#endif
+#ifdef K573MCR_DEBUG
+			printf("Unknown command!! 0x72 (sec plate) %02x\n", send_buffer[1]);
+			exit(1);
+#endif
 
 			return -1;
 		}
@@ -415,14 +458,14 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				m_memcard_port = send_buffer[2] >> 7;
 				m_memcard_addr = (((send_buffer[2] << 8) | send_buffer[3]) & 0x7fff);
 
-				#ifdef K573MCR_DEBUG
-					printf("jvs memcard read: %d %04x\n", m_memcard_port, m_memcard_addr);
-					printf("\t");
-					for (int i = 0; i < 10; i++) {
-						printf("%02x ", send_buffer[i]);
-					}
-					printf("\n");
-				#endif
+#ifdef K573MCR_DEBUG
+				printf("jvs memcard read: %d %04x\n", m_memcard_port, m_memcard_addr);
+				printf("\t");
+				for (int i = 0; i < 10; i++) {
+					printf("%02x ", send_buffer[i]);
+				}
+				printf("\n");
+#endif
 
 				if (m_memcard_status[m_memcard_port] != MEMCARD_UNAVAILABLE) {
 					if (memcard_read(m_memcard_port, m_memcard_addr, nullptr)) {
@@ -434,9 +477,9 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 					m_memcard_status[m_memcard_port] = MEMCARD_UNAVAILABLE;
 				}
 
-				#ifdef K573MCR_DEBUG
-					printf("\nstatus: 1[%04x] 2[%04x]\n\n", m_memcard_status[0], m_memcard_status[1]);
-				#endif
+#ifdef K573MCR_DEBUG
+				printf("\nstatus: 1[%04x] 2[%04x]\n\n", m_memcard_status[0], m_memcard_status[1]);
+#endif
 
 				*recv_buffer++ = 0x01;
 				*recv_buffer++ = 0x01;
@@ -469,10 +512,10 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 				return 9;
 			}
 
-			#ifdef K573MCR_DEBUG
-				printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
-				exit(1);
-			#endif
+#ifdef K573MCR_DEBUG
+			printf("Unknown command!! 0x76 (mem card) %02x\n", send_buffer[1]);
+			exit(1);
+#endif
 
 			return -1;
 		}
@@ -485,33 +528,27 @@ int k573mcr_device::device_handle_message(const uint8_t *send_buffer, uint32_t s
 			// This was used in Guitar Freaks starting with GF 2nd Mix Link Kit 2
 			// which allowed players to bring their own PS1 compatible guitars
 			// to the arcade.
-			// There's no other benefits to the functionality vs what MAME provides
-			// already, so it's only worth implementing this part if a complete
-			// reimplementation is desired.
-
-			// ref: psx_m_memcard_port_device's PSXPAD0 and PSXPAD1 definitions
-			// TODO: Return real controller port information.
-			uint8_t p1_psxpad0 = 0;
-			uint8_t p1_psxpad1 = 0;
-			uint8_t p2_psxpad0 = 0;
-			uint8_t p2_psxpad1 = 0;
 
 			*recv_buffer++ = 0x01;
-			*recv_buffer++ = p1_psxpad0;
-			*recv_buffer++ = p1_psxpad1;
-			*recv_buffer++ = p2_psxpad0;
-			*recv_buffer++ = p2_psxpad1;
+			pad_read(0, recv_buffer);
+			pad_read(1, recv_buffer + 2);
+
+#ifdef K573MCR_DEBUG
+			printf("pad: %02x %02x %02x %02x\n", recv_buffer[0], recv_buffer[1], recv_buffer[2], recv_buffer[3]);
+#endif
+
+			recv_buffer += 4;
 
 			return 1;
 		}
 	}
 
-	#ifdef K573MCR_DEBUG
-		if (send_buffer[0] > 0x38 && send_buffer[0] < 0xf0) {
-			printf("Found unimplemented opcode: %02x\n", send_buffer[0]);
-			exit(1);
-		}
-	#endif
+#ifdef K573MCR_DEBUG
+	if (send_buffer[0] > 0x60 && send_buffer[0] < 0x80) {
+		printf("Found unimplemented opcode: %02x\n", send_buffer[0]);
+		exit(1);
+	}
+#endif
 
 	// Command not recognized, pass it off to the base message handler
 	return -1;

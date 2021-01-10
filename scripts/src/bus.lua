@@ -4000,8 +4000,6 @@ if (BUSES["PSX_CONTROLLER"]~=null) then
 		MAME_DIR .. "src/devices/bus/psx/multitap.h",
 		MAME_DIR .. "src/devices/bus/psx/memcard.cpp",
 		MAME_DIR .. "src/devices/bus/psx/memcard.h",
-		MAME_DIR .. "src/devices/bus/psx/memcard_single.cpp",
-		MAME_DIR .. "src/devices/bus/psx/memcard_single.h",
 	}
 end
 
