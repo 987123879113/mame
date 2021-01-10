@@ -56,13 +56,6 @@ private:
 	};
 
 	enum {
-		DEVICE_SELF = 0, // Used for writing firmware
-		DEVICE_MEMORY_CARD,
-		DEVICE_SECURITY_PLATE,
-		DEVICE_CONTROLLER
-	};
-
-	enum {
 		RAM_SIZE = 0x400000,
 		MEMCARD_BLOCK_SIZE = 128
 	};
@@ -73,11 +66,7 @@ private:
 	bool memcard_write(uint32_t port_no, uint16_t block_addr, uint8_t *input);
 
 	uint8_t m_ram[RAM_SIZE];
-	uint32_t m_ram_addr;
-	uint32_t m_current_device;
-	uint32_t m_memcard_port, m_memcard_addr;
-	uint16_t m_memcard_status[2];
-	uint32_t m_sec_slot;
+	uint16_t m_status;
 
 	required_device<psx_controller_port_device> m_ports[2];
 };
