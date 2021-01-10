@@ -590,7 +590,6 @@ public:
 
 	WRITE_LINE_MEMBER( h8_clk_w );
 
-	DECLARE_READ_LINE_MEMBER( jvs_tx_r );
 	DECLARE_READ_LINE_MEMBER( jvs_rx_r );
 
 	double m_pad_position[ 6 ];
@@ -607,7 +606,7 @@ private:
 	void jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	uint16_t jvs_input_r(offs_t offset, uint16_t mem_mask = ~0);
 
-	uint16_t jvs_output_r(offs_t offset, uint16_t mem_mask = ~0);
+	uint16_t port_in2_r(offs_t offset, uint16_t mem_mask = ~0);
 
 	uint16_t control_r(offs_t offset, uint16_t mem_mask = ~0);
 	void control_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
@@ -752,7 +751,7 @@ void ksys573_state::konami573_map(address_map &map)
 	map(0x1f000000, 0x1f3fffff).m(m_flashbank, FUNC(address_map_bank_device::amap16));
 	map(0x1f400000, 0x1f400003).portr("IN0").portw("OUT0");
 	map(0x1f400004, 0x1f400007).portr("IN1");
-	map(0x1f400008, 0x1f40000b).r(FUNC(ksys573_state::jvs_output_r));
+	map(0x1f400008, 0x1f40000b).r(FUNC(ksys573_state::port_in2_r));
 	map(0x1f40000c, 0x1f40000f).portr("IN3");
 	map(0x1f480000, 0x1f48000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x1f500000, 0x1f500001).rw(FUNC(ksys573_state::control_r), FUNC(ksys573_state::control_w));    // Konami can't make a game without a "control" register.
@@ -844,8 +843,6 @@ void ksys573_state::jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask)
     jvs_input_buffer[jvs_input_idx_w++] = data >> 8;
 
 	if (jvs_input_buffer[0] != 0xe0 && jvs_input_buffer[0] != 0xd0) {
-		// It's expected that the input buffer will start with a valid packet, which should start with a 0xe0
-		// If doesn't start with a 0xe0/0xd0 then just keep overwriting until it does
 		jvs_input_idx_w = 0;
 	}
 
@@ -872,7 +869,6 @@ void ksys573_state::jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 
 uint16_t ksys573_state::jvs_input_r(offs_t offset, uint16_t mem_mask)
 {
-    // TODO: Verify what should actually be returned here on real hardware
     uint16_t data = jvs_input_buffer[jvs_input_idx_r++];
     data |= jvs_input_buffer[jvs_input_idx_r++] << 8;
 
@@ -883,7 +879,7 @@ uint16_t ksys573_state::jvs_input_r(offs_t offset, uint16_t mem_mask)
     return data;
 }
 
-uint16_t ksys573_state::jvs_output_r(offs_t offset, uint16_t mem_mask)
+uint16_t ksys573_state::port_in2_r(offs_t offset, uint16_t mem_mask)
 {
 	if (offset == 0) {
 		// 0x1f400008-0x1f400009 are for inputs
@@ -907,11 +903,6 @@ uint16_t ksys573_state::jvs_output_r(offs_t offset, uint16_t mem_mask)
 #endif
 
     return data;
-}
-
-READ_LINE_MEMBER( ksys573_state::jvs_tx_r )
-{
-	return 0;
 }
 
 READ_LINE_MEMBER( ksys573_state::jvs_rx_r )
@@ -2917,7 +2908,7 @@ static INPUT_PORTS_START( konami573 )
 	PORT_BIT( 0x00040000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "cassette", konami573_cassette_slot_device, read_line_secflash_sda )
 	PORT_BIT( 0x00080000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "jvs_master", jvs_master, jvs_sense_r )
 	PORT_BIT( 0x00100000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, jvs_rx_r )
-	PORT_BIT( 0x00200000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, jvs_tx_r )
+	PORT_BIT( 0x00200000, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // JVS-related
 //  PORT_BIT( 0x00400000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 //  PORT_BIT( 0x00800000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x01000000, IP_ACTIVE_LOW, IPT_COIN1 )
