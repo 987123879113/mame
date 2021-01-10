@@ -352,6 +352,7 @@ G: gun mania only, drives air soft gun (this game uses real BB bullet)
 #include "machine/adc083x.h"
 #include "machine/bankdev.h"
 #include "machine/ds2401.h"
+#include "machine/jvshost.h"
 #include "machine/linflash.h"
 #include "machine/k573cass.h"
 #include "machine/k573dio.h"
@@ -373,6 +374,79 @@ G: gun mania only, drives air soft gun (this game uses real BB bullet)
 #define VERBOSE_LEVEL ( 0 )
 
 #define ATAPI_CYCLES_PER_SECTOR ( 5000 )  // plenty of time to allow DMA setup etc.  BIOS requires this be at least 2000, individual games may vary.
+
+// #define JVS_DEBUG
+
+/*
+ * Class declaration for jvs_master
+ */
+
+DECLARE_DEVICE_TYPE(JVS_MASTER, jvs_master)
+
+class jvs_master : public jvs_host
+{
+public:
+	// construction/destruction
+	jvs_master(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	void send_packet(uint8_t *data, int length);
+	int received_packet(uint8_t *buffer);
+
+	DECLARE_READ_LINE_MEMBER( jvs_sense_r );
+
+private:
+	int output_buffer_size = 0;
+};
+
+DEFINE_DEVICE_TYPE(JVS_MASTER, jvs_master, "jvs_master", "JVS MASTER")
+
+jvs_master::jvs_master(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: jvs_host(mconfig, JVS_MASTER, tag, owner, clock)
+{
+	output_buffer_size = 0;
+}
+
+READ_LINE_MEMBER( jvs_master::jvs_sense_r )
+{
+	return !get_address_set_line();
+}
+
+int jvs_master::received_packet(uint8_t *buffer)
+{
+	if (jvs_sense_r()) {
+		// The game will send the command twice to reset, but the command
+		// shouldn't return any data or else a "JVS SUBS RESET ERROR" appears
+		return 0;
+	}
+
+	uint32_t length;
+	const uint8_t *data;
+
+	get_encoded_reply(data, length);
+
+	if (length > 0) {
+		memcpy(buffer, data, length);
+		commit_encoded();
+	}
+
+	return (int)length;
+}
+
+void jvs_master::send_packet(uint8_t *data, int length)
+{
+#ifdef JVS_DEBUG
+	printf("jvs send_packet %04x\n", length);
+#endif
+
+	while (length > 0)
+	{
+		push(*data);
+		data++;
+		length--;
+	}
+
+	commit_raw();
+}
+
 
 class ksys573_state : public driver_device
 {
@@ -412,7 +486,8 @@ public:
 		m_encoder(*this, "ENCODER"),
 		m_gunmania_id(*this, "gunmania_id"),
 		m_duart(*this, "mb89371"),
-		m_lamps(*this, "lamp%u", 0U)
+		m_lamps(*this, "lamp%u", 0U),
+		m_jvs_master(*this, "jvs_master")
 	{ }
 
 	void drmn9m(machine_config &config);
@@ -515,10 +590,24 @@ public:
 
 	WRITE_LINE_MEMBER( h8_clk_w );
 
+	DECLARE_READ_LINE_MEMBER( jvs_tx_r );
+	DECLARE_READ_LINE_MEMBER( jvs_rx_r );
+
 	double m_pad_position[ 6 ];
 	optional_ioport m_pads;
 
 private:
+	int jvs_input_idx_r, jvs_input_idx_w;
+	int jvs_output_idx_w, jvs_output_len_w;
+	uint8_t jvs_input_buffer[512];
+	uint8_t jvs_output_buffer[512];
+
+	bool jvs_is_valid_packet();
+
+	void jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t jvs_input_r(offs_t offset, uint16_t mem_mask = ~0);
+
+	uint16_t jvs_output_r(offs_t offset, uint16_t mem_mask = ~0);
 
 	uint16_t control_r(offs_t offset, uint16_t mem_mask = ~0);
 	void control_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
@@ -641,6 +730,8 @@ private:
 	optional_device<ds2401_device> m_gunmania_id;
 	optional_device<mb89371_device> m_duart;
 	output_finder<2> m_lamps;
+
+	required_device<jvs_master> m_jvs_master;
 };
 
 void ATTR_PRINTF( 3,4 )  ksys573_state::verboselog( int n_level, const char *s_fmt, ... )
@@ -661,7 +752,7 @@ void ksys573_state::konami573_map(address_map &map)
 	map(0x1f000000, 0x1f3fffff).m(m_flashbank, FUNC(address_map_bank_device::amap16));
 	map(0x1f400000, 0x1f400003).portr("IN0").portw("OUT0");
 	map(0x1f400004, 0x1f400007).portr("IN1");
-	map(0x1f400008, 0x1f40000b).portr("IN2");
+	map(0x1f400008, 0x1f40000b).r(FUNC(ksys573_state::jvs_output_r));
 	map(0x1f40000c, 0x1f40000f).portr("IN3");
 	map(0x1f480000, 0x1f48000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x1f500000, 0x1f500001).rw(FUNC(ksys573_state::control_r), FUNC(ksys573_state::control_w));    // Konami can't make a game without a "control" register.
@@ -669,6 +760,7 @@ void ksys573_state::konami573_map(address_map &map)
 	map(0x1f5c0000, 0x1f5c0003).nopw();                // watchdog?
 	map(0x1f600000, 0x1f600003).portw("LAMPS");
 	map(0x1f620000, 0x1f623fff).rw("m48t58", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask32(0x00ff00ff);
+	map(0x1f680000, 0x1f680001).rw(FUNC(ksys573_state::jvs_input_r), FUNC(ksys573_state::jvs_input_w));
 	map(0x1f6a0000, 0x1f6a0001).rw(FUNC(ksys573_state::security_r), FUNC(ksys573_state::security_w));
 }
 
@@ -715,6 +807,120 @@ void ksys573_state::gbbchmp_map(address_map& map)
 	konami573_map(map);
 	// The game waits until transmit is ready, but the chip may not actually be present.
 	map(0x1f640000, 0x1f640007).rw(m_duart, FUNC(mb89371_device::read), FUNC(mb89371_device::write)).umask32(0x00ff00ff);
+}
+
+bool ksys573_state::jvs_is_valid_packet()
+{
+    if (jvs_input_idx_w < 5) {
+		// A valid packet will have at the very least
+		//  - sync (0xe0 or 0xd0)
+		//  - node number (non-zero)
+		//  - size
+		//  - at least 1 byte in the request message
+		//  - checksum
+		return false;
+    }
+
+	if ((jvs_input_buffer[0] != 0xe0 && jvs_input_buffer[0] != 0xd0) || jvs_input_buffer[1] == 0x00) {
+		return false;
+	}
+
+    int command_size = jvs_input_buffer[2] + 3;
+    if (jvs_input_idx_w < command_size) {
+		return false;
+    }
+
+    uint8_t checksum = 0;
+    for (int i = 1; i < command_size - 1; i++) {
+		checksum += jvs_input_buffer[i];
+    }
+
+    return checksum == jvs_input_buffer[command_size - 1];
+}
+
+void ksys573_state::jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+    jvs_input_buffer[jvs_input_idx_w++] = data & 0xff;
+    jvs_input_buffer[jvs_input_idx_w++] = data >> 8;
+
+	if (jvs_input_buffer[0] != 0xe0 && jvs_input_buffer[0] != 0xd0) {
+		// It's expected that the input buffer will start with a valid packet, which should start with a 0xe0
+		// If doesn't start with a 0xe0/0xd0 then just keep overwriting until it does
+		jvs_input_idx_w = 0;
+	}
+
+    if (jvs_is_valid_packet()) {
+#ifdef JVS_DEBUG
+		printf("jvs_input_w( %08x, %08x, %02x %02x )\n", offset, mem_mask, data & 0xff, data >> 8 );
+
+		for (int i = 0; i < jvs_input_idx_w; i++) {
+			printf("%02x ", jvs_input_buffer[i]);
+		}
+
+		printf("\n");
+#endif
+
+		int command_size = jvs_input_buffer[2] + 3;
+		m_jvs_master->send_packet(jvs_input_buffer + 1, command_size - 2); // jvshost doesn't actually check the checksum, so don't send it
+
+		jvs_input_idx_w = 0;
+		jvs_input_idx_r = 0;
+
+		jvs_input_buffer[0] = 0;
+    }
+}
+
+uint16_t ksys573_state::jvs_input_r(offs_t offset, uint16_t mem_mask)
+{
+    // TODO: Verify what should actually be returned here on real hardware
+    uint16_t data = jvs_input_buffer[jvs_input_idx_r++];
+    data |= jvs_input_buffer[jvs_input_idx_r++] << 8;
+
+#ifdef JVS_DEBUG
+    //logerror("jvs_input_r( %08x, %08x ) %02x %02x\n", offset, mem_mask, data & 0xff, data >> 8 );
+#endif
+
+    return data;
+}
+
+uint16_t ksys573_state::jvs_output_r(offs_t offset, uint16_t mem_mask)
+{
+	if (offset == 0) {
+		// 0x1f400008-0x1f400009 are for inputs
+		return ioport("IN2")->read();
+	}
+
+    if (jvs_output_len_w <= 0) {
+		return 0;
+    }
+
+    uint16_t data = jvs_output_buffer[jvs_output_idx_w] | (jvs_output_buffer[jvs_output_idx_w+1] << 8);
+    jvs_output_idx_w += 2;
+
+    if (jvs_output_idx_w >= jvs_output_len_w) {
+		jvs_output_idx_w = 0;
+		jvs_output_len_w = 0;
+    }
+
+#ifdef JVS_DEBUG
+    printf("jvs_output_r %08x %08x | %02x %02x | %02x\n", offset, mem_mask, data & 0xff, data >> 8, jvs_output_idx_w);
+#endif
+
+    return data;
+}
+
+READ_LINE_MEMBER( ksys573_state::jvs_tx_r )
+{
+	return 0;
+}
+
+READ_LINE_MEMBER( ksys573_state::jvs_rx_r )
+{
+	if (jvs_output_len_w <= 0) {
+		jvs_output_len_w = m_jvs_master->received_packet(jvs_output_buffer);
+	}
+
+	return jvs_output_len_w > 0;
 }
 
 uint16_t ksys573_state::control_r(offs_t offset, uint16_t mem_mask)
@@ -845,6 +1051,11 @@ void ksys573_state::driver_start()
 	m_control = 0;
 	m_h8_index = 0;
 
+	jvs_input_idx_r = jvs_input_idx_w = 0;
+	jvs_output_idx_w = jvs_output_len_w = 0;
+	memset(jvs_input_buffer, 0, 512);
+	memset(jvs_output_buffer, 0, 512);
+
 	save_item( NAME( m_n_security_control ) );
 	save_item( NAME( m_control ) );
 }
@@ -860,45 +1071,6 @@ MACHINE_RESET_MEMBER( ksys573_state,konami573 )
 WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 {
 	update_disc();
-
-	/// TODO: emulate the memory controller board
-	if( strcmp( machine().system().name, "ddr2ml" ) == 0 )
-	{
-		/* patch out security-plate error */
-
-		uint32_t *p_n_psxram = (uint32_t *) m_ram->pointer();
-
-		/* install cd */
-
-		/* 801e1540: jal $801e1f7c */
-		if( p_n_psxram[ 0x1e1540 / 4 ] == 0x0c0787df )
-		{
-			/* 801e1540: j $801e1560 */
-			p_n_psxram[ 0x1e1540 / 4 ] = 0x08078558;
-		}
-
-		/* flash */
-
-		/* 8001f850: jal $80031fd8 */
-		if( p_n_psxram[ 0x1f850 / 4 ] == 0x0c00c7f6 )
-		{
-			/* 8001f850: j $8001f888 */
-			p_n_psxram[ 0x1f850 / 4 ] = 0x08007e22;
-		}
-	}
-	else if( strcmp( machine().system().name, "ddr2mla" ) == 0 )
-	{
-		/* patch out security-plate error */
-
-		uint32_t *p_n_psxram = (uint32_t *) m_ram->pointer();
-
-		/* 8001f850: jal $8003221c */
-		if( p_n_psxram[ 0x1f850 / 4 ] == 0x0c00c887 )
-		{
-			/* 8001f850: j $8001f888 */
-			p_n_psxram[ 0x1f850 / 4 ] = 0x08007e22;
-		}
-	}
 }
 
 // H8 check at startup (JVS related)
@@ -2259,6 +2431,9 @@ void ksys573_state::konami573(machine_config &config)
 
 	adc0834_device &adc(ADC0834(config, "adc0834"));
 	adc.set_input_callback(FUNC(ksys573_state::analogue_inputs_callback));
+
+	JVS_MASTER(config, "jvs_master", 0);
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 // Variants with additional digital sound board
@@ -2366,8 +2541,6 @@ void ksys573_state::ddr(machine_config &config)
 void ksys573_state::ddr2ml(machine_config &config)
 {
 	k573a(config);
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0);
-
 	pccard1_16mb(config);
 	cassx(config);
 }
@@ -2742,9 +2915,9 @@ static INPUT_PORTS_START( konami573 )
 	PORT_BIT( 0x00010000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "adc0834", adc083x_device, do_read )
 //  PORT_BIT( 0x00020000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x00040000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "cassette", konami573_cassette_slot_device, read_line_secflash_sda )
-	PORT_BIT( 0x00080000, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x00100000, IP_ACTIVE_HIGH, IPT_UNKNOWN ) /* skip hang at startup */
-	PORT_BIT( 0x00200000, IP_ACTIVE_HIGH, IPT_UNKNOWN ) /* skip hang at startup */
+	PORT_BIT( 0x00080000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "jvs_master", jvs_master, jvs_sense_r )
+	PORT_BIT( 0x00100000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, jvs_rx_r )
+	PORT_BIT( 0x00200000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, jvs_tx_r )
 //  PORT_BIT( 0x00400000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 //  PORT_BIT( 0x00800000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x01000000, IP_ACTIVE_LOW, IPT_COIN1 )
@@ -2771,7 +2944,6 @@ static INPUT_PORTS_START( konami573 )
 	PORT_BIT( 0x00000040, IP_ACTIVE_LOW, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( "cassette", konami573_cassette_slot_device, write_line_zs01_sda )
 
 	PORT_START( "IN2" )
-	PORT_BIT( 0xffff0000, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_8WAY PORT_PLAYER( 1 )
 	PORT_BIT( 0x00000200, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_8WAY PORT_PLAYER( 1 )
 	PORT_BIT( 0x00000400, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_8WAY PORT_PLAYER( 1 )
