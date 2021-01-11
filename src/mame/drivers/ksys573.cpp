@@ -1032,15 +1032,6 @@ void ksys573_state::driver_start()
 	m_available_cdroms[ 0 ] = cdrom_open(machine().rom_load().get_disk_handle(":cdrom0"));
 	m_available_cdroms[ 1 ] = cdrom_open(machine().rom_load().get_disk_handle(":cdrom1"));
 
-	m_n_security_control = 0;
-	m_control = 0;
-	m_h8_index = 0;
-
-	m_jvs_input_idx_r = m_jvs_input_idx_w = 0;
-	m_jvs_output_idx_w = m_jvs_output_len_w = 0;
-	memset(m_jvs_input_buffer, 0, 512);
-	memset(m_jvs_output_buffer, 0, 512);
-
 	save_item( NAME( m_n_security_control ) );
 	save_item( NAME( m_control ) );
 }
@@ -1049,8 +1040,16 @@ void ksys573_state::machine_reset()
 {
 	update_disc();
 
+	m_n_security_control = 0;
+	m_control = 0;
+
 	m_h8_index = 0;
 	m_h8_clk = 0;
+
+	m_jvs_input_idx_r = m_jvs_input_idx_w = 0;
+	m_jvs_output_idx_w = m_jvs_output_len_w = 0;
+	memset(m_jvs_input_buffer, 0, 512);
+	memset(m_jvs_output_buffer, 0, 512);
 }
 
 WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
