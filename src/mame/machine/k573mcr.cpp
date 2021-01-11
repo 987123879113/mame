@@ -59,6 +59,7 @@ void k573mcr_device::device_start()
 
 	save_pointer(NAME(m_ram), RAM_SIZE);
 	save_item(NAME(m_is_memcard_initialized));
+	save_item(NAME(m_status));
 }
 
 void k573mcr_device::device_reset()
@@ -67,6 +68,7 @@ void k573mcr_device::device_reset()
 
 	memset(m_ram.get(), 0, RAM_SIZE);
 	m_is_memcard_initialized = false;
+	m_status = 0;
 }
 
 void k573mcr_device::device_add_mconfig(machine_config &config)
