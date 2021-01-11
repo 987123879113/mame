@@ -422,10 +422,25 @@ int jvs_master::received_packet(uint8_t *buffer)
 	uint32_t length;
 	const uint8_t *data;
 
-	get_encoded_reply(data, length);
+	get_raw_reply(data, length);
 
 	if (length > 0) {
-		memcpy(buffer, data, length);
+		// The games don't unescape the data in memory even.
+		// This causes issues any time 0xe0 or 0xd0 shows up in
+		// the original response data and were escaped.
+		// Sending an unescaped "encoded" packet works perfectly
+		// in-game.
+		uint8_t checksum = 0;
+		for (int i = 0; i < length; i++) {
+			checksum += data[i];
+		}
+
+		buffer[0] = 0xe0;
+		memcpy(buffer + 1, data, length);
+		buffer[length+1] = checksum;
+		buffer[length+2] = 0;
+		length += 2;
+
 		commit_encoded();
 	}
 
@@ -810,7 +825,7 @@ bool ksys573_state::jvs_is_valid_packet()
 {
     if (m_jvs_input_idx_w < 5) {
 		// A valid packet will have at the very least
-		//  - sync (0xe0 or 0xd0)
+		//  - sync (0xe0)
 		//  - node number (non-zero)
 		//  - size
 		//  - at least 1 byte in the request message
@@ -818,7 +833,7 @@ bool ksys573_state::jvs_is_valid_packet()
 		return false;
     }
 
-	if ((m_jvs_input_buffer[0] != 0xe0 && m_jvs_input_buffer[0] != 0xd0) || m_jvs_input_buffer[1] == 0x00) {
+	if (m_jvs_input_buffer[0] != 0xe0  || m_jvs_input_buffer[1] == 0x00) {
 		return false;
 	}
 
@@ -840,7 +855,7 @@ void ksys573_state::jvs_input_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 	m_jvs_input_buffer[m_jvs_input_idx_w++] = data & 0xff;
 	m_jvs_input_buffer[m_jvs_input_idx_w++] = data >> 8;
 
-	if (m_jvs_input_buffer[0] != 0xe0 && m_jvs_input_buffer[0] != 0xd0) {
+	if (m_jvs_input_buffer[0] != 0xe0) {
 		m_jvs_input_idx_w = 0;
 	}
 
