@@ -519,6 +519,7 @@ public:
 	void ddrsbm(machine_config &config);
 	void ddr3mp(machine_config &config);
 	void dsftkd(machine_config &config);
+	void dsfdct(machine_config &config);
 	void dsfdcta(machine_config &config);
 	void mamboagga(machine_config &config);
 	void gunmania(machine_config &config);
@@ -530,7 +531,9 @@ public:
 	void animechmp(machine_config &config);
 	void salarymc(machine_config &config);
 	void gbbchmp(machine_config &config);
+	void ddr2mc2(machine_config &config);
 	void ddr2ml(machine_config &config);
+	void ddrbocd(machine_config &config);
 	void konami573(machine_config &config);
 	void drmn2m(machine_config &config);
 	void gtrfrk3m(machine_config &config);
@@ -545,6 +548,7 @@ public:
 	void konami573x(machine_config &config);
 	void ddrusa(machine_config &config);
 	void dsem(machine_config &config);
+	void dsem2(machine_config &config);
 	void dmx(machine_config &config);
 	void drmn(machine_config &config);
 	void k573d(machine_config &config);
@@ -2432,7 +2436,6 @@ void ksys573_state::konami573(machine_config &config)
 	adc.set_input_callback(FUNC(ksys573_state::analogue_inputs_callback));
 
 	JVS_MASTER(config, "jvs_master", 0);
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 // Variants with additional digital sound board
@@ -2537,7 +2540,24 @@ void ksys573_state::ddr(machine_config &config)
 	cassx(config);
 }
 
+void ksys573_state::ddr2mc2(machine_config &config)
+{
+	k573a(config);
+	cassx(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
+}
+
 void ksys573_state::ddr2ml(machine_config &config)
+{
+	k573a(config);
+	pccard1_16mb(config);
+	cassx(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
+}
+
+void ksys573_state::ddrbocd(machine_config &config)
 {
 	k573a(config);
 	pccard1_16mb(config);
@@ -2551,6 +2571,8 @@ void ksys573_state::ddr3m(machine_config &config)
 
 	pccard2_32mb(config);
 	cassyyi(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 void ksys573_state::ddr3mp(machine_config &config)
@@ -2560,6 +2582,8 @@ void ksys573_state::ddr3mp(machine_config &config)
 
 	pccard2_32mb(config);
 	cassxzi(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 void ksys573_state::ddrusa(machine_config &config)
@@ -2577,9 +2601,20 @@ void ksys573_state::ddr5m(machine_config &config)
 
 	pccard2_32mb(config);
 	casszi(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 // Dancing Stage
+
+void ksys573_state::dsfdct(machine_config &config)
+{
+	k573d(config);
+	subdevice<k573dio_device>("k573dio")->output_callback().set(FUNC(ksys573_state::ddr_output_callback));
+
+	pccard2_32mb(config);
+	cassyyi(config);
+}
 
 void ksys573_state::dsfdcta(machine_config &config)
 {
@@ -2608,6 +2643,15 @@ void ksys573_state::dsem(machine_config &config)
 	subdevice<k573dio_device>("k573dio")->output_callback().set(FUNC(ksys573_state::ddr_output_callback));
 
 	cassxi(config);
+}
+
+void ksys573_state::dsem2(machine_config &config)
+{
+	k573d(config);
+	subdevice<k573dio_device>("k573dio")->output_callback().set(FUNC(ksys573_state::ddr_output_callback));
+
+	pccard2_32mb(config);
+	casszi(config);
 }
 
 // Dance Dance Revolution Solo
@@ -2644,6 +2688,8 @@ void ksys573_state::ddr4ms(machine_config &config)
 
 	pccard2_32mb(config);
 	cassxzi(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 // DrumMania
@@ -2705,6 +2751,9 @@ void ksys573_state::gtrfrk2m(machine_config &config)
 	k573a(config);
 	cassyi(config);
 	pccard1_32mb(config); // HACK: The installation tries to check and erase 32mb but only flashes 16mb.
+
+	// For Guitar Freaks 2nd Mix Link Ver 1 (memory cards) and Link Ver 2 (memory cards + controllers)
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 void ksys573_state::gtrfrk3m(machine_config &config)
@@ -2712,6 +2761,8 @@ void ksys573_state::gtrfrk3m(machine_config &config)
 	k573d(config);
 	cassxzi(config);
 	pccard1_16mb(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "jvs_master");
 }
 
 void ksys573_state::gtrfrk5m(machine_config &config)
@@ -5519,9 +5570,9 @@ GAME( 1999, fbaitmca,  fbaitmc,  fbaitbc,    fbaitmc,   ksys573_state, empty_ini
 GAME( 1999, ddr2m,     sys573,   ddr,        ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix (GN895 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, ddr2ml,    ddr2m,    ddr2ml,     ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix - Link Ver (GE885 VER. JAB)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, ddr2mla,   ddr2m,    ddr2ml,     ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix - Link Ver (GE885 VER. JAA)", MACHINE_IMPERFECT_SOUND )
-GAME( 1999, ddrbocd,   ddr2m,    ddr2ml,     ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution Best of Cool Dancers (GE892 VER. JAA)", MACHINE_IMPERFECT_SOUND )
+GAME( 1999, ddrbocd,   ddr2m,    ddrbocd,    ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution Best of Cool Dancers (GE892 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, ddr2mc,    ddr2m,    ddr,        ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix with beatmaniaIIDX CLUB VERSiON (GE896 VER. JAA)", MACHINE_IMPERFECT_SOUND )
-GAME( 1999, ddr2mc2,   ddr2m,    ddr,        ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix with beatmaniaIIDX substream CLUB VERSiON 2 (GE984 VER. JAA)", MACHINE_IMPERFECT_SOUND )
+GAME( 1999, ddr2mc2,   ddr2m,    ddr2mc2,    ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix with beatmaniaIIDX substream CLUB VERSiON 2 (GE984 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, gtrfrk2m,  sys573,   gtrfrk2m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 2nd Mix Ver 1.01 (GQ883 VER. JAD)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, dsftkd,    sys573,   dsftkd,     ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dancing Stage featuring TRUE KiSS DESTiNATiON (G*884 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, cr589fw,   sys573,   konami573,  konami573, ksys573_state, empty_init,    ROT0,  "Konami", "CD-ROM Drive Updater 2.0 (700B04)", MACHINE_IMPERFECT_SOUND )
@@ -5535,7 +5586,7 @@ GAME( 1999, ddrs2k,    sys573,   ddrs2k,     ddrsolo,   ksys573_state, empty_ini
 GAME( 1999, ddrs2kj,   ddrs2k,   ddrs2k,     ddrsolo,   ksys573_state, empty_init,    ROT0,  "Konami", "Dance Dance Revolution Solo 2000 (GC905 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.2 */
 GAME( 1999, hypbbc2p,  sys573,   hypbbc2p,   hypbbc2p,  ksys573_state, init_hyperbbc, ROT0,  "Konami", "Hyper Bishi Bashi Champ - 2 Player (GX908 1999/08/24 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, hypbbc2pk, hypbbc2p, hypbbc2p,   hypbbc2p,  ksys573_state, init_hyperbbc, ROT0,  "Konami", "Hyper Bishi Bashi Champ - 2 Player (GX908 1999/08/24 VER. KAA)", MACHINE_IMPERFECT_SOUND )
-GAME( 1999, dsfdct,    sys573,   ddr3m,      ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "Dancing Stage featuring Dreams Come True (GC910 VER. JCA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
+GAME( 1999, dsfdct,    sys573,   dsfdct,     ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "Dancing Stage featuring Dreams Come True (GC910 VER. JCA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
 GAME( 1999, dsfdcta,   dsfdct,   dsfdcta,    ddr,       ksys573_state, init_ddr,      ROT0,  "Konami", "Dancing Stage featuring Dreams Come True (GC910 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 2000, pcnfrk2m,  sys573,   drmn2m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 2nd Mix (GE912 VER. KAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.5 */
 GAME( 1999, drmn2m,    pcnfrk2m, drmn2m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 2nd Mix (GE912 VER. JAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.5 */
@@ -5591,7 +5642,7 @@ GAME( 2002, drmn7m,    sys573,   drmn4m,     drmn,      ksys573_state, empty_ini
 GAME( 2002, drmn7ma,   drmn7m,   drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 7th Mix (G*C07 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, gtrfrk8m,  sys573,   gtrfrk7m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 8th Mix power-up ver. (G*C08 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, gtrfrk8ma, gtrfrk8m, gtrfrk7m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 8th Mix (G*C08 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2002, dsem2,     sys573,   ddr5m,      ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "Dancing Stage Euro Mix 2 (G*C23 VER. EAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2002, dsem2,     sys573,   dsem2,      ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "Dancing Stage Euro Mix 2 (G*C23 VER. EAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, ddrextrm,  sys573,   ddr5m,      ddr,       ksys573_state, empty_init,    ROT0,  "Konami", "Dance Dance Revolution Extreme (G*C36 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2003, drmn8m,    sys573,   drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 8th Mix (G*C07 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2003, gtrfrk9m,  sys573,   gtrfrk7m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 9th Mix (G*C39 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
