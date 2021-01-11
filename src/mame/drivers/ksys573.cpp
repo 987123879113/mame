@@ -465,11 +465,13 @@ class ksys573_state : public driver_device
 public:
 	INPUT_CHANGED_MEMBER(audio_offset)
 	{
-		auto fpga = subdevice<k573dio_device>("k573dio")->subdevice<k573fpga_device>("k573fpga");
+		auto digitalio = subdevice<k573dio_device>("k573dio");
+		if (digitalio == nullptr)
+			return;
 
-		if (fpga != nullptr) {
-			fpga->set_audio_offset(newval);
-		}
+		auto fpga = digitalio->subdevice<k573fpga_device>("k573fpga");
+		if (fpga == nullptr)
+			return;
 	}
 
 	ksys573_state( const machine_config &mconfig, device_type type, const char *tag ) :
