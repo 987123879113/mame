@@ -476,8 +476,8 @@ const tiny_rom_entry *k573mcr_device::device_rom_region() const
 
 INPUT_PORTS_START( k573mcr_meta_controls )
 	PORT_START("META")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1) PORT_TOGGLE PORT_NAME("Insert/Eject Memory Card 1 Toggle")
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE2) PORT_TOGGLE PORT_NAME("Insert/Eject Memory Card 2 Toggle")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1) PORT_TOGGLE PORT_NAME("Insert/Eject Memory Card 1")
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE2) PORT_TOGGLE PORT_NAME("Insert/Eject Memory Card 2")
 INPUT_PORTS_END
 
 ioport_constructor k573mcr_device::device_input_ports() const

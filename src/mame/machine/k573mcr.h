@@ -50,7 +50,7 @@ private:
 		MEMCARD_UNAVAILABLE   = 0x0008, // Card is not inserted
 		MEMCARD_READING       = 0x0200, // Read request is executing
 		MEMCARD_WRITING       = 0x0400, // Write request is executing
-		MEMCARD_AVAILABLE     = 0x8000  // 0x8200 can be seen in packet captures so perhaps this isn't exactly "ready for next command"
+		MEMCARD_AVAILABLE     = 0x8000  // Can be combined with MEMCARD_READING and MEMCARD_WRITING for busy state
 	};
 
 	enum {
