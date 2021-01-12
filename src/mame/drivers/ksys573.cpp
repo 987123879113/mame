@@ -484,6 +484,8 @@ public:
 		auto fpga = digitalio->subdevice<k573fpga_device>("k573fpga");
 		if (fpga == nullptr)
 			return;
+
+		fpga->set_audio_offset(newval);
 	}
 
 	ksys573_state( const machine_config &mconfig, device_type type, const char *tag ) :
