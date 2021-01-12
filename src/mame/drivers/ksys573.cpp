@@ -437,12 +437,15 @@ int sys573_jvs_host::received_packet(uint8_t *buffer)
 	get_raw_reply(data, length);
 
 	if (length > 0) {
-		// The games don't unescape the data in memory.
+		// The games don't unescape the data in memory even.
 		// This causes issues any time 0xe0 or 0xd0 shows up in
 		// the original response data and were escaped.
 		// Sending an unescaped "encoded" packet works perfectly
 		// in-game.
-		uint8_t checksum = std::accumulate(data, data + length, 0);
+		uint8_t checksum = 0;
+		for (int i = 0; i < length; i++) {
+			checksum += data[i];
+		}
 
 		buffer[0] = 0xe0;
 		memcpy(buffer + 1, data, length);
@@ -1059,9 +1062,8 @@ void ksys573_state::machine_reset()
 
 	m_jvs_input_idx_r = m_jvs_input_idx_w = 0;
 	m_jvs_output_idx_w = m_jvs_output_len_w = 0;
-
-	std::fill_n(m_jvs_input_buffer, sizeof(m_jvs_input_buffer), 0);
-	std::fill_n(m_jvs_output_buffer, sizeof(m_jvs_output_buffer), 0);
+	memset(m_jvs_input_buffer, 0, 512);
+	memset(m_jvs_output_buffer, 0, 512);
 }
 
 WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
@@ -1251,7 +1253,7 @@ void ksys573_state::gx700pwbf_io_w(offs_t offset, uint16_t data, uint16_t mem_ma
 
 void ksys573_state::gx700pwfbf_init( void ( ksys573_state::*output_callback_func )( ATTR_UNUSED offs_t offset, ATTR_UNUSED uint8_t data ) )
 {
-	std::fill_n( m_gx700pwbf_output_data, sizeof( m_gx700pwbf_output_data ), 0);
+	memset( m_gx700pwbf_output_data, 0, sizeof( m_gx700pwbf_output_data ) );
 
 	m_gx700pwfbf_output_callback = output_callback_func;
 
