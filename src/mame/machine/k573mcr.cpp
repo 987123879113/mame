@@ -61,9 +61,28 @@ void k573mcr_device::device_start()
 	save_pointer(NAME(m_ram), RAM_SIZE);
 	save_item(NAME(m_is_memcard_initialized));
 	save_item(NAME(m_status));
-	save_item(NAME(m_psx_clock));
+	save_item(NAME(m_memcard_port));
+
 	save_item(NAME(m_psx_rx_data));
 	save_item(NAME(m_psx_rx_bit));
+	save_item(NAME(m_psx_clock));
+
+	save_item(NAME(m_write_data));
+	save_item(NAME(m_write_len));
+	save_item(NAME(m_write_idx));
+	save_item(NAME(m_write_bit));
+
+	save_item(NAME(m_req_data));
+	save_item(NAME(m_req_len));
+	save_item(NAME(m_req_idx));
+	save_item(NAME(m_req_bit));
+	save_item(NAME(m_req_expected_len));
+	save_item(NAME(m_req_block_cur));
+	save_item(NAME(m_req_block_remaining));
+	save_pointer(NAME(m_ram_work), WORK_BUF_SIZE);
+
+	m_timer = timer_alloc();
+	m_timer->adjust(attotime::zero, 0, attotime::from_usec(1));
 }
 
 void k573mcr_device::device_reset()
@@ -71,11 +90,28 @@ void k573mcr_device::device_reset()
 	jvs_device::device_reset();
 
 	std::fill_n(m_ram.get(), RAM_SIZE, 0);
+
+	m_memcard_port = 0;
+	m_is_polling_pad = false;
 	m_is_memcard_initialized = false;
 	m_status = 0;
 	m_psx_clock = false;
 	m_psx_rx_data = 0;
 	m_psx_rx_bit = 0;
+
+	std::fill_n(m_write_data, sizeof(m_write_data), 0);
+	m_write_len = 0;
+	m_write_idx = 0;
+	m_write_bit = 0;
+
+	std::fill_n(m_req_data, sizeof(m_req_data), 0);
+	m_req_len = 0;
+	m_req_idx = 0;
+	m_req_bit = 0;
+	m_req_expected_len = 0;
+	m_req_block_cur = 0;
+	m_req_block_remaining = 0;
+	m_ram_work = nullptr;
 }
 
 void k573mcr_device::device_add_mconfig(machine_config &config)
@@ -91,6 +127,107 @@ void k573mcr_device::device_add_mconfig(machine_config &config)
 	m_controllers->rxd().set(FUNC(k573mcr_device::write_rxd));
 	PSX_CONTROLLER_PORT(config, "port1", psx_controllers, nullptr);
 	PSX_CONTROLLER_PORT(config, "port2", psx_controllers, nullptr);
+}
+
+void k573mcr_device::device_timer(emu_timer &timer, device_timer_id tid, int param, void *ptr)
+{
+	if (m_write_len != 0) {
+		if (m_psx_clock) {
+			m_controllers->write_txd(BIT(m_write_data[m_write_idx], m_write_bit));
+			m_write_bit = (m_write_bit + 1) % 8;
+
+			if (m_write_bit == 0) {
+				m_write_idx++;
+				m_write_len--;
+			}
+		}
+
+		m_controllers->write_sck(m_psx_clock);
+		m_psx_clock = !m_psx_clock;
+	}
+
+	if (m_is_polling_pad && m_req_len != 0 && m_req_len >= m_req_expected_len) {
+		m_req_len = m_req_idx = m_req_bit = m_req_expected_len = 0;
+		m_write_len = m_write_idx = 0;
+
+		if (m_req_data[0] == 0xff
+			&& m_req_data[1] == 0x41
+			&& m_req_data[2] == 0x5a)
+		{
+			m_ram_work[0] = m_req_data[3];
+			m_ram_work[1] = m_req_data[4];
+		} else {
+			m_ram_work[0] = 0;
+			m_ram_work[1] = 0;
+		}
+
+		if (m_memcard_port == 0) {
+			pad_read(m_memcard_port + 1, m_ram_work + 2);
+		} else {
+			m_is_polling_pad = false;
+			m_ram_work = nullptr;
+		}
+	} else if ((m_status & MEMCARD_READING) && m_req_len != 0 && m_req_len >= m_req_expected_len) {
+		m_req_len = m_req_idx = m_req_bit = m_req_expected_len = 0;
+		m_write_len = m_write_idx = 0;
+
+		if (m_req_data[0] == 0xff
+			&& m_req_data[2] == 0x5a
+			&& m_req_data[3] == 0x5d
+			&& m_req_data[6] == 0x5c
+			&& m_req_data[7] == 0x5d
+			&& m_req_data[139] == 'G')
+		{
+			// Successfully read data
+			m_status = MEMCARD_AVAILABLE;
+
+			memcpy(m_ram_work, m_req_data + 10, 128);
+
+			if (m_req_block_remaining > 0) {
+				memcard_read(m_memcard_port, m_req_block_cur, m_req_block_remaining, m_ram_work + MEMCARD_BLOCK_SIZE);
+			}
+		} else if (m_req_data[0] == 0xff && m_req_data[1] == 0xff) {
+			// Failed to read for whatever reason, buffer is filled with ff
+			m_status = MEMCARD_UNAVAILABLE;
+		} else {
+			// Unknown data was returned
+			m_status = MEMCARD_ERROR;
+		}
+
+		if (m_status != (MEMCARD_AVAILABLE | MEMCARD_READING)) {
+			m_req_block_cur = m_req_block_remaining = 0;
+			m_ram_work = nullptr;
+		}
+	} else if ((m_status & MEMCARD_WRITING) && m_req_len != 0 && m_req_len >= m_req_expected_len) {
+		m_req_len = m_req_idx = m_req_bit = m_req_expected_len = 0;
+		m_write_len = m_write_idx = 0;
+
+		if (m_req_data[0] == 0xff
+			&& m_req_data[2] == 0x5a
+			&& m_req_data[3] == 0x5d
+			&& m_req_data[135] == 0x5c
+			&& m_req_data[136] == 0x5d
+			&& m_req_data[137] == 'G')
+		{
+			// Successfully wrote data
+			m_status = MEMCARD_AVAILABLE;
+
+			if (m_req_block_remaining > 0) {
+				memcard_write(m_memcard_port, m_req_block_cur, m_req_block_remaining, m_ram_work + MEMCARD_BLOCK_SIZE);
+			}
+		} else if (m_req_data[0] == 0xff && m_req_data[1] == 0xff) {
+			// Failed to write for whatever reason, buffer is filled with ff
+			m_status = MEMCARD_UNAVAILABLE;
+		} else {
+			// Unknown data was returned
+			m_status = MEMCARD_ERROR;
+		}
+
+		if (m_status != (MEMCARD_AVAILABLE | MEMCARD_WRITING)) {
+			m_req_block_cur = m_req_block_remaining = 0;
+			m_ram_work = nullptr;
+		}
+	}
 }
 
 const char *k573mcr_device::device_id()
@@ -116,106 +253,96 @@ uint8_t k573mcr_device::comm_method_version()
 WRITE_LINE_MEMBER(k573mcr_device::write_rxd)
 {
 	if (m_psx_clock) {
-		if (m_psx_rx_bit == 0) {
-			m_psx_rx_data = 0;
-		}
-
 		m_psx_rx_data |= state << m_psx_rx_bit;
 		m_psx_rx_bit = (m_psx_rx_bit + 1) % 8;
+
+		if (m_psx_rx_bit == 0) {
+			m_req_data[m_req_len++] = m_psx_rx_data;
+			m_psx_rx_data = 0;
+		}
 	}
 }
 
 void k573mcr_device::controller_set_port(uint32_t port_no)
 {
+	m_memcard_port = port_no;
 	m_controllers->write_dtr(!!port_no);
 	m_controllers->write_dtr(!port_no);
 }
 
-uint8_t k573mcr_device::controller_port_send_byte(uint8_t data)
-{
-	for (int i = 0; i < 8; i++) {
-		m_controllers->write_sck(m_psx_clock);
-		m_psx_clock = !m_psx_clock;
-		m_controllers->write_txd(BIT(data, i));
-		m_controllers->write_sck(m_psx_clock);
-		m_psx_clock = !m_psx_clock;
-	}
-
-	return m_psx_rx_data;
-}
-
 bool k573mcr_device::pad_read(uint32_t port_no, uint8_t *output)
 {
-	controller_set_port(port_no);
-	controller_port_send_byte(0x01);
-	uint8_t a = controller_port_send_byte('B');
-	uint8_t b = controller_port_send_byte(0);
-	*output++ = controller_port_send_byte(0);
-	*output++ = controller_port_send_byte(0);
+	m_is_polling_pad = true;
 
-	return a == 0x41 && b == 0x5a;
+	controller_set_port(port_no);
+
+	m_write_data[m_write_len++] = 0x01;
+	m_write_data[m_write_len++] = 'B';
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = 0;
+
+	m_req_expected_len = m_write_len;
+	m_ram_work = output;
+
+	return true;
 }
 
-bool k573mcr_device::memcard_read(uint32_t port_no, uint16_t block_addr, uint8_t *output)
+bool k573mcr_device::memcard_read(uint32_t port_no, uint16_t block_addr, uint16_t block_count, uint8_t *output)
 {
+	m_status = MEMCARD_AVAILABLE | MEMCARD_READING;
+
 	controller_set_port(port_no);
-	controller_port_send_byte(0x81);
 
-	if (controller_port_send_byte('R') == 0xff) { // state_command, Request read
-		return false;
+	m_write_data[m_write_len++] = 0x81;
+	m_write_data[m_write_len++] = 'R';
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = block_addr >> 8;
+	m_write_data[m_write_len++] = block_addr & 0xff;
+
+	for (int i = 0; i < MEMCARD_BLOCK_SIZE + 7; i++) {
+		m_write_data[m_write_len++] = 0;
 	}
 
-	controller_port_send_byte(0); // state_command -> state_cmdack
-	controller_port_send_byte(0); // state_cmdack -> state_wait
-	controller_port_send_byte(block_addr >> 8); // state_wait -> state_addr_hi
-	controller_port_send_byte(block_addr & 0xff); // state_addr_hi -> state_addr_lo
+	m_req_expected_len = m_write_len;
+	m_req_block_remaining = block_count - 1;
+	m_req_block_cur = block_addr + 1;
+	m_ram_work = output;
 
-	if (controller_port_send_byte(0) != 0x5c) {  // state_addr_lo -> state_read
-		// If the command wasn't correct then it transitions to state_illegal at this point
-		return false;
-	}
-
-	controller_port_send_byte(0); // Skip 0x5d
-	controller_port_send_byte(0); // Skip addr hi
-	controller_port_send_byte(0); // Skip addr lo
-
-	for (int i = 0; i < MEMCARD_BLOCK_SIZE; i++) {
-		auto c = controller_port_send_byte(0);
-		if (output != nullptr) {
-			*output++ = c;
-		}
-	}
-
-	controller_port_send_byte(0);
-
-	return controller_port_send_byte(0) == 'G';
+	return true;
 }
 
-bool k573mcr_device::memcard_write(uint32_t port_no, uint16_t block_addr, uint8_t *input)
+bool k573mcr_device::memcard_write(uint32_t port_no, uint16_t block_addr, uint16_t block_count, uint8_t *input)
 {
+	m_status = MEMCARD_AVAILABLE | MEMCARD_WRITING;
+
 	controller_set_port(port_no);
-	controller_port_send_byte(0x81);
 
-	if (controller_port_send_byte('W') == 0xff) { // state_command, Request write
-		return false;
-	}
-
-	controller_port_send_byte(0); // state_command -> state_cmdack
-	controller_port_send_byte(0); // state_cmdack -> state_wait
-	controller_port_send_byte(block_addr >> 8); // state_wait -> state_addr_hi
-	controller_port_send_byte(block_addr & 0xff); // state_addr_hi -> state_addr_lo
+	m_write_data[m_write_len++] = 0x81;
+	m_write_data[m_write_len++] = 'W';
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = block_addr >> 8;
+	m_write_data[m_write_len++] = block_addr & 0xff;
 
 	uint8_t checksum = (block_addr >> 8) ^ (block_addr & 0xff);
 	for (int i = 0; i < MEMCARD_BLOCK_SIZE; i++) {
-		controller_port_send_byte(input[i]); // state_read
+		m_write_data[m_write_len++] = input[i]; // state_read
 		checksum ^= input[i];
 	}
 
-	controller_port_send_byte(checksum);
-	controller_port_send_byte(0);
-	controller_port_send_byte(0);
+	m_write_data[m_write_len++] = checksum;
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = 0;
+	m_write_data[m_write_len++] = 0;
 
-	return controller_port_send_byte(0) == 'G';
+	m_req_expected_len = m_write_len;
+	m_req_block_remaining = block_count - 1;
+	m_req_block_cur = block_addr + 1;
+	m_ram_work = input;
+
+	return true;
 }
 
 int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer)
@@ -392,24 +519,10 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 				int block_count = (send_buffer[7] << 8) | send_buffer[8];
 				bool is_ejected = BIT(m_meta->read(), memcard_port); // Forcefully ejected using hotkey
 
-				if (!is_ejected && memcard_read(memcard_port, 0, nullptr)) {
-					// Check if card is inserted
-					m_status = MEMCARD_AVAILABLE;
+				if (!is_ejected && m_status != (MEMCARD_AVAILABLE | MEMCARD_READING)) {
+					memcard_read(memcard_port, memcard_addr, block_count, &m_ram[ram_addr]);
 				} else {
 					m_status = MEMCARD_UNAVAILABLE;
-				}
-
-				if (m_status == MEMCARD_AVAILABLE) {
-					for (int i = 0; i < block_count; i++) {
-						m_status |= MEMCARD_READING;
-
-						if (memcard_read(memcard_port, memcard_addr + i, &m_ram[ram_addr + (i * MEMCARD_BLOCK_SIZE)])) {
-							m_status = MEMCARD_AVAILABLE;
-						} else {
-							m_status = MEMCARD_ERROR;
-							break;
-						}
-					}
 				}
 
 				*recv_buffer++ = 0x01;
@@ -425,24 +538,10 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 				int block_count = (send_buffer[7] << 8) | send_buffer[8];
 				bool is_ejected = BIT(m_meta->read(), memcard_port); // Forcefully ejected using hotkey
 
-				if (!is_ejected && memcard_read(memcard_port, 0, nullptr)) {
-					// Check if card is inserted
-					m_status = MEMCARD_AVAILABLE;
+				if (!is_ejected && m_status != (MEMCARD_AVAILABLE | MEMCARD_WRITING)) {
+					memcard_write(memcard_port, memcard_addr, block_count, &m_ram[ram_addr]);
 				} else {
 					m_status = MEMCARD_UNAVAILABLE;
-				}
-
-				if (m_status == MEMCARD_AVAILABLE && m_is_memcard_initialized) {
-					for (int i = 0; i < block_count; i++) {
-						m_status |= MEMCARD_WRITING;
-
-						if (memcard_write(memcard_port, memcard_addr + i, &m_ram[ram_addr + (i * MEMCARD_BLOCK_SIZE)])) {
-							m_status = MEMCARD_AVAILABLE;
-						} else {
-							m_status = MEMCARD_ERROR;
-							break;
-						}
-					}
 				}
 
 				*recv_buffer++ = 0x01;
@@ -470,7 +569,6 @@ int k573mcr_device::handle_message(const uint8_t *send_buffer, uint32_t send_siz
 
 			*recv_buffer++ = 0x01;
 			pad_read(0, recv_buffer);
-			pad_read(1, recv_buffer + 2);
 
 			recv_buffer += 4;
 

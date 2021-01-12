@@ -36,6 +36,7 @@ protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
 	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 
 	virtual const tiny_rom_entry *device_rom_region() const override;
 
@@ -58,24 +59,38 @@ private:
 
 	enum {
 		RAM_SIZE = 0x400000,
-		MEMCARD_BLOCK_SIZE = 128
+		MEMCARD_BLOCK_SIZE = 128,
+		WORK_BUF_SIZE = 512
 	};
 
 	void controller_set_port(uint32_t port_no);
-	uint8_t controller_port_send_byte(uint8_t data);
 	bool pad_read(uint32_t port_no, uint8_t *output);
-	bool memcard_read(uint32_t port_no, uint16_t block_addr, uint8_t *output);
-	bool memcard_write(uint32_t port_no, uint16_t block_addr, uint8_t *input);
+	bool memcard_read(uint32_t port_no, uint16_t block_addr, uint16_t block_count, uint8_t *output);
+	bool memcard_write(uint32_t port_no, uint16_t block_addr, uint16_t block_count, uint8_t *input);
 
 	std::unique_ptr<uint8_t[]> m_ram;
 	uint16_t m_status;
+	bool m_is_polling_pad;
 	bool m_is_memcard_initialized;
-
-	required_device<psxcontrollerports_device> m_controllers;
-	required_ioport m_meta;
+	uint32_t m_memcard_port;
 
 	uint8_t m_psx_rx_data, m_psx_rx_bit;
 	bool m_psx_clock;
+
+	uint8_t m_write_data[WORK_BUF_SIZE];
+	uint32_t m_write_len, m_write_idx, m_write_bit;
+
+	uint8_t m_req_data[WORK_BUF_SIZE];
+	uint32_t m_req_len, m_req_idx, m_req_bit, m_req_expected_len;
+	uint32_t m_req_block_cur;
+	int32_t m_req_block_remaining;
+	uint8_t *m_ram_work;
+
+	emu_timer *m_timer;
+	attotime n_time;
+
+	required_device<psxcontrollerports_device> m_controllers;
+	required_ioport m_meta;
 };
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MEMORY_CARD_READER, k573mcr_device)
