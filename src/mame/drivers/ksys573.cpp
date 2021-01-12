@@ -2426,7 +2426,7 @@ void ksys573_state::konami573(machine_config &config)
 	adc0834_device &adc(ADC0834(config, "adc0834"));
 	adc.set_input_callback(FUNC(ksys573_state::analogue_inputs_callback));
 
-	SYS573_JVS_HOST(config, "sys573_jvs_host", 0);
+	SYS573_JVS_HOST(config, m_sys573_jvs_host, 0);
 }
 
 // Variants with additional digital sound board
@@ -2536,7 +2536,7 @@ void ksys573_state::ddr2mc2(machine_config &config)
 	k573a(config);
 	cassx(config);
 
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 void ksys573_state::ddr2ml(machine_config &config)
@@ -2545,7 +2545,7 @@ void ksys573_state::ddr2ml(machine_config &config)
 	pccard1_16mb(config);
 	cassx(config);
 
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 void ksys573_state::ddrbocd(machine_config &config)
@@ -2563,7 +2563,7 @@ void ksys573_state::ddr3m(machine_config &config)
 	pccard2_32mb(config);
 	cassyyi(config);
 
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 void ksys573_state::ddr3mp(machine_config &config)
@@ -2574,7 +2574,7 @@ void ksys573_state::ddr3mp(machine_config &config)
 	pccard2_32mb(config);
 	cassxzi(config);
 
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 void ksys573_state::ddrusa(machine_config &config)
@@ -2593,7 +2593,7 @@ void ksys573_state::ddr5m(machine_config &config)
 	pccard2_32mb(config);
 	casszi(config);
 
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 // Dancing Stage
@@ -2680,7 +2680,7 @@ void ksys573_state::ddr4ms(machine_config &config)
 	pccard2_32mb(config);
 	cassxzi(config);
 
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 // DrumMania
@@ -2744,7 +2744,7 @@ void ksys573_state::gtrfrk2m(machine_config &config)
 	pccard1_32mb(config); // HACK: The installation tries to check and erase 32mb but only flashes 16mb.
 
 	// For Guitar Freaks 2nd Mix Link Ver 1 (memory cards) and Link Ver 2 (memory cards + controllers)
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 void ksys573_state::gtrfrk3m(machine_config &config)
@@ -2753,7 +2753,7 @@ void ksys573_state::gtrfrk3m(machine_config &config)
 	cassxzi(config);
 	pccard1_16mb(config);
 
-	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, "sys573_jvs_host");
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
 
 void ksys573_state::gtrfrk5m(machine_config &config)
