@@ -11,6 +11,12 @@
 
 #include "logmacro.h"
 
+// The higher the number, the more the chart/visuals will be delayed
+u32 sample_skip_offset = 0;
+void k573fpga_device::set_audio_offset(u32 offset) {
+	sample_skip_offset = offset;
+}
+
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
 	mas3507d(*this, "mpeg"),
@@ -83,7 +89,7 @@ uint32_t k573fpga_device::get_counter() {
 
 	if(is_timer_active) {
 		mas3507d->update_stream();
-		counter_current = mas3507d->get_samples() - counter_offset;
+		counter_current = mas3507d->get_samples() - counter_offset - sample_skip_offset;
 	}
 
 	return counter_current;
