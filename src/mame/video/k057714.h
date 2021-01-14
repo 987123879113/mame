@@ -25,6 +25,7 @@ public:
 		int height;
 		int x;
 		int y;
+		int brightness;
 	};
 
 protected:
@@ -63,6 +64,9 @@ private:
 	uint32_t m_fb_origin_y;
 	uint32_t m_layer_select;
 	uint32_t m_reg_6c;
+
+	uint32_t m_viewport_width;
+	uint32_t m_viewport_height;
 
 	devcb_write_line m_irq;
 };
