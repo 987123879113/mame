@@ -46,6 +46,8 @@ public:
 	void status_update();
 	void reset_counter();
 
+	void set_audio_offset(u32 offset);
+
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
