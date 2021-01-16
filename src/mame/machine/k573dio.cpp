@@ -7,7 +7,7 @@
 #define LOG_FPGA       (1 << 1)
 #define LOG_MP3        (1 << 2)
 #define LOG_UNKNOWNREG (1 << 3)
-#define VERBOSE        (LOG_GENERAL | LOG_FPGA | LOG_MP3 | LOG_UNKNOWNREG)
+// #define VERBOSE        (LOG_GENERAL | LOG_FPGA | LOG_MP3 | LOG_UNKNOWNREG)
 // #define LOG_OUTPUT_STREAM std::cout
 
 #include "logmacro.h"
@@ -122,6 +122,7 @@ void k573dio_device::amap(address_map &map)
 
 k573dio_device::k573dio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, KONAMI_573_DIGITAL_IO_BOARD, tag, owner, clock),
+	ram(*this, "ram", 0x2000000, ENDIANNESS_LITTLE),
 	k573fpga(*this, "k573fpga"),
 	digital_id(*this, "digital_id"),
 	output_cb(*this),
@@ -133,17 +134,12 @@ void k573dio_device::device_start()
 {
 	output_cb.resolve_safe();
 
-	const int ram_size = 0x2000000/2;
-	ram = std::make_unique<uint16_t[]>(ram_size);
-
-	save_pointer(NAME(ram), ram_size);
 	save_item(NAME(ram_adr));
 	save_item(NAME(ram_read_adr));
 	save_item(NAME(output_data));
 	save_item(NAME(is_ddrsbm_fpga));
 	save_item(NAME(crypto_key1));
 
-	k573fpga->set_ram(ram.get());
 	k573fpga->set_ddrsbm_fpga(is_ddrsbm_fpga);
 }
 
@@ -153,7 +149,7 @@ void k573dio_device::device_reset()
 	ram_read_adr = 0;
 	crypto_key1 = 0;
 
-	std::fill_n(output_data, sizeof(output_data), 0);
+	std::fill(std::begin(output_data), std::end(output_data), 0);
 }
 
 ROM_START( k573dio )
@@ -169,6 +165,10 @@ const tiny_rom_entry *k573dio_device::device_rom_region() const
 void k573dio_device::device_add_mconfig(machine_config &config)
 {
 	KONAMI_573_DIGITAL_FPGA(config, k573fpga);
+	k573fpga->set_ram(ram);
+	k573fpga->add_route(0, ":lspeaker", 1.0);
+	k573fpga->add_route(1, ":rspeaker", 1.0);
+
 	DS2401(config, digital_id);
 }
 

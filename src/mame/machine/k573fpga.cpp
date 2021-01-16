@@ -11,14 +11,9 @@
 
 #include "logmacro.h"
 
-// The higher the number, the more the chart/visuals will be delayed
-u32 sample_skip_offset = 0;
-void k573fpga_device::set_audio_offset(u32 offset) {
-	sample_skip_offset = offset;
-}
-
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
+	ram(*this, finder_base::DUMMY_TAG),
 	mas3507d(*this, "mpeg"),
 	use_ddrsbm_fpga(false)
 {
@@ -28,8 +23,6 @@ void k573fpga_device::device_add_mconfig(machine_config &config)
 {
 	MAS3507D(config, mas3507d);
 	mas3507d->sample_cb().set(*this, FUNC(k573fpga_device::get_decrypted));
-	mas3507d->add_route(0, ":lspeaker", 1.0);
-	mas3507d->add_route(1, ":rspeaker", 1.0);
 }
 
 void k573fpga_device::device_start()
@@ -77,9 +70,8 @@ void k573fpga_device::status_update() {
 	is_timer_active = is_streaming() || ((cur_playback_status == last_playback_status && last_playback_status > PLAYBACK_STATE_IDLE) || cur_playback_status > last_playback_status);
 	last_playback_status = cur_playback_status;
 
-	if(!is_timer_active) {
+	if(!is_timer_active)
 		counter_current = counter_previous = counter_offset = 0;
-	}
 }
 
 uint32_t k573fpga_device::get_counter() {
@@ -89,7 +81,7 @@ uint32_t k573fpga_device::get_counter() {
 
 	if(is_timer_active) {
 		mas3507d->update_stream();
-		counter_current = mas3507d->get_samples() - counter_offset - sample_skip_offset;
+		counter_current = mas3507d->get_samples() - counter_offset;
 	}
 
 	return counter_current;
@@ -174,7 +166,7 @@ void k573fpga_device::set_mpeg_ctrl(uint16_t data)
 
 		reset_counter();
 
-		if (!mas3507d->is_started) {
+		if(!mas3507d->is_started) {
 			mas3507d->start_playback();
 			mas3507d->update_stream();
 

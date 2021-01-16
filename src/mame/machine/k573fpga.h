@@ -15,9 +15,11 @@ class k573fpga_device : public device_t
 public:
 	k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
+	template <typename... T> void add_route(T &&... args) { subdevice<mas3507d_device>("mpeg")->add_route(std::forward<T>(args)...); }
+	template <typename T> void set_ram(T &&tag) { ram.set_tag(std::forward<T>(tag)); }
+
 	void set_ddrsbm_fpga(bool flag) { use_ddrsbm_fpga = flag; }
 
-	void set_ram(uint16_t *v) { ram = v; }
 	uint16_t get_decrypted();
 
 	void set_crypto_key1(uint16_t v) { crypto_key1 = v; }
@@ -44,8 +46,6 @@ public:
 	void status_update();
 	void reset_counter();
 
-	void set_audio_offset(u32 offset);
-
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
@@ -66,9 +66,8 @@ private:
 		PLAYBACK_STATE_DEMAND_BUFFER = 0xd000 // Playing, demand pin = 1?
 	};
 
+	required_shared_ptr<uint16_t> ram;
 	required_device<mas3507d_device> mas3507d;
-
-	uint16_t *ram;
 
 	uint16_t crypto_key1, crypto_key2;
 	uint8_t crypto_key3;

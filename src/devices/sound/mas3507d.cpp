@@ -20,7 +20,7 @@
 #define LOG_REGISTER (1 << 3)
 #define LOG_CONFIG   (1 << 4)
 #define LOG_OTHER    (1 << 5)
-#define VERBOSE      (LOG_GENERAL | LOG_READ | LOG_WRITE | LOG_REGISTER | LOG_CONFIG | LOG_OTHER)
+// #define VERBOSE      (LOG_GENERAL | LOG_READ | LOG_WRITE | LOG_REGISTER | LOG_CONFIG | LOG_OTHER)
 // #define LOG_OUTPUT_STREAM std::cout
 
 #include "logmacro.h"
@@ -31,6 +31,11 @@
 #define LOGCONFIG(...)   LOGMASKED(LOG_CONFIG, __VA_ARGS__)
 #define LOGOTHER(...)    LOGMASKED(LOG_OTHER, __VA_ARGS__)
 
+ALLOW_SAVE_TYPE(mas3507d_device::i2c_bus_state_t)
+ALLOW_SAVE_TYPE(mas3507d_device::i2c_bus_address_t)
+ALLOW_SAVE_TYPE(mas3507d_device::i2c_subdest_t)
+ALLOW_SAVE_TYPE(mas3507d_device::i2c_command_t)
+
 // device type definition
 DEFINE_DEVICE_TYPE(MAS3507D, mas3507d_device, "mas3507d", "MAS 3507D MPEG decoder")
 
@@ -38,7 +43,8 @@ mas3507d_device::mas3507d_device(const machine_config &mconfig, const char *tag,
 	: device_t(mconfig, MAS3507D, tag, owner, clock)
 	, device_sound_interface(mconfig, *this)
 	, cb_sample(*this)
-	, i2c_bus_state(), i2c_bus_address(), i2c_subdest(), i2c_command(), i2c_scli(false), i2c_sclo(false), i2c_sdai(false), i2c_sdao(false)
+	, i2c_bus_state(IDLE), i2c_bus_address(UNKNOWN), i2c_subdest(UNDEFINED), i2c_command(CMD_BAD)
+	, i2c_scli(false), i2c_sclo(false), i2c_sdai(false), i2c_sdao(false)
 	, i2c_bus_curbit(0), i2c_bus_curval(0), i2c_bytecount(0), i2c_io_bank(0), i2c_io_adr(0), i2c_io_count(0), i2c_io_val(0)
 {
 }
@@ -51,6 +57,10 @@ void mas3507d_device::device_start()
 
 	save_item(NAME(mp3data));
 	save_item(NAME(samples));
+	save_item(NAME(i2c_bus_state));
+	save_item(NAME(i2c_bus_address));
+	save_item(NAME(i2c_subdest));
+	save_item(NAME(i2c_command));
 	save_item(NAME(i2c_scli));
 	save_item(NAME(i2c_sclo));
 	save_item(NAME(i2c_sdai));
@@ -73,6 +83,21 @@ void mas3507d_device::device_start()
 	save_item(NAME(i2c_io_val));
 	save_item(NAME(i2c_sdao_data));
 	save_item(NAME(playback_status));
+
+	// This should be removed in the future if/when native MP3 decoding is implemented in MAME
+	save_item(NAME(mp3_dec.mdct_overlap));
+	save_item(NAME(mp3_dec.qmf_state));
+	save_item(NAME(mp3_dec.reserv));
+	save_item(NAME(mp3_dec.free_format_bytes));
+	save_item(NAME(mp3_dec.header));
+	save_item(NAME(mp3_dec.reserv_buf));
+
+	save_item(NAME(mp3_info.frame_bytes));
+	save_item(NAME(mp3_info.frame_offset));
+	save_item(NAME(mp3_info.channels));
+	save_item(NAME(mp3_info.hz));
+	save_item(NAME(mp3_info.layer));
+	save_item(NAME(mp3_info.bitrate_kbps));
 }
 
 void mas3507d_device::device_reset()
@@ -101,9 +126,9 @@ void mas3507d_device::i2c_scl_w(bool line)
 			if(i2c_sdai)
 				i2c_bus_curval |= 1 << i2c_bus_curbit;
 
-			if (i2c_subdest == DATA_READ) {
+			if(i2c_subdest == DATA_READ)
 				i2c_sdao = BIT(i2c_sdao_data, i2c_bus_curbit + (i2c_bytecount * 8));
-			} else {
+			else {
 				i2c_sdao_data = 0;
 				i2c_sdao = false;
 			}
@@ -178,11 +203,10 @@ int mas3507d_device::i2c_sda_r()
 
 bool mas3507d_device::i2c_device_got_address(uint8_t address)
 {
-	if (address == CMD_DEV_READ) {
+	if(address == CMD_DEV_READ)
 		i2c_subdest = DATA_READ;
-	} else {
+	else
 		i2c_subdest = UNDEFINED;
-	}
 
 	return (address & 0xfe) == CMD_DEV_WRITE;
 }
@@ -329,9 +353,8 @@ int gain_to_db(double val) {
 }
 
 float gain_to_percentage(int val) {
-	if (val == 0) {
+	if(val == 0)
 		return 0; // Special case for muting it seems
-	}
 
 	double db = gain_to_db(val);
 
@@ -348,7 +371,7 @@ void mas3507d_device::mem_write(int bank, uint32_t adr, uint32_t val)
 		gain_ll = gain_to_percentage(val);
 		LOGCONFIG("MAS3507D: left->left   gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_ll);
 
-		if (!is_muted) {
+		if(!is_muted) {
 			set_output_gain(0, gain_ll);
 		}
 		break;
@@ -362,7 +385,7 @@ void mas3507d_device::mem_write(int bank, uint32_t adr, uint32_t val)
 		gain_rr = gain_to_percentage(val);
 		LOGCONFIG("MAS3507D: right->right gain = %05x (%d dB, %f%%)\n", val, gain_to_db(val), gain_rr);
 
-		if (!is_muted) {
+		if(!is_muted) {
 			set_output_gain(1, gain_rr);
 		}
 		break;
@@ -407,9 +430,8 @@ void mas3507d_device::fill_buffer()
 	samples_idx = 0;
 	playback_status = PLAYBACK_STATE_BUFFER_FULL;
 
-	if(sample_count == 0) {
+	if(sample_count == 0)
 		return;
-	}
 
 	std::copy(mp3data.begin() + mp3_info.frame_bytes, mp3data.end(), mp3data.begin());
 	mp3data_count -= mp3_info.frame_bytes;
@@ -427,13 +449,12 @@ void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int
 	int s1 = scount - pos;
 	int bytes_per_sample = mp3_info.channels > 2 ? 2 : mp3_info.channels; // More than 2 channels is unsupported here
 
-	if (s1 > sample_count) {
+	if(s1 > sample_count)
 		s1 = sample_count;
-	}
 
 	playback_status = PLAYBACK_STATE_DEMAND_BUFFER;
 
-	for (int i = 0; i < s1; i++) {
+	for(int i = 0; i < s1; i++) {
 		outputs[0].put_int(pos, samples[samples_idx * bytes_per_sample], 32768);
 		outputs[1].put_int(pos, samples[samples_idx * bytes_per_sample + (bytes_per_sample >> 1)], 32768);
 
@@ -441,7 +462,7 @@ void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int
 		decoded_samples++;
 		pos++;
 
-		if (samples_idx >= sample_count) {
+		if(samples_idx >= sample_count) {
 			sample_count = 0;
 			return;
 		}
@@ -473,12 +494,11 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 	int csamples = outputs[0].samples();
 	int pos = 0;
 
-	while (pos < csamples) {
-		if (is_started && sample_count == 0) {
+	while(pos < csamples) {
+		if(is_started && sample_count == 0)
 			fill_buffer();
-		}
 
-		if (!is_started || sample_count <= 0) {
+		if(!is_started || sample_count <= 0) {
 			playback_status = PLAYBACK_STATE_IDLE;
 			decoded_frame_count = 0;
 			decoded_samples = 0;
