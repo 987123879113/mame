@@ -514,34 +514,31 @@ void k057714_device::draw_object(uint32_t *cmd)
 		y -= (((height * 64) - 1) / yscale) - (((height - 1) * 64) / yscale);
 	}
 
-	uint32_t address = (address_y << 10) | address_x;
-
 	if (relative_coords)
 	{
 		x += m_fb_origin_x;
 		y += m_fb_origin_y;
 	}
 
-	uint16_t *vram16 = (uint16_t*)m_vram.get();
-
-	if (xscale <= 0 || yscale <= 0 || height <= 0 || width <= 0)
-	{
-		return;
-	}
-
 	assert((cmd[0] & 0xC000000) == 0);
 	assert((cmd[1] & 0x3000000) == 0);
 	assert((cmd[2] & 0x200) == 0);
 
+	uint32_t address = (address_y << 10) | address_x;
+
 #if PRINT_CMD_EXEC
-	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
+	printf("%s Draw Object %08X (%d, %d), x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, address_x, address_y, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
 #endif
 
 	int orig_height = height;
 
-	// Fixes some glitching on Animelo's title screen, visible on the right side before the circle goes off screen
-	width = (int)round(width * (64.0f / (float)xscale));
-	height = (int)round(height * (64.0f / (float)yscale));
+	width = (((width * 65536) / xscale) * 64) / 65536;
+	height = (((height * 65536) / yscale) * 64) / 65536;
+
+	if (height <= 0 || width <= 0)
+	{
+		return;
+	}
 
 	int fb_width = m_frame[0].width;
 	int fb_height = m_frame[0].height;
@@ -555,6 +552,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	int v = 0;
 	int xinc = xflip ? -1 : 1;
+	uint16_t *vram16 = (uint16_t*)m_vram.get();
 	for (int j=0; j < height; j++)
 	{
 		int index;
