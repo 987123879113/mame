@@ -457,49 +457,52 @@ int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rect
 
 void k057714_device::draw_object(uint32_t *cmd)
 {
-	// 0x00: xxx----- -------- -------- --------   command (5)
+	// 0x00: -------- -------- ------xx xxxxxxxx   ram x
+	// 0x00: -------- xxxxxxxx xxxxxx-- --------   ram y
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
-	// 0x00: ----xx-- -------- -------- --------   ?
-	// 0x00: -------- xxxxxxxx xxxxxx-- --------   ram y
-	// 0x00: -------- -------- ------xx xxxxxxxx   ram x
+	// 0x00: xxx----- -------- -------- --------   command (always 5)
 
 	// 0x01: -------- -------- ------xx xxxxxxxx   object x
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
 	// 0x01: -----x-- -------- -------- --------   object x flip
 	// 0x01: ----x--- -------- -------- --------   object y flip
-	// 0x01: ---x---- -------- -------- --------   something alpha blend?
-	// 0x01: --x----- -------- -------- --------   something alpha blend?
-	// 0x01: -x------ -------- -------- --------   object transparency enable (?)
+	// 0x01: ---x---- -------- -------- --------   blend mode with one value
+	// 0x01: --x----- -------- -------- --------   blend mode with two values
+	// 0x01: -x------ -------- -------- --------   object transparency enable
 	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
 
 	// 0x02: -------- -------- -------x xxxxxxxx   object width
 	// 0x02: -------- --xxxxxx xxxxxx-- --------   object x scale
-	// 0x02: xxxxx--- -------- -------- --------   transparency (front)
-	// 0x02: -----xxx xx------ -------- --------   transparency max? (front)
+	// 0x02: -----xxx xx------ -------- --------   transparency 1_1 (blend mode 2)
+	// 0x02: xxxxx--- -------- -------- --------   transparency 1_2 (blend mode 1)
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
 	// 0x03: -------- --xxxxxx xxxxxx-- --------   object y scale
-	// 0x03: xxxxx--- -------- -------- --------   transparency (background)
-	// 0x03: -----xxx xx------ -------- --------   transparency max? (background)
+	// 0x03: -----xxx xx------ -------- --------   transparency 2_1 (blend mode 2)
+	// 0x03: xxxxx--- -------- -------- --------   transparency 2_2 (blend mode 1)
+
+	uint32_t address_x = cmd[0] & 0x3ff;
+	uint32_t address_y = (cmd[0] >> 10) & 0x3fff;
+	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
 
 	int x = cmd[1] & 0x3ff;
 	int y = (cmd[1] >> 10) & 0x3fff;
-	int width = (cmd[2] & 0x1ff) + 1;
-	int height = (cmd[3] & 0x3ff) + 1;
-	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
-	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
 	bool xflip = (cmd[1] & 0x04000000) ? true : false;
 	bool yflip = (cmd[1] & 0x08000000) ? true : false;
-	bool alpha_enable = (cmd[1] & 0x30000000) ? true : false;
+	int blend_mode = (cmd[1] >> 28) & 3;
 	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
-	uint32_t address_x = cmd[0] & 0x3ff;
-	uint32_t address_y = (cmd[0] >> 10) & 0x3fff;
-	int alpha_level = (cmd[2] >> 27) & 0x1f;
-	int alpha_level2 = (cmd[3] >> 27) & 0x1f;
-	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
-
 	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
+
+	int width = (cmd[2] & 0x1ff) + 1;
+	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
+	int alpha_level1_1 = (cmd[2] >> 22) & 0x1f;
+	int alpha_level1_2 = (cmd[2] >> 27) & 0x1f;
+
+	int height = (cmd[3] & 0x3ff) + 1;
+	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
+	int alpha_level2_1 = (cmd[3] >> 22) & 0x1f;
+	int alpha_level2_2 = (cmd[3] >> 27) & 0x1f;
 
 	if (xflip && ((4 - ((width - 1) & 3)) <= (address_x & 3))) {
 		// Based on logic from pop'n music 8 @ 0x800b30d0
@@ -525,6 +528,10 @@ void k057714_device::draw_object(uint32_t *cmd)
 	{
 		return;
 	}
+
+	assert((cmd[0] & 0xC000000) == 0);
+	assert((cmd[1] & 0x3000000) == 0);
+	assert((cmd[2] & 0x200) == 0);
 
 #if PRINT_CMD_EXEC
 	printf("%s Draw Object %08X, x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
@@ -570,46 +577,50 @@ void k057714_device::draw_object(uint32_t *cmd)
 		int u = 0;
 		for (int i=0; i < width; i++)
 		{
-			if (fbaddr <= 0x1000000)
+			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
+			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
+
+			if (fbaddr >= 0x1000000 || !draw)
 			{
-				uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
-				bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
-				if (alpha_enable)
-				{
-					if (draw)
-					{
-						uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
-
-						uint32_t sr = (srcpix >> 10) & 0x1f;
-						uint32_t sg = (srcpix >>  5) & 0x1f;
-						uint32_t sb = (srcpix >>  0) & 0x1f;
-						uint32_t r = (pix >> 10) & 0x1f;
-						uint32_t g = (pix >>  5) & 0x1f;
-						uint32_t b = (pix >>  0) & 0x1f;
-
-						sr = (sr * alpha_level2) >> 4;
-						sg = (sg * alpha_level2) >> 4;
-						sb = (sb * alpha_level2) >> 4;
-
-						sr += (r * alpha_level) >> 4;
-						sg += (g * alpha_level) >> 4;
-						sb += (b * alpha_level) >> 4;
-
-						if (sr > 0x1f) sr = 0x1f;
-						if (sg > 0x1f) sg = 0x1f;
-						if (sb > 0x1f) sb = 0x1f;
-
-						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
-					}
-				}
-				else
-				{
-					if (draw)
-					{
-						vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = (pix & 0xffff);
-					}
-				}
+				fbaddr += xinc;
+				u += xscale;
+				continue;
 			}
+
+			if (blend_mode)
+			{
+				uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
+
+				uint32_t sr = (srcpix >> 10) & 0x1f;
+				uint32_t sg = (srcpix >>  5) & 0x1f;
+				uint32_t sb = (srcpix >>  0) & 0x1f;
+
+				uint32_t r = (pix >> 10) & 0x1f;
+				uint32_t g = (pix >>  5) & 0x1f;
+				uint32_t b = (pix >>  0) & 0x1f;
+
+				if (blend_mode == 1)
+				{
+					sr = ((sr * alpha_level2_2) + (r * alpha_level1_2)) >> 4;
+					sg = ((sg * alpha_level2_2) + (g * alpha_level1_2)) >> 4;
+					sb = ((sb * alpha_level2_2) + (b * alpha_level1_2)) >> 4;
+				}
+				else if (blend_mode == 2)
+				{
+					// Used by Keyboardmania for pulsating glow effects
+					sr = ((sr * alpha_level2_1) + (r * alpha_level1_1)) >> 4;
+					sg = ((sg * alpha_level2_1) + (g * alpha_level1_1)) >> 4;
+					sb = ((sb * alpha_level2_1) + (b * alpha_level1_1)) >> 4;
+				}
+
+				if (sr > 0x1f) sr = 0x1f;
+				if (sg > 0x1f) sg = 0x1f;
+				if (sb > 0x1f) sb = 0x1f;
+
+				pix = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
+			}
+
+			vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = pix;
 
 			fbaddr += xinc;
 			u += xscale;
