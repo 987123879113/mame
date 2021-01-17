@@ -50,7 +50,7 @@ void k057714_device::device_reset()
 		elem.base = 0;
 		elem.width = 0;
 		elem.height = 0;
-		elem.alpha = (16 << 7) | (16 << 2); // Set alpha 1 and 2 to 16 (max strength) as default
+		elem.alpha = (16 << 7) | (16 << 2); // Set alpha 1 and 2 to 16 (100%) as default
 	}
 }
 
@@ -108,15 +108,13 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 	{
 		case 0x00:
 			if (ACCESSING_BITS_16_31) {
-				// Visible width
-				// Viewport configurations found in game code: 640x480, 512x384, 800x600, 640x384, 640x480
+				// Viewport configurations discovered in game code: 640x480, 512x384, 800x600, 640x384, 640x480
 				m_viewport_width = (data >> 16) & 0xffff;
 			}
 			break;
 
 		case 0x04:
 			if (ACCESSING_BITS_16_31) {
-				// Visible height
 				m_viewport_height = (data >> 16) & 0xffff;
 			}
 			break;
@@ -140,16 +138,14 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			}
 			break;
 
-		case 0x14:
-			/* Used for fade in/out */
+		case 0x14:      // Framebuffer 0/1 alpha values
 			if (ACCESSING_BITS_16_31)
 				m_frame[0].alpha = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[1].alpha = data & 0xffff;
 			break;
 
-		case 0x18:
-			/* Used for fade in/out */
+		case 0x18:      // Framebuffer 0/1 alpha values
 			if (ACCESSING_BITS_16_31)
 				m_frame[2].alpha = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
@@ -194,7 +190,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x30:      // Framebuffer 0 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[0].height = ((data >> 16) & 0xffff) + 1;
+				m_frame[0].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[0].width = data & 0xffff;
 #if PRINT_GCU
@@ -204,7 +200,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x34:      // Framebuffer 1 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[1].height = ((data >> 16) & 0xffff) + 1;
+				m_frame[1].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[1].width = data & 0xffff;
 #if PRINT_GCU
@@ -214,7 +210,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x38:      // Framebuffer 2 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[2].height = ((data >> 16) & 0xffff) + 1;
+				m_frame[2].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[2].width = data & 0xffff;
 #if PRINT_GCU
@@ -224,7 +220,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 		case 0x3c:      // Framebuffer 3 Dimensions
 			if (ACCESSING_BITS_16_31)
-				m_frame[3].height = ((data >> 16) & 0xffff) + 1;
+				m_frame[3].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[3].width = data & 0xffff;
 #if PRINT_GCU
@@ -381,19 +377,18 @@ void k057714_device::fifo_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle &cliprect, bool inverse_trans)
 {
-	int height = m_frame[frame].height;
-	int width = m_frame[frame].width;
-
-	if (width == 0 || height == 0)
+	if (m_frame[frame].height == 0 || m_frame[frame].width == 0)
 		return;
 
+	int height = m_frame[frame].height + 1;
+	int width = m_frame[frame].width + 1;
 	int alpha = m_frame[frame].alpha;
 	int blend_mode = alpha & 3;
 	int alpha_level = (alpha >> 2) & 0x1f;
 	int alpha_level2 = (alpha >> 7) & 0x1f;
 
 	if (blend_mode == 2) {
-		alpha_level = (alpha_level / (double)alpha_level2) * 16;
+		alpha_level = (alpha_level * 16) / alpha_level2;
 	}
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
@@ -474,20 +469,19 @@ void k057714_device::draw_object(uint32_t *cmd)
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
 	// 0x01: -----x-- -------- -------- --------   object x flip
 	// 0x01: ----x--- -------- -------- --------   object y flip
-	// 0x01: ---x---- -------- -------- --------   blend mode with one value
-	// 0x01: --x----- -------- -------- --------   blend mode with two values
+	// 0x01: --xx---- -------- -------- --------   blend mode
 	// 0x01: -x------ -------- -------- --------   object transparency enable
 	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
 
 	// 0x02: -------- -------- -------x xxxxxxxx   object width
 	// 0x02: -------- --xxxxxx xxxxxx-- --------   object x scale
-	// 0x02: -----xxx xx------ -------- --------   transparency 1_1 (blend mode 2)
-	// 0x02: xxxxx--- -------- -------- --------   transparency 1_2 (blend mode 1)
+	// 0x02: -----xxx xx------ -------- --------   alpha1_1 (blend mode 2)
+	// 0x02: xxxxx--- -------- -------- --------   alpha1_2 (blend mode 1)
 
 	// 0x03: -------- -------- ------xx xxxxxxxx   object height
 	// 0x03: -------- --xxxxxx xxxxxx-- --------   object y scale
-	// 0x03: -----xxx xx------ -------- --------   transparency 2_1 (blend mode 2)
-	// 0x03: xxxxx--- -------- -------- --------   transparency 2_2 (blend mode 1)
+	// 0x03: -----xxx xx------ -------- --------   alpha2_1 (blend mode 2)
+	// 0x03: xxxxx--- -------- -------- --------   alpha2_2 (blend mode 1)
 
 	uint32_t address_x = cmd[0] & 0x3ff;
 	uint32_t address_y = (cmd[0] >> 10) & 0x3fff;
@@ -503,13 +497,13 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	int width = (cmd[2] & 0x1ff) + 1;
 	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
-	int alpha_level1_1 = (cmd[2] >> 22) & 0x1f;
-	int alpha_level1_2 = (cmd[2] >> 27) & 0x1f;
+	int alpha1_1 = (cmd[2] >> 22) & 0x1f;
+	int alpha1_2 = (cmd[2] >> 27) & 0x1f;
 
 	int height = (cmd[3] & 0x3ff) + 1;
 	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
-	int alpha_level2_1 = (cmd[3] >> 22) & 0x1f;
-	int alpha_level2_2 = (cmd[3] >> 27) & 0x1f;
+	int alpha2_1 = (cmd[3] >> 22) & 0x1f;
+	int alpha2_2 = (cmd[3] >> 27) & 0x1f;
 
 	if (xflip && ((4 - ((width - 1) & 3)) <= (address_x & 3))) {
 		// Based on logic from pop'n music 8 @ 0x800b30d0
@@ -527,10 +521,6 @@ void k057714_device::draw_object(uint32_t *cmd)
 		y += m_fb_origin_y;
 	}
 
-	assert((cmd[0] & 0xC000000) == 0);
-	assert((cmd[1] & 0x3000000) == 0);
-	assert((cmd[2] & 0x200) == 0);
-
 	uint32_t address = (address_y << 10) | address_x;
 
 #if PRINT_CMD_EXEC
@@ -547,8 +537,8 @@ void k057714_device::draw_object(uint32_t *cmd)
 		return;
 	}
 
-	int fb_width = m_frame[0].width;
-	int fb_height = m_frame[0].height;
+	int fb_width = m_frame[0].width + 1;
+	int fb_height = m_frame[0].height + 1;
 
 	if (width > fb_width)
 		width = fb_width;
@@ -585,7 +575,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
 			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
 
-			if (fbaddr >= 0x1000000 || !draw)
+			if (!draw)
 			{
 				fbaddr += xinc;
 				u += xscale;
@@ -606,16 +596,16 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 				if (blend_mode == 1)
 				{
-					sr = ((sr * alpha_level2_2) + (r * alpha_level1_2)) >> 4;
-					sg = ((sg * alpha_level2_2) + (g * alpha_level1_2)) >> 4;
-					sb = ((sb * alpha_level2_2) + (b * alpha_level1_2)) >> 4;
+					sr = ((sr * alpha2_2) + (r * alpha1_2)) >> 4;
+					sg = ((sg * alpha2_2) + (g * alpha1_2)) >> 4;
+					sb = ((sb * alpha2_2) + (b * alpha1_2)) >> 4;
 				}
 				else if (blend_mode == 2)
 				{
 					// Used by Keyboardmania for pulsating glow effects
-					sr = ((sr * alpha_level2_1) + (r * alpha_level1_1)) >> 4;
-					sg = ((sg * alpha_level2_1) + (g * alpha_level1_1)) >> 4;
-					sb = ((sb * alpha_level2_1) + (b * alpha_level1_1)) >> 4;
+					sr = ((sr * alpha2_1) + (r * alpha1_1)) >> 4;
+					sg = ((sg * alpha2_1) + (g * alpha1_1)) >> 4;
+					sb = ((sb * alpha2_1) + (b * alpha1_1)) >> 4;
 				}
 
 				if (sr > 0x1f) sr = 0x1f;
