@@ -50,7 +50,7 @@ void k057714_device::device_reset()
 		elem.base = 0;
 		elem.width = 0;
 		elem.height = 0;
-		elem.brightness = 2048; // Default value unknown so set brightness to to 100%
+		elem.alpha = (16 << 7) | (16 << 2); // Set alpha 1 and 2 to 16 (max strength) as default
 	}
 }
 
@@ -103,11 +103,13 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	int reg = offset * 4;
 
+
 	switch (reg)
 	{
 		case 0x00:
 			if (ACCESSING_BITS_16_31) {
 				// Visible width
+				// Viewport configurations found in game code: 640x480, 512x384, 800x600, 640x384, 640x480
 				m_viewport_width = (data >> 16) & 0xffff;
 			}
 			break;
@@ -141,17 +143,17 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 		case 0x14:
 			/* Used for fade in/out */
 			if (ACCESSING_BITS_16_31)
-				m_frame[0].brightness = (data >> 16) & 0xffff;
+				m_frame[0].alpha = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
-				m_frame[1].brightness = data & 0xffff;
+				m_frame[1].alpha = data & 0xffff;
 			break;
 
 		case 0x18:
 			/* Used for fade in/out */
 			if (ACCESSING_BITS_16_31)
-				m_frame[2].brightness = (data >> 16) & 0xffff;
+				m_frame[2].alpha = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
-				m_frame[3].brightness = data & 0xffff;
+				m_frame[3].alpha = data & 0xffff;
 			break;
 
 		case 0x1c:      // set to 1 on "media bus" access
@@ -381,10 +383,18 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 {
 	int height = m_frame[frame].height;
 	int width = m_frame[frame].width;
-	int brightness = m_frame[frame].brightness;
 
 	if (width == 0 || height == 0)
 		return;
+
+	int alpha = m_frame[frame].alpha;
+	int blend_mode = alpha & 3;
+	int alpha_level = (alpha >> 2) & 0x1f;
+	int alpha_level2 = (alpha >> 7) & 0x1f;
+
+	if (blend_mode == 2) {
+		alpha_level = (alpha_level / (double)alpha_level2) * 16;
+	}
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
 
@@ -409,12 +419,9 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 				uint32_t g = (pix >> 5) & 0x1f;
 				uint32_t b = (pix >> 0) & 0x1f;
 
-				// TODO: Determine the proper maximum brightness for here.
-				// In pop'n music 8, I observed a max value of 2115
-				// but it feels like an arbitrary value.
-				r = (r * brightness) >> 11;
-				g = (g * brightness) >> 11;
-				b = (b * brightness) >> 11;
+				r = (r * alpha_level) >> 4;
+				g = (g * alpha_level) >> 4;
+				b = (b * alpha_level) >> 4;
 
 				if (r > 0x1f) r = 0x1f;
 				if (g > 0x1f) g = 0x1f;

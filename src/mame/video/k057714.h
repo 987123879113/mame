@@ -25,7 +25,7 @@ public:
 		int height;
 		int x;
 		int y;
-		int brightness;
+		int alpha;
 	};
 
 protected:
