@@ -16,10 +16,9 @@
 #define LOG_REGISTER (1 << 1)
 #define LOG_FIFO     (1 << 2)
 #define LOG_CMDEXEC  (1 << 3)
-#define LOG_DRAW  (1 << 4)
-// #define VERBOSE      (LOG_GENERAL | LOG_REGISTER | LOG_FIFO | LOG_CMDEXEC)
-#define VERBOSE      (LOG_GENERAL | LOG_DRAW)
-#define LOG_OUTPUT_STREAM std::cout
+#define LOG_DRAW     (1 << 4)
+// #define VERBOSE      (LOG_GENERAL | LOG_REGISTER | LOG_FIFO | LOG_CMDEXEC | LOG_DRAW)
+// #define LOG_OUTPUT_STREAM std::cout
 
 #include "logmacro.h"
 
