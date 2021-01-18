@@ -9,8 +9,6 @@
 
 
 #define DUMP_VRAM 0
-#define PRINT_GCU 0
-#define PRINT_CMD_EXEC 0
 
 #define LOG_GENERAL  (1 << 0)
 #define LOG_REGISTER (1 << 1)
@@ -39,8 +37,36 @@ void k057714_device::device_start()
 {
 	m_irq.resolve_safe();
 
-	m_vram = std::make_unique<uint32_t[]>(0x2000000/4);
-	memset(m_vram.get(), 0, 0x2000000);
+	m_vram = std::make_unique<uint32_t[]>(VRAM_SIZE/4);
+	memset(m_vram.get(), 0, VRAM_SIZE);
+
+	save_pointer(NAME(m_vram), VRAM_SIZE/4);
+	save_item(NAME(m_vram_read_addr));
+	save_item(NAME(m_vram_fifo0_addr));
+	save_item(NAME(m_vram_fifo1_addr));
+	save_item(NAME(m_vram_fifo0_mode));
+	save_item(NAME(m_vram_fifo1_mode));
+	save_item(NAME(m_command_fifo0));
+	save_item(NAME(m_command_fifo0_ptr));
+	save_item(NAME(m_command_fifo1));
+	save_item(NAME(m_command_fifo1_ptr));
+	save_item(NAME(m_ext_fifo_addr));
+	save_item(NAME(m_ext_fifo_count));
+	save_item(NAME(m_ext_fifo_line));
+	save_item(NAME(m_ext_fifo_num_lines));
+	save_item(NAME(m_ext_fifo_width));
+	save_item(STRUCT_MEMBER(m_frame, base));
+	save_item(STRUCT_MEMBER(m_frame, width));
+	save_item(STRUCT_MEMBER(m_frame, height));
+	save_item(STRUCT_MEMBER(m_frame, x));
+	save_item(STRUCT_MEMBER(m_frame, y));
+	save_item(STRUCT_MEMBER(m_frame, alpha));
+	save_item(NAME(m_fb_origin_x));
+	save_item(NAME(m_fb_origin_y));
+	save_item(NAME(m_layer_select));
+	save_item(NAME(m_reg_6c));
+	save_item(NAME(m_display_width));
+	save_item(NAME(m_display_height));
 }
 
 void k057714_device::device_reset()
@@ -77,7 +103,7 @@ void k057714_device::device_stop()
 	FILE *file = fopen(filename, "wb");
 	int i;
 
-	for (i=0; i < 0x2000000/4; i++)
+	for (i=0; i < VRAM_SIZE/4; i++)
 	{
 		fputc((m_vram[i] >> 24) & 0xff, file);
 		fputc((m_vram[i] >> 16) & 0xff, file);
@@ -759,7 +785,7 @@ void k057714_device::execute_display_list(uint32_t addr)
 	LOGCMDEXEC("%s Exec Display List %08X\n", basetag(), addr);
 
 	addr /= 2;
-	while (!end && counter < 0x1000 && addr < (0x2000000/4))
+	while (!end && counter < 0x1000 && addr < (VRAM_SIZE/4))
 	{
 		uint32_t *cmd = &m_vram[addr];
 		addr += 4;

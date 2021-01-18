@@ -34,6 +34,8 @@ protected:
 	virtual void device_reset() override;
 
 private:
+	enum { VRAM_SIZE = 0x2000000 };
+
 	void execute_command(uint32_t *cmd);
 	void execute_display_list(uint32_t addr);
 	void draw_object(uint32_t *cmd);
