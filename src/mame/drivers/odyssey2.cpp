@@ -67,9 +67,11 @@ TODO:
   be correct. The 8245 is put into slave mode at vblank, timing signals and
   vblank IRQ are taken over during it (the Videopac pcb even has extra TTL to
   catch the I/O read from 0xA1 to acknowledge the IRQ)
-- ppp(the tetris game) does not work properly on PAL, it does look like PAL/NTSC
-  detection is working, see internal RAM $3D d7. So maybe it is due to inaccurate
-  PAL video timing. The game does mid-scanline video updates.
+  * ppp(the tetris game) does not work properly on PAL, it does look like
+    PAL/NTSC detection is working, see internal RAM $3D d7. So maybe it is due
+    to inaccurate PAL video timing. The game does mid-scanline video updates.
+  * gtwallst turns the display on too soon, the middle scroller is partially
+    visible when it's not supposed to (also a bit glitchy on NTSC but not as bad)
 - g7400 probably has different video timing too (not same as g7000)
 - g7400 helicopt sometimes locks up at the sea level, timing related?
 - 4in1 and musician are not supposed to work on g7400, but work fine on MAME,
@@ -767,7 +769,7 @@ void odyssey2_state::odyssey2(machine_config &config)
 	m_i8244->set_screen("screen");
 	m_i8244->set_screen_size(360, 243);
 	m_i8244->irq_cb().set_inputline(m_maincpu, MCS48_INPUT_IRQ);
-	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.40);
+	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	SPEAKER(config, "mono").front_center();
 
@@ -785,7 +787,7 @@ void odyssey2_state::videopac(machine_config &config)
 	m_i8244->set_screen("screen");
 	m_i8244->set_screen_size(360, 243);
 	m_i8244->irq_cb().set_inputline(m_maincpu, MCS48_INPUT_IRQ);
-	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.40);
+	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	m_maincpu->set_clock(17.734476_MHz_XTAL / 3);
 
@@ -840,7 +842,7 @@ void vpp_state::g7400(machine_config &config)
 	m_i8244->set_screen("screen");
 	m_i8244->set_screen_size(360, 243);
 	m_i8244->irq_cb().set_inputline(m_maincpu, MCS48_INPUT_IRQ);
-	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.40);
+	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	SPEAKER(config, "mono").front_center();
 
@@ -867,7 +869,7 @@ void vpp_state::odyssey3(machine_config &config)
 	m_i8244->set_screen("screen");
 	m_i8244->set_screen_size(360, 243);
 	m_i8244->irq_cb().set_inputline(m_maincpu, MCS48_INPUT_IRQ);
-	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.40);
+	m_i8244->add_route(ALL_OUTPUTS, "mono", 0.25);
 
 	m_ef934x->set_clock(7.15909_MHz_XTAL / 2);
 	m_ef934x->set_offsets(15, 15);
