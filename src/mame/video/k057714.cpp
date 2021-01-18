@@ -12,6 +12,21 @@
 #define PRINT_GCU 0
 #define PRINT_CMD_EXEC 0
 
+#define LOG_GENERAL  (1 << 0)
+#define LOG_REGISTER (1 << 1)
+#define LOG_FIFO     (1 << 2)
+#define LOG_CMDEXEC  (1 << 3)
+#define LOG_DRAW  (1 << 4)
+// #define VERBOSE      (LOG_GENERAL | LOG_REGISTER | LOG_FIFO | LOG_CMDEXEC)
+#define VERBOSE      (LOG_GENERAL | LOG_DRAW)
+#define LOG_OUTPUT_STREAM std::cout
+
+#include "logmacro.h"
+
+#define LOGREGISTER(...) LOGMASKED(LOG_REGISTER, __VA_ARGS__)
+#define LOGFIFO(...) LOGMASKED(LOG_FIFO, __VA_ARGS__)
+#define LOGCMDEXEC(...) LOGMASKED(LOG_CMDEXEC, __VA_ARGS__)
+#define LOGDRAW(...) LOGMASKED(LOG_DRAW, __VA_ARGS__)
 
 DEFINE_DEVICE_TYPE(K057714, k057714_device, "k057714", "k057714_device GCU")
 
@@ -50,7 +65,7 @@ void k057714_device::device_reset()
 		elem.base = 0;
 		elem.width = 0;
 		elem.height = 0;
-		elem.alpha = (16 << 7) | (16 << 2); // Set alpha 1 and 2 to 16 (100%) as default
+		elem.alpha = (16 << 7) | (16 << 2); // Set alpha 1 and 2 to 16 (100%) and blend mode to 0
 	}
 }
 
@@ -132,9 +147,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			if (ACCESSING_BITS_0_15)
 			{
 				m_layer_select = data;
-#if PRINT_GCU
-				printf("%s_w: %02X, %08X, %08X\n", basetag(), reg, data, mem_mask);
-#endif
+				LOGREGISTER("%s_w: %02X, %08X, %08X\n", basetag(), reg, data, mem_mask);
 			}
 			break;
 
@@ -193,9 +206,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 				m_frame[0].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[0].width = data & 0xffff;
-#if PRINT_GCU
-			printf("%s FB0 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-#endif
+			LOGREGISTER("%s FB0 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
 			break;
 
 		case 0x34:      // Framebuffer 1 Dimensions
@@ -203,9 +214,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 				m_frame[1].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[1].width = data & 0xffff;
-#if PRINT_GCU
-			printf("%s FB1 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-#endif
+			LOGREGISTER("%s FB1 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
 			break;
 
 		case 0x38:      // Framebuffer 2 Dimensions
@@ -213,9 +222,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 				m_frame[2].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[2].width = data & 0xffff;
-#if PRINT_GCU
-			printf("%s FB2 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-#endif
+			LOGREGISTER("%s FB2 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
 			break;
 
 		case 0x3c:      // Framebuffer 3 Dimensions
@@ -223,37 +230,27 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 				m_frame[3].height = (data >> 16) & 0xffff;
 			if (ACCESSING_BITS_0_15)
 				m_frame[3].width = data & 0xffff;
-#if PRINT_GCU
-			printf("%s FB3 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-#endif
+			LOGREGISTER("%s FB3 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
 			break;
 
 		case 0x40:      // Framebuffer 0 Base
 			m_frame[0].base = data;
-#if PRINT_GCU
-			printf("%s FB0 Base: %08X\n", basetag(), data);
-#endif
+			LOGREGISTER("%s FB0 Base: %08X\n", basetag(), data);
 			break;
 
 		case 0x44:      // Framebuffer 1 Base
 			m_frame[1].base = data;
-#if PRINT_GCU
-			printf("%s FB1 Base: %08X\n", basetag(), data);
-#endif
+			LOGREGISTER("%s FB1 Base: %08X\n", basetag(), data);
 			break;
 
 		case 0x48:      // Framebuffer 2 Base
 			m_frame[2].base = data;
-#if PRINT_GCU
-			printf("%s FB2 Base: %08X\n", basetag(), data);
-#endif
+			LOGREGISTER("%s FB2 Base: %08X\n", basetag(), data);
 			break;
 
 		case 0x4c:      // Framebuffer 3 Base
 			m_frame[3].base = data;
-#if PRINT_GCU
-			printf("%s FB3 Base: %08X\n", basetag(), data);
-#endif
+			LOGREGISTER("%s FB3 Base: %08X\n", basetag(), data);
 			break;
 
 		case 0x54:
@@ -292,7 +289,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 				// execute when filled
 				if (m_command_fifo0_ptr >= 4)
 				{
-					//printf("GCU FIFO0 exec: %08X %08X %08X %08X\n", m_command_fifo0[0], m_command_fifo0[1], m_command_fifo0[2], m_command_fifo0[3]);
+					LOGFIFO("GCU FIFO0 exec: %08X %08X %08X %08X\n", m_command_fifo0[0], m_command_fifo0[1], m_command_fifo0[2], m_command_fifo0[3]);
 					execute_command(m_command_fifo0);
 					m_command_fifo0_ptr = 0;
 				}
@@ -319,7 +316,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 				// execute when filled
 				if (m_command_fifo1_ptr >= 4)
 				{
-					//printf("GCU FIFO1 exec: %08X %08X %08X %08X\n", m_command_fifo1[0], m_command_fifo1[1], m_command_fifo1[2], m_command_fifo1[3]);
+					LOGFIFO("GCU FIFO1 exec: %08X %08X %08X %08X\n", m_command_fifo1[0], m_command_fifo1[1], m_command_fifo1[2], m_command_fifo1[3]);
 					execute_command(m_command_fifo1);
 					m_command_fifo1_ptr = 0;
 				}
@@ -340,7 +337,7 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			break;
 
 		default:
-			//printf("%s_w: %02X, %08X, %08X\n", basetag(), reg, data, mem_mask);
+			LOGREGISTER("%s_w: %02X, %08X, %08X\n", basetag(), reg, data, mem_mask);
 			break;
 	}
 }
@@ -384,11 +381,11 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 	int width = m_frame[frame].width + 1;
 	int alpha = m_frame[frame].alpha;
 	int blend_mode = alpha & 3;
-	int alpha_level = (alpha >> 2) & 0x1f;
-	int alpha_level2 = (alpha >> 7) & 0x1f;
+	int alpha1 = (alpha >> 2) & 0x1f;
+	int alpha2 = (alpha >> 7) & 0x1f;
 
 	if (blend_mode == 2) {
-		alpha_level = (alpha_level * 16) / alpha_level2;
+		alpha1 = (alpha1 * 16) / alpha2;
 	}
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
@@ -414,9 +411,9 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 				uint32_t g = (pix >> 5) & 0x1f;
 				uint32_t b = (pix >> 0) & 0x1f;
 
-				r = (r * alpha_level) >> 4;
-				g = (g * alpha_level) >> 4;
-				b = (b * alpha_level) >> 4;
+				r = (r * alpha1) >> 4;
+				g = (g * alpha1) >> 4;
+				b = (b * alpha1) >> 4;
 
 				if (r > 0x1f) r = 0x1f;
 				if (g > 0x1f) g = 0x1f;
@@ -523,9 +520,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 	uint32_t address = (address_y << 10) | address_x;
 
-#if PRINT_CMD_EXEC
-	printf("%s Draw Object %08X (%d, %d), x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, address_x, address_y, x, y, width, height, (float)(xscale) / 64.0f, (float)(yscale) / 64.0f, cmd[0], cmd[1], cmd[2], cmd[3]);
-#endif
+	LOGDRAW("%s Draw Object %08X (%d, %d), x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, address_x, address_y, x, y, width, height, 64.0f / (float)xscale, 64.0f / (float)yscale, cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	int orig_height = height;
 
@@ -575,47 +570,43 @@ void k057714_device::draw_object(uint32_t *cmd)
 			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
 			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
 
-			if (!draw)
+			if (draw)
 			{
-				fbaddr += xinc;
-				u += xscale;
-				continue;
-			}
-
-			if (blend_mode)
-			{
-				uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
-
-				uint32_t sr = (srcpix >> 10) & 0x1f;
-				uint32_t sg = (srcpix >>  5) & 0x1f;
-				uint32_t sb = (srcpix >>  0) & 0x1f;
-
-				uint32_t r = (pix >> 10) & 0x1f;
-				uint32_t g = (pix >>  5) & 0x1f;
-				uint32_t b = (pix >>  0) & 0x1f;
-
-				if (blend_mode == 1)
+				if (blend_mode)
 				{
-					sr = ((sr * alpha2_2) + (r * alpha1_2)) >> 4;
-					sg = ((sg * alpha2_2) + (g * alpha1_2)) >> 4;
-					sb = ((sb * alpha2_2) + (b * alpha1_2)) >> 4;
-				}
-				else if (blend_mode == 2)
-				{
-					// Used by Keyboardmania for pulsating glow effects
-					sr = ((sr * alpha2_1) + (r * alpha1_1)) >> 4;
-					sg = ((sg * alpha2_1) + (g * alpha1_1)) >> 4;
-					sb = ((sb * alpha2_1) + (b * alpha1_1)) >> 4;
+					uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
+
+					uint32_t sr = (srcpix >> 10) & 0x1f;
+					uint32_t sg = (srcpix >>  5) & 0x1f;
+					uint32_t sb = (srcpix >>  0) & 0x1f;
+
+					uint32_t r = (pix >> 10) & 0x1f;
+					uint32_t g = (pix >>  5) & 0x1f;
+					uint32_t b = (pix >>  0) & 0x1f;
+
+					if (blend_mode == 1)
+					{
+						sr = ((sr * alpha2_2) + (r * alpha1_2)) >> 4;
+						sg = ((sg * alpha2_2) + (g * alpha1_2)) >> 4;
+						sb = ((sb * alpha2_2) + (b * alpha1_2)) >> 4;
+					}
+					else if (blend_mode == 2)
+					{
+						// Used by Keyboardmania for pulsating glow effects
+						sr = ((sr * alpha2_1) + (r * alpha1_1)) >> 4;
+						sg = ((sg * alpha2_1) + (g * alpha1_1)) >> 4;
+						sb = ((sb * alpha2_1) + (b * alpha1_1)) >> 4;
+					}
+
+					if (sr > 0x1f) sr = 0x1f;
+					if (sg > 0x1f) sg = 0x1f;
+					if (sb > 0x1f) sb = 0x1f;
+
+					pix = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
 				}
 
-				if (sr > 0x1f) sr = 0x1f;
-				if (sg > 0x1f) sg = 0x1f;
-				if (sb > 0x1f) sb = 0x1f;
-
-				pix = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
+				vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = pix;
 			}
-
-			vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = pix;
 
 			fbaddr += xinc;
 			u += xscale;
@@ -662,9 +653,7 @@ void k057714_device::fill_rect(uint32_t *cmd)
 	color[2] = (cmd[3] >> 16);
 	color[3] = (cmd[3] & 0xffff);
 
-#if PRINT_CMD_EXEC
-	printf("%s Fill Rect x %d, y %d, w %d, h %d, %08X %08X [%08X %08X %08X %08X]\n", basetag(), x, y, width, height, cmd[2], cmd[3], cmd[0], cmd[1], cmd[2], cmd[3]);
-#endif
+	LOGCMDEXEC("%s Fill Rect x %d, y %d, w %d, h %d, %08X %08X [%08X %08X %08X %08X]\n", basetag(), x, y, width, height, cmd[2], cmd[3], cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	int x1 = x;
 	int x2 = x + width;
@@ -723,9 +712,7 @@ void k057714_device::draw_character(uint32_t *cmd)
 	color[2] = cmd[3] >> 16;
 	color[3] = cmd[3] & 0xffff;
 
-#if PRINT_CMD_EXEC
-	printf("%s Draw Char %08X, x %d, y %d [%08X %08X %08X %08X]\n", basetag(), address, x, y, cmd[0], cmd[1], cmd[2], cmd[3]);
-#endif
+	LOGCMDEXEC("%s Draw Char %08X, x %d, y %d [%08X %08X %08X %08X]\n", basetag(), address, x, y, cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
 	int fb_pitch = 1024;
@@ -758,9 +745,7 @@ void k057714_device::fb_config(uint32_t *cmd)
 
 	// 0x03: -------- -------- --xxxxxx xxxxxxxx   Framebuffer Origin Y
 
-#if PRINT_CMD_EXEC
-	printf("%s FB Config %08X %08X %08X %08X\n", basetag(), cmd[0], cmd[1], cmd[2], cmd[3]);
-#endif
+	LOGCMDEXEC("%s FB Config %08X %08X %08X %08X\n", basetag(), cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	m_fb_origin_x = cmd[2] & 0x3ff;
 	m_fb_origin_y = cmd[3] & 0x3fff;
@@ -772,9 +757,7 @@ void k057714_device::execute_display_list(uint32_t addr)
 
 	int counter = 0;
 
-#if PRINT_CMD_EXEC
-	printf("%s Exec Display List %08X\n", basetag(), addr);
-#endif
+	LOGCMDEXEC("%s Exec Display List %08X\n", basetag(), addr);
 
 	addr /= 2;
 	while (!end && counter < 0x1000 && addr < (0x2000000/4))
@@ -815,7 +798,7 @@ void k057714_device::execute_display_list(uint32_t addr)
 				break;
 
 			default:
-				printf("GCU Unknown command %08X %08X %08X %08X\n", cmd[0], cmd[1], cmd[2], cmd[3]);
+				LOGCMDEXEC("GCU Unknown command %08X %08X %08X %08X\n", cmd[0], cmd[1], cmd[2], cmd[3]);
 				break;
 		}
 		counter++;
@@ -826,9 +809,7 @@ void k057714_device::execute_command(uint32_t* cmd)
 {
 	int command = (cmd[0] >> 29) & 0x7;
 
-#if PRINT_CMD_EXEC
-	printf("%s Exec Command %08X, %08X, %08X, %08X\n", basetag(), cmd[0], cmd[1], cmd[2], cmd[3]);
-#endif
+	LOGCMDEXEC("%s Exec Command %08X, %08X, %08X, %08X\n", basetag(), cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	switch (command)
 	{
@@ -860,7 +841,7 @@ void k057714_device::execute_command(uint32_t* cmd)
 			break;
 
 		default:
-			printf("GCU Unknown command %08X %08X %08X %08X\n", cmd[0], cmd[1], cmd[2], cmd[3]);
+			LOGCMDEXEC("GCU Unknown command %08X %08X %08X %08X\n", cmd[0], cmd[1], cmd[2], cmd[3]);
 			break;
 	}
 }
