@@ -501,7 +501,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 	int alpha2_1 = (cmd[3] >> 22) & 0x1f;
 	int alpha2_2 = (cmd[3] >> 27) & 0x1f;
 
-	if (xflip && ((4 - ((width - 1) & 3)) <= (address_x & 3))) {
+	if (xflip && ((4 - ((width - 1) % 4)) <= (address_x % 4))) {
 		// Based on logic from pop'n music 8 @ 0x800b30d0
 		address_x -= 4;
 	}
