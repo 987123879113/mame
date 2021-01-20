@@ -1663,7 +1663,7 @@ ROM_START( popnmt )
 	ROM_REGION32_BE(0x80000, "user1", 0)
 	ROM_LOAD16_WORD_SWAP( "a02jaa03.21e", 0x000000, 0x080000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599) )
 
-	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
 	ROM_LOAD("gq976-ja.bin", 0x00, 0xc0, CRC(f03cae1f) SHA1(2307952b383bab541d967a80ca17e5a11c9cf3db) )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
@@ -1684,7 +1684,7 @@ ROM_START( popnmt2 )
 	ROM_REGION32_BE(0x80000, "user1", 0)
 	ROM_LOAD16_WORD_SWAP( "a02jaa03.21e", 0x000000, 0x080000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599) )
 
-	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
 	ROM_LOAD("gq976-ja.bin", 0x00, 0xc0, CRC(f03cae1f) SHA1(2307952b383bab541d967a80ca17e5a11c9cf3db) )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
