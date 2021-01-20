@@ -250,6 +250,12 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		env_step = channel->env_step;
 		env_rstep = env_step * channel->env_scale;
 
+		if (start == end) {
+			// This occurs in pop'n music when trying to play an invalid sample:
+			// ch: 0, start: 00000000, end: 00000000, loop: 00000000
+			continue;
+		}
+
 		for (i=0; i < buf0.samples(); i++)
 		{
 			int16_t tmp;
@@ -326,9 +332,31 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			pos += channel->step;
 			if ((pos>>16) > end)
 			{
-				if (loop > end){
+				// The loop value cannot be relied upon to be valid.
+				//
+				// pop'n music handles end and loop as such:
+				// - Any sound that is meant to be looped will have the end and loop values set properly:
+				//     examples:
+				//         ch: 9, start: 00000000, end: 00002a61, loop: 00002a61
+				//         ch: 9, start: 00004011, end: 0000b3a7, loop: 00007396
+				//         ch: 9, start: 0000b3b0, end: 00012942, loop: 00007592
+				// - Any sound that is not meant to be looped will have the end value set properly but the loop value not:
+				//     examples:
+				//         ch: 9, start: 00002a6a, end: 00004010, loop: 00000007
+				//         ch: 9, start: 00002a6a, end: 00004010, loop: 00000007
+				//         ch: 9, start: 0001294b, end: 00013cef, loop: 00000007
+				// - BGMs in pop'n music are loaded into a 0x200000 buffer.
+				//     - The buffer is refilled via DMA based on the current playback offset.
+				//     - The buffer is expected to loop back to the beginning when it ends.
+				//     examples:
+				//         ch: 30, start: 00780000, end: 0087ffff, loop: 009ffffe
+				//         ch: 31, start: 00780001, end: 0087ffff, loop: 009ffffe
+				if (loop < start || loop > end)
+				{
 					pos = start << 16;
-				} else {
+				}
+				else
+				{
 					pos -= loop << 16;
 					pos &= 0xFFFFFF0000ULL;
 				}
@@ -458,6 +486,13 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 						m_channels[ch].env_phase = PHASE_ATTACK;
 						m_channels[ch].env_level = 0.0;
 						m_channels[ch].env_step  = m_env_tables.ar(m_channels[ch]);
+
+{
+						auto start = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+						auto end = ((m_channels[ch].endHloopH & 0xFF) << 16) | m_channels[ch].endL;
+						auto loop = ((m_channels[ch].endHloopH & 0xFF00) << 8) | m_channels[ch].loopL;
+						printf("ch: %d, start: %08x, end: %08x, loop: %08x\n", ch, start, end, loop);
+}
 						break;
 					case 0x40:
 						if (m_channels[ch].env_phase != PHASE_NONE)
