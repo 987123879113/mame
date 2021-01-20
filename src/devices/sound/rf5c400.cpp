@@ -487,12 +487,12 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 						m_channels[ch].env_level = 0.0;
 						m_channels[ch].env_step  = m_env_tables.ar(m_channels[ch]);
 
-{
-						auto start = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
-						auto end = ((m_channels[ch].endHloopH & 0xFF) << 16) | m_channels[ch].endL;
-						auto loop = ((m_channels[ch].endHloopH & 0xFF00) << 8) | m_channels[ch].loopL;
-						printf("ch: %d, start: %08x, end: %08x, loop: %08x\n", ch, start, end, loop);
-}
+// {
+// 						auto start = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+// 						auto end = ((m_channels[ch].endHloopH & 0xFF) << 16) | m_channels[ch].endL;
+// 						auto loop = ((m_channels[ch].endHloopH & 0xFF00) << 8) | m_channels[ch].loopL;
+// 						printf("ch: %d, start: %08x, end: %08x, loop: %08x\n", ch, start, end, loop);
+// }
 						break;
 					case 0x40:
 						if (m_channels[ch].env_phase != PHASE_NONE)
