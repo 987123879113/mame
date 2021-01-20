@@ -231,7 +231,6 @@ private:
 	uint8_t m_extend_board_irq_enable;
 	uint8_t m_extend_board_irq_active;
 //  emu_timer *m_keyboard_timer;
-	emu_timer *m_spu_dma_timer;
 	int m_layer;
 	int* m_cur_cab_data;
 //  int m_keyboard_state[2];
@@ -283,7 +282,6 @@ private:
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
 //  TIMER_CALLBACK_MEMBER(keyboard_timer_callback);
-	TIMER_CALLBACK_MEMBER(spu_dma_callback);
 	void set_ibutton(uint8_t *data);
 	int ibutton_w(uint8_t data);
 	void security_w(uint8_t data);
@@ -880,26 +878,23 @@ void firebeat_state::firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t m
 
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 {
-	m_spu_ata_dmarq = state;
-}
+	if (m_spuata != nullptr && m_spu_ata_dmarq != state)
+	{
+		m_spu_ata_dmarq = state;
 
-TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
-{
-	if (m_spuata != nullptr && m_spu_ata_dmarq) {
-		m_spuata->write_dmack(ASSERT_LINE);
+		if (m_spu_ata_dmarq)
+		{
+			m_spuata->write_dmack(ASSERT_LINE);
 
-		// The timer frequency and the read block size are based entirely on feeling and game constraints
-		// instead of actual hardwware testing.
-		// pop'n music 8 has tight requirements while loading the game before it'll throw a timeout error.
-		// The block read size was picked based on how much data could be read in a certain amount of time
-		// without blocking everything else, resulting in stutters while the game tries to stream more BGM
-		// data from the DVD.
-		// The blocking issue is the reason why DMAs are implemented using a timer instead of inside
-		// spu_ata_dmarq, and also why read_dma_block was created instead of reading in data one word
-		// at a time.
-		m_spuata->read_dma_block(&m_waveram[m_wave_bank], &m_spu_ata_dma, 0x4000);
+			while (m_spu_ata_dmarq)
+			{
+				uint16_t data = m_spuata->read_dma();
+				m_waveram[m_wave_bank+m_spu_ata_dma] = data;
+				m_spu_ata_dma++;
+			}
 
-		m_spuata->write_dmack(CLEAR_LINE);
+			m_spuata->write_dmack(CLEAR_LINE);
+		}
 	}
 }
 
@@ -1170,6 +1165,10 @@ WRITE_LINE_MEMBER(firebeat_state::gcu1_interrupt)
 void firebeat_state::machine_reset()
 {
 	m_layer = 0;
+
+	atapi_cdrom_device *spucdrom = m_spuata->subdevice<ata_slot_device>("0")->subdevice<atapi_cdrom_device>("cdrom");
+	uint16_t *identify_device = spucdrom->identify_device_buffer();
+	identify_device[63] = 0x0107; // Multiword DMA mode enabled
 }
 
 WRITE_LINE_MEMBER( firebeat_state::ata_interrupt )
@@ -1508,9 +1507,6 @@ void firebeat_state::init_firebeat()
 	set_ibutton(rom);
 
 	init_lights(write32s_delegate(*this), write32s_delegate(*this), write32s_delegate(*this));
-
-	m_spu_dma_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(firebeat_state::spu_dma_callback), this));
-	m_spu_dma_timer->adjust(attotime::zero, 0, attotime::from_msec(2));
 }
 
 void firebeat_state::init_ppp()
