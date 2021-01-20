@@ -170,14 +170,12 @@ void rf5c400_device::device_start()
 		chan.env_scale = 1.0;
 	}
 
-	m_requested_channel = 0;
-	m_requested_padding = 0;
+	m_req_channel = 0;
 
 	save_item(NAME(m_rf5c400_status));
 	save_item(NAME(m_ext_mem_address));
 	save_item(NAME(m_ext_mem_data));
-	save_item(NAME(m_requested_channel));
-	save_item(NAME(m_requested_padding));
+	save_item(NAME(m_req_channel));
 
 	save_item(STRUCT_MEMBER(m_channels, startH));
 	save_item(STRUCT_MEMBER(m_channels, startL));
@@ -345,8 +343,8 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 				//         ch: 9, start: 00002a6a, end: 00004010, loop: 00000007
 				//         ch: 9, start: 00002a6a, end: 00004010, loop: 00000007
 				//         ch: 9, start: 0001294b, end: 00013cef, loop: 00000007
-				// - BGMs in pop'n music are loaded into a 0x200000 buffer.
-				//     - The buffer is refilled via DMA based on the current playback offset.
+				// - BGMs in pop'n music are loaded into a 0x200000 buffer. End value is set properly but not loop.
+				//     - The buffer is refilled via DMA based on the current playback offset. (see: rf5c400_r 0x09)
 				//     - The buffer is expected to loop back to the beginning when it ends.
 				//     examples:
 				//         ch: 30, start: 00780000, end: 0087ffff, loop: 009ffffe
@@ -396,41 +394,30 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 
 			case 0x09:      // position read?
 			{
-				// After looking at all of the dumped games from all drivers that use the rf5c400,
-				// the only one I could find that reads this register was pop'n music and beatmania III.
-
 				m_stream->update();
 
-				rf5c400_channel* channel = &m_channels[m_requested_channel];
+				// The game will always call rf5c400_w 0x08 with a channel number and some other value before reading this register.
+				// I'm not actually sure if the channel here is correct but I have no other leads, and it works when implemented this way.
+				rf5c400_channel* channel = &m_channels[m_req_channel];
 
 				if (channel->env_phase == PHASE_NONE) {
 					return 0;
 				}
 
-				// pop'n music's SPU program expects to read this register 6 times with the same value every
-				// read, and then the value should match a different value in memory (@ 0x1008ca).
-				// The value seems to correspond to how much data is read during the DMAs.
-				// The first DMA for pop'n music is 0x200000 bytes and then subsequent DMAs are 0x100000 bytes.
-				// The first value matched at 0x1008ca in the SPU program is 2, and then after that 1.
-				// When the value matches, the SPU sends off a new DMA request to overwrite the sample data in
-				// memory. This DMA request completely overwrites the currently playing sample data.
+				// pop'n music's SPU program expects to read this register 6 times with the same value every read before it will send the next DMA request.
 				//
-				// I don't really understand exactly what value is supposed to be returned here or how it's calculated.
-				// This +16 is to give the game enough chance to see the value it needs at least 6 times so it can
-				// start the next DMA transfer. Sometimes the game doesn't read at consistent timings so +16 is to
-				// give it a little bit of extra time figure it out.
-				// Adjust the +16 as required. Remember that triggering the DMA too soon will overwrite the currently
-				// playing BGM data so you will experience skips or slight glitching in cases where the DMA is
-				// triggered too soon.
-
+				// My understanding of how DMAs are triggered based on this register is as follows:
+				// When a song is first played, the first DMA request reads 0x200000 bytes into the memory range 0x00780000 - 0x00880000.
+				// Every subsequent DMA after that reads 0x100000 bytes into memory.
+				//
+				// When a song first starts playing the game polls this register until it reads 2xxx (doesn't matter what the lower x is).
+				// When 2xxx is found (pos - start = 0x00080000), it will trigger the next DMA of 0x100000 overwriting 0x00780000 - 0x00800000, and continues polling the register until it reads 1xxx next.
+				// When 1xxx is found (pos - start = 0x00040000), it will trigger the next DMA of 0x100000 overwriting 0x00800000 - 0x00880000, and continues polling the register until it reads 2xxx next.
+				// ... repeat until song is finished, alternating between 2xxx and 1xxx ...
+				// This ends up so that it'll always be buffering new sample data into the sections of memory that aren't being played yet.
 				auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
 				auto ch_offset = (channel->pos >> 16) - start;
-
-				// auto end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
-				// auto loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
-				// printf("%s:rf5c400_r: %08X, %08X, step: %04lx, offset: %08lx, start: %08x, end: %08x, loop: %08x, offset: %08lx\n", machine().describe_context().c_str(), offset, mem_mask, channel->step, channel->pos >> 16, start, end, loop, ch_offset);
-
-				return (uint16_t)((ch_offset + m_requested_padding) >> 7) & 0xffff;
+				return ch_offset >> 6;
 			}
 
 			case 0x13:      // memory read
@@ -486,13 +473,6 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 						m_channels[ch].env_phase = PHASE_ATTACK;
 						m_channels[ch].env_level = 0.0;
 						m_channels[ch].env_step  = m_env_tables.ar(m_channels[ch]);
-
-// {
-// 						auto start = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
-// 						auto end = ((m_channels[ch].endHloopH & 0xFF) << 16) | m_channels[ch].endL;
-// 						auto loop = ((m_channels[ch].endHloopH & 0xFF00) << 8) | m_channels[ch].loopL;
-// 						printf("ch: %d, start: %08x, end: %08x, loop: %08x\n", ch, start, end, loop);
-// }
 						break;
 					case 0x40:
 						if (m_channels[ch].env_phase != PHASE_NONE)
@@ -522,15 +502,11 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				// There's some other data stuffed in the upper bits beyond the channel: data >> 5
 				// The other data might be some kind of register or command.
 				// I've seen 0, 4, 5, and 6.
-				m_requested_channel = data & 0x1f;
+				m_req_channel = data & 0x1f;
 				break;
 			}
 
 			case 0x09:      // relative to env attack (0x0c00/ 0x1c00/ 0x1e00)
-			{
-				m_requested_padding = data;
-				break;
-			}
 
 			case 0x11:      // memory r/w address, bits 15 - 0
 			{
