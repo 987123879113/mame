@@ -21,7 +21,6 @@ protected:
 	virtual const tiny_rom_entry *device_rom_region() const override;
 
 	virtual u16 read_dma() override;
-	virtual u16 read_dma_block(uint16_t* data, uint32_t* outsize, uint32_t size) override;
 	virtual u16 read_cs0(offs_t offset, u16 mem_mask = 0xffff) override;
 	virtual u16 read_cs1(offs_t offset, u16 mem_mask = 0xffff) override;
 	virtual void write_dma(u16 data) override;

@@ -19,7 +19,6 @@ class ata_hle_device : public device_t, public device_ata_interface
 {
 public:
 	virtual uint16_t read_dma() override;
-	virtual uint16_t read_dma_block(uint16_t* buffer, uint32_t* outsize, uint32_t size) override;
 	virtual uint16_t read_cs0(offs_t offset, uint16_t mem_mask = 0xffff) override;
 	virtual uint16_t read_cs1(offs_t offset, uint16_t mem_mask = 0xffff) override;
 
@@ -61,7 +60,6 @@ protected:
 	virtual void perform_diagnostic() = 0;
 	virtual void signature() = 0;
 	virtual uint16_t read_data();
-	virtual uint16_t read_data_block(uint16_t* buffer, uint32_t* outsize, uint32_t size);
 	virtual void write_data(uint16_t data);
 
 	int bit_to_mode(uint16_t word);
@@ -120,9 +118,7 @@ protected:
 		IDE_COMMAND_SET_BLOCK_COUNT = 0xc6,
 		IDE_COMMAND_READ_DMA = 0xc8,
 		IDE_COMMAND_WRITE_DMA = 0xca,
-		IDE_COMMAND_STANDBY_IMMEDIATE = 0xe0,
 		IDE_COMMAND_IDLE_IMMEDIATE = 0xe1,
-		IDE_COMMAND_STANDBY = 0xe2,
 		IDE_COMMAND_IDLE = 0xe3,
 		IDE_COMMAND_CHECK_POWER_MODE = 0xe5,
 		IDE_COMMAND_CACHE_FLUSH = 0xe7,
