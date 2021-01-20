@@ -162,26 +162,21 @@ void rf5c400_device::device_start()
 		chan.decay = 0;
 		chan.release = 0;
 		chan.pos = 0;
-		chan.total_offset = 0;
 		chan.step = 0;
 		chan.keyon = 0;
 		chan.env_phase = PHASE_NONE;
 		chan.env_level = 0.0;
 		chan.env_step = 0.0;
 		chan.env_scale = 1.0;
-		chan.start_pos = 0;
-		chan.offset = 0;
 	}
 
 	m_requested_channel = 0;
-	m_requested_cmd = 0;
 	m_requested_padding = 0;
 
 	save_item(NAME(m_rf5c400_status));
 	save_item(NAME(m_ext_mem_address));
 	save_item(NAME(m_ext_mem_data));
 	save_item(NAME(m_requested_channel));
-	save_item(NAME(m_requested_cmd));
 	save_item(NAME(m_requested_padding));
 
 	save_item(STRUCT_MEMBER(m_channels, startH));
@@ -204,10 +199,8 @@ void rf5c400_device::device_start()
 	save_item(STRUCT_MEMBER(m_channels, env_level));
 	save_item(STRUCT_MEMBER(m_channels, env_step));
 	save_item(STRUCT_MEMBER(m_channels, env_scale));
-	save_item(STRUCT_MEMBER(m_channels, start_pos));
-	save_item(STRUCT_MEMBER(m_channels, offset));
 
-	m_stream = stream_alloc(0, 2, clock() / 384, STREAM_SYNCHRONOUS);
+	m_stream = stream_alloc(0, 2, clock() / 384);
 }
 
 //-------------------------------------------------
@@ -228,8 +221,8 @@ void rf5c400_device::device_clock_changed()
 void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
 	int i, ch;
-	uint64_t end, loop;
-	uint64_t pos, total_offset;
+	uint64_t start, end, loop;
+	uint64_t pos;
 	uint8_t vol, lvol, rvol, type;
 	uint8_t env_phase;
 	double env_level, env_step, env_rstep;
@@ -243,10 +236,9 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
 
-		auto offset = channel->offset;
+		start = ((channel->startH & 0xFF00) << 8) | channel->startL;
 		end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
 		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
-		total_offset = channel->total_offset;
 		pos = channel->pos;
 		vol = channel->volume & 0xFF;
 		lvol = channel->pan & 0xFF;
@@ -332,25 +324,19 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			buf1.add_int(i, sample * pan_table[rvol], 32768);
 
 			pos += channel->step;
-			total_offset += channel->step;
-			offset += channel->step;
 			if ((pos>>16) > end)
 			{
-				offset = 0;
-
-				if (loop > end) {
-					pos = channel->start_pos;
-				}
-				else {
+				if (loop > end){
+					pos = start << 16;
+				} else {
 					pos -= loop << 16;
 					pos &= 0xFFFFFF0000ULL;
 				}
 			}
-		}
 
-		channel->offset = offset;
+		}
 		channel->pos = pos;
-		channel->total_offset = total_offset;
+
 		channel->env_phase = env_phase;
 		channel->env_level = env_level;
 		channel->env_step = env_step;
@@ -366,8 +352,6 @@ void rf5c400_device::rom_bank_updated()
 
 uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 {
-	// printf("%s:rf5c400_r: %08X, %08X\n", machine().describe_context().c_str(), offset, mem_mask);
-
 	if (offset < 0x400)
 	{
 		switch(offset)
@@ -387,12 +371,7 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 				// After looking at all of the dumped games from all drivers that use the rf5c400,
 				// the only one I could find that reads this register was pop'n music and beatmania III.
 
-				if (m_requested_cmd != 6) {
-					//printf("Unknown m_requested_cmd: %04x on ch %d\n", m_requested_cmd, m_requested_channel);
-					return 0;
-				}
-
-				// m_stream->update();
+				m_stream->update();
 
 				rf5c400_channel* channel = &m_channels[m_requested_channel];
 
@@ -416,12 +395,14 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 				// playing BGM data so you will experience skips or slight glitching in cases where the DMA is
 				// triggered too soon.
 
-				// auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+				auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+				auto ch_offset = (channel->pos >> 16) - start;
+
 				// auto end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
 				// auto loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
-				// printf("%s:rf5c400_r: %08X, %08X, step: %04lx, offset: %08lx, start: %08x, end: %08x, loop: %08x, offset: %08lx\n", machine().describe_context().c_str(), offset, mem_mask, channel->step, channel->pos >> 16, start, end, loop, channel->offset >> 16);
+				// printf("%s:rf5c400_r: %08X, %08X, step: %04lx, offset: %08lx, start: %08x, end: %08x, loop: %08x, offset: %08lx\n", machine().describe_context().c_str(), offset, mem_mask, channel->step, channel->pos >> 16, start, end, loop, ch_offset);
 
-				return (uint16_t)(((channel->offset >> 16) + m_requested_padding) >> 7) & 0xffff;
+				return (uint16_t)((ch_offset + m_requested_padding) >> 7) & 0xffff;
 			}
 
 			case 0x13:      // memory read
@@ -456,10 +437,6 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (offset < 0x400)
 	{
-		if (offset != 8 && offset != 0x11 && offset != 0x12 && offset != 0x13 && offset != 0x14) {
-			//printf("%lf: offset %04x, data %04x\n", machine().time().as_double(), offset, data);
-		}
-
 		switch(offset)
 		{
 			case 0x00:
@@ -474,16 +451,13 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				switch ( data & 0x60 )
 				{
 					case 0x60:
-						m_channels[ch].offset = 0;
-						m_channels[ch].total_offset = 0;
-						m_channels[ch].pos = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+						m_channels[ch].pos =
+							((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
 						m_channels[ch].pos <<= 16;
-						m_channels[ch].start_pos = m_channels[ch].pos;
 
 						m_channels[ch].env_phase = PHASE_ATTACK;
 						m_channels[ch].env_level = 0.0;
 						m_channels[ch].env_step  = m_env_tables.ar(m_channels[ch]);
-
 						break;
 					case 0x40:
 						if (m_channels[ch].env_phase != PHASE_NONE)
@@ -505,32 +479,21 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 						m_channels[ch].env_step  = 0.0;
 						break;
 				}
-
-
-				{
-					//auto start = ((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
-					//auto end = ((m_channels[ch].endHloopH & 0xFF) << 16) | m_channels[ch].endL;
-					//auto loop = ((m_channels[ch].endHloopH & 0xFF00) << 8) | m_channels[ch].loopL;
-					//printf("ch %d, start: %08x, stop: %08x, loop: %08x\n", ch, start, end, loop);
-				}
-
 				break;
 			}
 
 			case 0x08:      // relative to env attack (channel no)
 			{
+				// There's some other data stuffed in the upper bits beyond the channel: data >> 5
+				// The other data might be some kind of register or command.
+				// I've seen 0, 4, 5, and 6.
 				m_requested_channel = data & 0x1f;
-
-				// Seen "commands": 0, 4, 5, 6
-				m_requested_cmd = data >> 5;
-
 				break;
 			}
 
 			case 0x09:      // relative to env attack (0x0c00/ 0x1c00/ 0x1e00)
 			{
 				m_requested_padding = data;
-
 				break;
 			}
 
