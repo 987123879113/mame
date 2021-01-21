@@ -94,8 +94,8 @@
     GQ977      GQA11          2000    Para Para Paradise 1st Mix+
     GQA02(?)   GQ986          2000    Pop'n Music 4
     ???        G?A04          2000    Pop'n Music 5
-	???        GQ976          2000    Pop'n Music Mickey Tunes
-	???        GQ976          2000    Pop'n Music Mickey Tunes!
+    ???        GQ976          2000    Pop'n Music Mickey Tunes
+    ???        GQ976          2000    Pop'n Music Mickey Tunes!
     ???        GQA16          2001    Pop'n Music 6
     GQA02      GCB00          2001    Pop'n Music 7
     ???        GQB30          2002    Pop'n Music 8
@@ -196,7 +196,6 @@ public:
 		m_spuata(*this, "spu_ata"),
 		m_waveram(*this, "rf5c400"),
 		m_spu_ata_dma(0),
-		m_spu_ata_dma_base(0),
 		m_spu_ata_dmarq(0),
 		m_wave_bank(0)
 	{ }
@@ -240,7 +239,6 @@ private:
 	uint8_t m_ibutton_subkey_data[0x40];
 
 	uint32_t m_spu_ata_dma;
-	uint32_t m_spu_ata_dma_base;
 	int m_spu_ata_dmarq;
 	uint32_t m_wave_bank;
 
@@ -852,13 +850,11 @@ void firebeat_state::spu_220000_w(uint16_t data)
 void firebeat_state::spu_ata_dma_low_w(uint16_t data)
 {
 	m_spu_ata_dma = (m_spu_ata_dma & ~0xffff) | data;
-	m_spu_ata_dma_base = m_spu_ata_dma;
 }
 
 void firebeat_state::spu_ata_dma_high_w(uint16_t data)
 {
 	m_spu_ata_dma = (m_spu_ata_dma & 0xffff) | ((uint32_t)data << 16);
-	m_spu_ata_dma_base = m_spu_ata_dma;
 }
 
 void firebeat_state::spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
