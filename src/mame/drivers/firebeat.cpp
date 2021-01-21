@@ -1168,7 +1168,19 @@ void firebeat_state::machine_reset()
 
 	atapi_cdrom_device *spucdrom = m_spuata->subdevice<ata_slot_device>("0")->subdevice<atapi_cdrom_device>("cdrom");
 	uint16_t *identify_device = spucdrom->identify_device_buffer();
-	identify_device[63] = 0x0107; // Multiword DMA mode enabled
+
+	// HACK: This bypasses a whole slew of DMA recursion issues in the CD-ROM device.
+	// Calling read_dma on ATAPI CD-ROM devices without Ultra DMA will lead to recursion.
+	// The reason Ultra DMA fixes the issue is because atapi_hle_device::fill_buffer is called based on a timer
+	// instead of immediately after marking the buffer as empty like non-Ultra DMA modes do
+	// (see: ata_hle_device::read_buffer_empty).
+	// The call to atapi_hle_device::fill_buffer will immediately call set_dmarq(ASSERT_LINE) which is the point
+	// where it recurses back into spu_ata_dmarq. Without the timer the code that called read_dma never gets a
+	// chance to properly clean up and write the last byte.
+	// When coming out of the recursion, the last data read before recusing gets written to the end of the buffer
+	// causing glitching in audio.
+	// pop'n music easily causes stack overflows due to large DMA requests depending on DMA mode.
+	identify_device[88] = 0x0102;
 }
 
 WRITE_LINE_MEMBER( firebeat_state::ata_interrupt )
