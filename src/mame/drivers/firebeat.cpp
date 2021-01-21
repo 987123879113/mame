@@ -239,8 +239,6 @@ private:
 	int m_spu_ata_dmarq;
 	uint32_t m_wave_bank;
 
-	void rf5c400_map(address_map& map);
-
 	uint32_t screen_update_firebeat_0(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	uint32_t screen_update_firebeat_1(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	INTERRUPT_GEN_MEMBER(firebeat_interrupt);
@@ -293,6 +291,7 @@ private:
 	void firebeat2_map(address_map &map);
 	void spu_map(address_map &map);
 	void ymz280b_map(address_map &map);
+	void rf5c400_map(address_map& map);
 };
 
 
@@ -848,6 +847,7 @@ void firebeat_state::firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t m
 	COMBINE_DATA(&m_waveram[offset + m_wave_bank]);
 }
 
+
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 {
 	if (m_spuata != nullptr && m_spu_ata_dmarq != state)
@@ -935,7 +935,7 @@ void firebeat_state::spu_map(address_map &map)
 	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
 	map(0x300000, 0x30000f).rw(m_spuata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x340000, 0x34000f).rw(m_spuata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
-	map(0x400000, 0x7fffff).rw("rf5c400", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
+	map(0x400000, 0x400fff).rw("rf5c400", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
 	map(0x800000, 0xffffff).rw(FUNC(firebeat_state::firebeat_waveram_r), FUNC(firebeat_state::firebeat_waveram_w));
 }
 
@@ -946,6 +946,11 @@ void firebeat_state::ymz280b_map(address_map &map)
 	map(0x200000, 0x3fffff).r("flash_snd2", FUNC(fujitsu_29f016a_device::read));
 }
 
+void firebeat_state::rf5c400_map(address_map& map)
+{
+	map(0x0000000, 0x1ffffff).ram().share("rf5c400");
+}
+
 /*****************************************************************************/
 
 WRITE_LINE_MEMBER(firebeat_state::sound_irq_callback)
@@ -954,14 +959,7 @@ WRITE_LINE_MEMBER(firebeat_state::sound_irq_callback)
 
 static INPUT_PORTS_START( firebeat )
 	PORT_START("SPU_DSW")
-	PORT_DIPUNKNOWN_DIPLOC( 0x01, IP_ACTIVE_LOW, "SPU DSW:1" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x02, IP_ACTIVE_LOW, "SPU DSW:2" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x04, IP_ACTIVE_LOW, "SPU DSW:3" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x08, IP_ACTIVE_LOW, "SPU DSW:4" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x10, IP_ACTIVE_LOW, "SPU DSW:5" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x20, IP_ACTIVE_LOW, "SPU DSW:6" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x40, IP_ACTIVE_LOW, "SPU DSW:7" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "SPU DSW:8" )
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("FLASH_IN")
 	PORT_BIT( 0x03, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Fixes "FLASH RAM DATA ERROR" in some games (Mickey Tunes)
@@ -1329,11 +1327,6 @@ void firebeat_state::firebeat_spu(machine_config &config)
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
-}
-
-void firebeat_state::rf5c400_map(address_map& map)
-{
-	map(0x0000000, 0x1ffffff).ram().share("rf5c400");
 }
 
 /*****************************************************************************/
