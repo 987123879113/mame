@@ -228,7 +228,7 @@ private:
 	uint8_t m_extend_board_irq_active;
 //  emu_timer *m_keyboard_timer;
 	int m_layer;
-	const int* m_cur_cab_data;
+	const int * m_cur_cab_data;
 //  int m_keyboard_state[2];
 	IBUTTON m_ibutton;
 	int m_ibutton_state;
@@ -1318,8 +1318,7 @@ void firebeat_state::firebeat_spu(machine_config &config)
 
 	M68000(config, m_audiocpu, 16000000);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &firebeat_state::spu_map);
-	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq1_line_assert), attotime::from_hz(60));
-	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(500));
+	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(500)); // Changes the duration of the audio playback
 
 	CY7C131(config, m_dpram);
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
@@ -1338,13 +1337,14 @@ void firebeat_state::firebeat_spu(machine_config &config)
 /*****************************************************************************/
 /* Security dongle is a Dallas DS1411 RS232 Adapter with a DS1991 Multikey iButton */
 
-/* popn7 supports 8 different dongles:
+/* popn7 supports 9 different dongles:
    - Manufacture
    - Service
    - Event
    - Oversea
    - No Hardware
    - Rental
+   - Dummy
    - Debug
    - Normal
 */
