@@ -194,10 +194,7 @@ public:
 		m_gcu(*this, "gcu%u", 0),
 		m_dpram(*this, "spuram"),
 		m_spuata(*this, "spu_ata"),
-		m_waveram(*this, "rf5c400"),
-		m_spu_ata_dma(0),
-		m_spu_ata_dmarq(0),
-		m_wave_bank(0)
+		m_waveram(*this, "rf5c400")
 	{ }
 
 	void firebeat2(machine_config &config);
@@ -1140,6 +1137,10 @@ WRITE_LINE_MEMBER(firebeat_state::gcu1_interrupt)
 void firebeat_state::machine_reset()
 {
 	m_layer = 0;
+
+	m_spu_ata_dma = 0;
+	m_spu_ata_dmarq = 0;
+	m_wave_bank = 0;
 
 	if (m_spuata == nullptr) {
 		return;
