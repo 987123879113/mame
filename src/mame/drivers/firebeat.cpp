@@ -231,7 +231,7 @@ private:
 	uint8_t m_extend_board_irq_active;
 //  emu_timer *m_keyboard_timer;
 	int m_layer;
-	int* m_cur_cab_data;
+	const int* m_cur_cab_data;
 //  int m_keyboard_state[2];
 	IBUTTON m_ibutton;
 	int m_ibutton_state;
@@ -257,7 +257,6 @@ private:
 //  uint32_t comm_uart_r(offs_t offset, uint32_t mem_mask = ~ 0);
 //  void comm_uart_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t cabinet_r(offs_t offset, uint32_t mem_mask = ~0);
-	void cabinet_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t keyboard_wheel_r(offs_t offset);
 	uint8_t midi_uart_r(offs_t offset);
 	void midi_uart_w(offs_t offset, uint8_t data);
@@ -470,10 +469,10 @@ static void comm_uart_irq_callback(running_machine &machine, int channel, int va
 
 /*****************************************************************************/
 
-static int cab_data[3] = { 0, 0, 0 };
-static int kbm_cab_data[3] = { 2, 0, 0 };
-static int ppd_cab_data[3] = { 1, 0, 0 };
-static int ppp_cab_data[3] = { 8, 0, 0 };
+static const int cab_data[3] = { 0, 0, 0 };
+static const int kbm_cab_data[3] = { 2, 0, 0 };
+static const int ppd_cab_data[3] = { 1, 0, 0 };
+static const int ppp_cab_data[3] = { 8, 0, 0 };
 
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
@@ -499,26 +498,6 @@ uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 	}
 
 	return 0;
-}
-
-void firebeat_state::cabinet_w(offs_t offset, uint32_t data, uint32_t mem_mask)
-{
-//	printf("cabinet_w: %08X, %08x, %08X\n", offset, data, mem_mask);
-
-	switch (offset)
-	{
-	case 0:
-		m_cur_cab_data[0] = data & 0xff;
-		break;
-
-	case 2:
-		m_cur_cab_data[1] = data & 0xff;
-		break;
-
-	case 4:
-		m_cur_cab_data[2] = data & 0xff;
-		break;
-	}
 }
 
 /*****************************************************************************/
@@ -918,7 +897,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_state::keyboard_wheel_r));
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
-	map(0x7d000200, 0x7d00021f).rw(FUNC(firebeat_state::cabinet_r), FUNC(firebeat_state::cabinet_w));
+	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
 	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
@@ -1162,8 +1141,24 @@ void firebeat_state::machine_reset()
 {
 	m_layer = 0;
 
-	atapi_cdrom_device *spucdrom = m_spuata->subdevice<ata_slot_device>("0")->subdevice<atapi_cdrom_device>("cdrom");
+	if (m_spuata == nullptr) {
+		return;
+	}
+
+	ata_slot_device *spuata = m_spuata->subdevice<ata_slot_device>("0");
+	if (spuata == nullptr) {
+		return;
+	}
+
+	atapi_cdrom_device *spucdrom = spuata->subdevice<atapi_cdrom_device>("cdrom");
+	if (spucdrom == nullptr) {
+		return;
+	}
+
 	uint16_t *identify_device = spucdrom->identify_device_buffer();
+	if (identify_device == nullptr) {
+		return;
+	}
 
 	// HACK: This bypasses a whole slew of DMA recursion issues in the CD-ROM device.
 	// Calling read_dma on ATAPI CD-ROM devices without Ultra DMA will lead to recursion.
