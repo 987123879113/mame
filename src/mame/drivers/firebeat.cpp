@@ -958,12 +958,14 @@ WRITE_LINE_MEMBER(firebeat_state::sound_irq_callback)
 }
 
 static INPUT_PORTS_START( firebeat )
-	PORT_START("SPU_DSW")
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
 	PORT_START("FLASH_IN")
 	PORT_BIT( 0x03, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Fixes "FLASH RAM DATA ERROR" in some games (Mickey Tunes)
 	PORT_BIT( 0xfc, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( firebeat_spu )
+	PORT_START("SPU_DSW")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(ppp)
@@ -1084,6 +1086,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START(popn)
 	PORT_INCLUDE( firebeat )
+	PORT_INCLUDE( firebeat_spu )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Switch 1
