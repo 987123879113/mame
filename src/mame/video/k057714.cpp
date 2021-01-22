@@ -468,7 +468,8 @@ int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rect
 	bool inverse_trans = false;
 
 	// most likely wrong, inverse transparency is only used by kbm
-	if ((m_reg_6c & 0xf) != 0)
+	// beatmania III sets m_reg_6c to 0xfff but it doesn't use inverse transparency
+	if ((m_reg_6c & 0xf) != 0 && m_reg_6c != 0xfff)
 		inverse_trans = true;
 
 	draw_frame((m_layer_select >> 8) & 3, bitmap, cliprect, inverse_trans);
