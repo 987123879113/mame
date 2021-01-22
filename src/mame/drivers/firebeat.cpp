@@ -906,6 +906,7 @@ void firebeat_state::firebeat_map(address_map &map)
 {
 	map(0x00000000, 0x01ffffff).ram().share("work_ram");
 	map(0x70000000, 0x70000fff).rw(FUNC(firebeat_state::midi_uart_r), FUNC(firebeat_state::midi_uart_w)).umask32(0xff000000);
+	// map(0x70001fc0, 0x70001fdf).r.w(FUNC(firebeat_state::fdd_unk_r), FUNC(firebeat_state::fdd_unk_w));
 	map(0x70006000, 0x70006003).w(FUNC(firebeat_state::extend_board_irq_w));
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_state::keyboard_wheel_r));
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
@@ -921,6 +922,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7e000000, 0x7e00003f).rw("rtc", FUNC(rtc65271_device::rtc_r), FUNC(rtc65271_device::rtc_w));
 	map(0x7e000100, 0x7e00013f).rw("rtc", FUNC(rtc65271_device::xram_r), FUNC(rtc65271_device::xram_w));
 	map(0x7e800000, 0x7e8000ff).rw(m_gcu[0], FUNC(k057714_device::read), FUNC(k057714_device::write));
+	//map(0x7e800100, 0x7e8000ff).nopr(); // Unknown, IO or FDD?
 	map(0x7fe00000, 0x7fe0000f).rw(FUNC(firebeat_state::ata_command_r), FUNC(firebeat_state::ata_command_w));
 	map(0x7fe80000, 0x7fe8000f).rw(FUNC(firebeat_state::ata_control_r), FUNC(firebeat_state::ata_control_w));
 	map(0x7ff80000, 0x7fffffff).rom().region("user1", 0);       /* System BIOS */
@@ -1107,6 +1109,34 @@ static INPUT_PORTS_START(popn)
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON6 )            // Switch 6
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON7 )            // Switch 7
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON8 )            // Switch 8
+
+	PORT_START("IN1")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON9 )            // Switch 9
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN1 )              // Coin
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+	PORT_SERVICE_NO_TOGGLE( 0x10, IP_ACTIVE_LOW)            // Test
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SERVICE ) PORT_NAME("Service") PORT_CODE(KEYCODE_7)      // Service
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+
+	PORT_START("IN2")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )    /* Dip switches */
+
+INPUT_PORTS_END
+
+static INPUT_PORTS_START(bm3)
+	PORT_INCLUDE( firebeat )
+
+	PORT_START("IN0")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Switch 1
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON2 )            // Switch 2
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON3 )            // Switch 3
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON4 )            // Switch 4
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON5 )            // Switch 5
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON6 )            // Switch 6
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON7 )            // Switch 7
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_BUTTON8 )            // IO check 1
 
 	PORT_START("IN1")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON9 )            // Switch 9
@@ -1944,8 +1974,8 @@ GAME(  2001, popn6,    0,      firebeat_spu,  popn, firebeat_state, init_popn,RO
 GAME(  2001, popn7,    0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 7", MACHINE_NOT_WORKING)
 GAME(  2001, popnanm2, 0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
 GAME(  2002, popn8,    0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 8", MACHINE_NOT_WORKING)
-GAME(  2000, bm3,      0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III", MACHINE_NOT_WORKING)
-GAME(  2000, bm3core,  0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
-GAME(  2001, bm36th,   0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
-GAME(  2002, bm37th,   0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
-GAME(  2003, bm3final, 0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
+GAME(  2000, bm3,      0,      firebeat_spu2, bm3,  firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III", MACHINE_NOT_WORKING)
+GAME(  2000, bm3core,  0,      firebeat_spu2, bm3,  firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
+GAME(  2001, bm36th,   0,      firebeat_spu2, bm3,  firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
+GAME(  2002, bm37th,   0,      firebeat_spu2, bm3,  firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
+GAME(  2003, bm3final, 0,      firebeat_spu2, bm3,  firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
