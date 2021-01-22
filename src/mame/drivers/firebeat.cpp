@@ -247,6 +247,7 @@ private:
 	INTERRUPT_GEN_MEMBER(firebeat_interrupt);
 	uint32_t input_r(offs_t offset, uint32_t mem_mask = ~0);
 	uint32_t sensor_r(offs_t offset);
+	uint16_t beatmaniaio_r(offs_t offset);
 	DECLARE_WRITE_LINE_MEMBER(ata_interrupt);
 	uint32_t ata_command_r(offs_t offset, uint32_t mem_mask = ~0);
 	void ata_command_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
@@ -345,6 +346,24 @@ uint32_t firebeat_state::sensor_r(offs_t offset)
 	else
 	{
 		return ioport("SENSOR2")->read() | 0x01000100;
+	}
+}
+
+uint16_t firebeat_state::beatmaniaio_r(offs_t offset)
+{
+	printf("beatmaniaio_r: %d\n", offset);
+
+	switch (offset) {
+		case 1: case 2: ioport("TURNTABLE_P1")->read();
+		case 3: case 4: ioport("TURNTABLE_P2")->read();
+		case 5: return ioport("EFFECT1")->read();
+		case 6: return ioport("EFFECT2")->read();
+		case 7: return ioport("EFFECT3")->read();
+		case 8: return ioport("EFFECT4")->read();
+		case 9: return ioport("EFFECT5")->read();
+		case 10: return ioport("EFFECT6")->read();
+		case 11: return ioport("EFFECT7")->read();
+		default: return 0xffff;
 	}
 }
 
@@ -913,6 +932,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
 	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
+	map(0x7d000348, 0x7d00035f).r(FUNC(firebeat_state::beatmaniaio_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
@@ -1129,27 +1149,72 @@ static INPUT_PORTS_START(bm3)
 	PORT_INCLUDE( firebeat )
 
 	PORT_START("IN0")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Switch 1
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON2 )            // Switch 2
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON3 )            // Switch 3
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON4 )            // Switch 4
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON5 )            // Switch 5
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON6 )            // Switch 6
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON7 )            // Switch 7
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_BUTTON8 )            // IO check 1
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE)   PORT_NAME(DEF_STR(Test))            // Test
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service")            // Service
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE2 ) PORT_NAME("A")            // A
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_SERVICE3 ) PORT_NAME("B")            // B
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_BUTTON6 ) PORT_PLAYER(1)            // P1 Foot Pedal
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON6 ) PORT_PLAYER(2)            // P2 Foot Pedal
 
 	PORT_START("IN1")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON9 )            // Switch 9
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_UNKNOWN )
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN1 )              // Coin
-	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_UNKNOWN )
-	PORT_SERVICE_NO_TOGGLE( 0x10, IP_ACTIVE_LOW)            // Test
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SERVICE ) PORT_NAME("Service") PORT_CODE(KEYCODE_7)      // Service
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("IN2")
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )    /* Dip switches */
+	PORT_DIPUNKNOWN_DIPLOC( 0x01, IP_ACTIVE_LOW, "DIP SW:8" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x02, IP_ACTIVE_LOW, "DIP SW:7" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x04, IP_ACTIVE_LOW, "DIP SW:6" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x08, IP_ACTIVE_LOW, "DIP SW:5" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x10, IP_ACTIVE_LOW, "DIP SW:4" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x20, IP_ACTIVE_LOW, "DIP SW:3" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x40, IP_ACTIVE_LOW, "DIP SW:2" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "DIP SW:1" )
+
+	PORT_START("SENSOR1")
+	PORT_BIT( 0xffc0fffe, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x00000001, IP_ACTIVE_LOW, IPT_COIN1 ) // Coin sensor
+	PORT_BIT( 0x00010000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) // P1 Button 1
+	PORT_BIT( 0x00020000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) // P1 Button 2
+	PORT_BIT( 0x00040000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) // P1 Button 3
+	PORT_BIT( 0x00080000, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(1) // P1 Button 4
+	PORT_BIT( 0x00100000, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(1) // P1 Button 5
+	PORT_BIT( 0x00200000, IP_ACTIVE_LOW, IPT_START1 ) // P1 Start Button
+
+	PORT_START("SENSOR2")
+	PORT_BIT( 0xffc0ffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x00010000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2) // P2 Button 1
+	PORT_BIT( 0x00020000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2) // P2 Button 2
+	PORT_BIT( 0x00040000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2) // P2 Button 3
+	PORT_BIT( 0x00080000, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(2) // P2 Button 4
+	PORT_BIT( 0x00100000, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(2) // P2 Button 5
+	PORT_BIT( 0x00200000, IP_ACTIVE_LOW, IPT_START2 ) // P2 Start Button
+
+	PORT_START("TURNTABLE_P1")
+	PORT_BIT( 0xffff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(1) PORT_NAME("1P Table") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("TURNTABLE_P2")
+	PORT_BIT( 0xffff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(2) PORT_NAME("2P Table") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("EFFECT1")
+	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 1") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("EFFECT2")
+	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 2") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("EFFECT3")
+	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 3") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("EFFECT4")
+	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 4") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("EFFECT5")
+	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 5") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("EFFECT6")
+	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 5") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("EFFECT7")
+	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 5") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
 
 INPUT_PORTS_END
 
