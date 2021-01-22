@@ -94,10 +94,12 @@
     GQ977      GQA11          2000    Para Para Paradise 1st Mix+
     GQA02(?)   GQ986          2000    Pop'n Music 4
     ???        G?A04          2000    Pop'n Music 5
+    ???        GQ976          2000    Pop'n Music Mickey Tunes
+    ???        GQ976          2000    Pop'n Music Mickey Tunes!
     ???        GQA16          2001    Pop'n Music 6
     GQA02      GCB00          2001    Pop'n Music 7
     ???        GQB30          2002    Pop'n Music 8
-    ???        ?              2000    Pop'n Music Animelo
+    ???        GQ987          2000    Pop'n Music Animelo
     ???        GEA02          2001    Pop'n Music Animelo 2
     ???        ?              2001    Pop'n Music Mickey Tunes
 
@@ -191,7 +193,8 @@ public:
 		m_ata(*this, "ata"),
 		m_gcu(*this, "gcu%u", 0),
 		m_dpram(*this, "spuram"),
-		m_spuata(*this, "spu_ata")
+		m_spuata(*this, "spu_ata"),
+		m_waveram(*this, "rf5c400")
 	{ }
 
 	void firebeat2(machine_config &config);
@@ -201,6 +204,7 @@ public:
 	void init_ppd();
 	void init_kbm();
 	void init_ppp();
+	void init_popn();
 
 protected:
 	virtual void machine_start() override;
@@ -218,18 +222,22 @@ private:
 	optional_device_array<k057714_device, 2> m_gcu;
 	optional_device<cy7c131_device> m_dpram;
 	optional_device<ata_interface_device> m_spuata;
+	optional_shared_ptr<uint16_t> m_waveram;
 
 	uint8_t m_extend_board_irq_enable;
 	uint8_t m_extend_board_irq_active;
 //  emu_timer *m_keyboard_timer;
 	int m_layer;
-	int m_cab_data_ptr;
 	const int * m_cur_cab_data;
 //  int m_keyboard_state[2];
 	IBUTTON m_ibutton;
 	int m_ibutton_state;
 	int m_ibutton_read_subkey_ptr;
 	uint8_t m_ibutton_subkey_data[0x40];
+
+	uint32_t m_spu_ata_dma;
+	int m_spu_ata_dmarq;
+	uint32_t m_wave_bank;
 
 	uint32_t screen_update_firebeat_0(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	uint32_t screen_update_firebeat_1(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -259,10 +267,14 @@ private:
 	uint16_t spu_unk_r();
 	void spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void spu_220000_w(uint16_t data);
-	void spu_sdram_bank_w(uint16_t data);
+	void spu_ata_dma_low_w(uint16_t data);
+	void spu_ata_dma_high_w(uint16_t data);
+	void spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t firebeat_waveram_r(offs_t offset);
+	void firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
+	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
 //  TIMER_CALLBACK_MEMBER(keyboard_timer_callback);
-	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
 	void set_ibutton(uint8_t *data);
 	int ibutton_w(uint8_t data);
 	void security_w(uint8_t data);
@@ -280,6 +292,7 @@ private:
 	void firebeat2_map(address_map &map);
 	void spu_map(address_map &map);
 	void ymz280b_map(address_map &map);
+	void rf5c400_map(address_map& map);
 };
 
 
@@ -303,6 +316,10 @@ uint32_t firebeat_state::input_r(offs_t offset, uint32_t mem_mask)
 	if (ACCESSING_BITS_24_31)
 	{
 		r |= (ioport("IN0")->read() & 0xff) << 24;
+	}
+	if (ACCESSING_BITS_16_23)
+	{
+		r |= (ioport("IN3")->read() & 0xff) << 16;
 	}
 	if (ACCESSING_BITS_8_15)
 	{
@@ -449,26 +466,32 @@ static void comm_uart_irq_callback(running_machine &machine, int channel, int va
 
 /*****************************************************************************/
 
-static const int cab_data[2] = { 0x0, 0x8 };
-static const int kbm_cab_data[2] = { 0x2, 0x8 };
-static const int ppd_cab_data[2] = { 0x1, 0x9 };
+static const int cab_data[3] = { 0, 0, 0 };
+static const int kbm_cab_data[3] = { 2, 0, 0 };
+static const int ppd_cab_data[3] = { 1, 0, 0 };
+static const int ppp_cab_data[3] = { 8, 0, 0 };
 
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
-	uint32_t r = 0;
-
 //  printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
 
 	switch (offset)
 	{
 		case 0:
 		{
-			r = m_cur_cab_data[m_cab_data_ptr & 1] << 28;
-			m_cab_data_ptr++;
-			return r;
+			// Based on pop'n music's code
+			// m_cur_cab_data:
+			//     0x00: -------x Cabinet Region (0 = Japanese, 1 = Overseas)
+			//     0x00: -----xx- Rental?
+			// For Mickey Tunes (and others maybe?), the 4th byte of the dongle serial must correspond to the above cabinet region/type
+			return m_cur_cab_data[0] << 28;
 		}
-		case 2:     return 0x00000000;
-		case 4:     return 0x00000000;
+
+		case 2:
+			return m_cur_cab_data[1] << 28;
+
+		case 4:
+			return m_cur_cab_data[2] << 28;
 	}
 
 	return 0;
@@ -787,6 +810,7 @@ uint16_t firebeat_state::spu_unk_r()
 	uint16_t r = 0;
 	r |= 0x80;      // if set, uses ATA PIO mode, otherwise DMA
 	r |= 0x01;      // enable SDRAM test
+	r |= 0x02;      // Fixes sound effects not playing
 
 	return r;
 }
@@ -799,6 +823,8 @@ void firebeat_state::spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_ma
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
 		if (data & 0x02)
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ2, CLEAR_LINE);
+		if (data & 0x04)
+			m_audiocpu->set_input_line(INPUT_LINE_IRQ4, CLEAR_LINE);
 		if (data & 0x08)
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ6, CLEAR_LINE);
 	}
@@ -809,18 +835,57 @@ void firebeat_state::spu_220000_w(uint16_t data)
 	// IRQ2 handler 5 sets all bits
 }
 
-void firebeat_state::spu_sdram_bank_w(uint16_t data)
+void firebeat_state::spu_ata_dma_low_w(uint16_t data)
 {
+	m_spu_ata_dma = (m_spu_ata_dma & ~0xffff) | data;
+}
+
+void firebeat_state::spu_ata_dma_high_w(uint16_t data)
+{
+	m_spu_ata_dma = (m_spu_ata_dma & 0xffff) | ((uint32_t)data << 16);
+}
+
+void firebeat_state::spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	m_wave_bank = data * (4 * 1024 * 1024);
+}
+
+uint16_t firebeat_state::firebeat_waveram_r(offs_t offset)
+{
+	return m_waveram[offset + m_wave_bank];
+}
+
+void firebeat_state::firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	COMBINE_DATA(&m_waveram[offset + m_wave_bank]);
+}
+
+
+WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
+{
+	if (m_spuata != nullptr && m_spu_ata_dmarq != state)
+	{
+		m_spu_ata_dmarq = state;
+
+		if (m_spu_ata_dmarq)
+		{
+			m_spuata->write_dmack(ASSERT_LINE);
+
+			while (m_spu_ata_dmarq)
+			{
+				uint16_t data = m_spuata->read_dma();
+				m_waveram[m_wave_bank+m_spu_ata_dma] = data;
+				m_spu_ata_dma++;
+			}
+
+			m_spuata->write_dmack(CLEAR_LINE);
+		}
+	}
 }
 
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_interrupt)
 {
 	m_audiocpu->set_input_line(INPUT_LINE_IRQ6, state);
-}
-
-TIMER_DEVICE_CALLBACK_MEMBER(firebeat_state::spu_timer_callback)
-{
-	m_audiocpu->set_input_line(INPUT_LINE_IRQ2, ASSERT_LINE);
 }
 
 /*****************************************************************************/
@@ -877,13 +942,14 @@ void firebeat_state::spu_map(address_map &map)
 	map(0x200000, 0x200001).r(FUNC(firebeat_state::spu_unk_r));
 	map(0x220000, 0x220001).w(FUNC(firebeat_state::spu_220000_w));
 	map(0x230000, 0x230001).w(FUNC(firebeat_state::spu_irq_ack_w));
-	map(0x260000, 0x260001).w(FUNC(firebeat_state::spu_sdram_bank_w));
+	map(0x240000, 0x240003).w(FUNC(firebeat_state::spu_ata_dma_low_w)).nopr();
+	map(0x250000, 0x250003).w(FUNC(firebeat_state::spu_ata_dma_high_w)).nopr();
+	map(0x260000, 0x260001).w(FUNC(firebeat_state::spu_wavebank_w)).nopr();
 	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
 	map(0x300000, 0x30000f).rw(m_spuata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x340000, 0x34000f).rw(m_spuata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
 	map(0x400000, 0x400fff).rw("rf5c400", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
-	map(0x800000, 0x83ffff).ram();         // SDRAM
-	map(0xfc0000, 0xffffff).ram();         // SDRAM
+	map(0x800000, 0xffffff).rw(FUNC(firebeat_state::firebeat_waveram_r), FUNC(firebeat_state::firebeat_waveram_w));
 }
 
 void firebeat_state::ymz280b_map(address_map &map)
@@ -893,13 +959,26 @@ void firebeat_state::ymz280b_map(address_map &map)
 	map(0x200000, 0x3fffff).r("flash_snd2", FUNC(fujitsu_29f016a_device::read));
 }
 
+void firebeat_state::rf5c400_map(address_map& map)
+{
+	map(0x0000000, 0x1ffffff).ram().share("rf5c400");
+}
+
 /*****************************************************************************/
 
 WRITE_LINE_MEMBER(firebeat_state::sound_irq_callback)
 {
 }
 
+static INPUT_PORTS_START( firebeat )
+	PORT_START("IN3")
+	PORT_BIT( 0x03, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Fixes "FLASH RAM DATA ERROR" in some games (Mickey Tunes)
+	PORT_BIT( 0xfc, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+INPUT_PORTS_END
+
 static INPUT_PORTS_START(ppp)
+	PORT_INCLUDE( firebeat )
+
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Left
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON2 )            // Right
@@ -907,7 +986,8 @@ static INPUT_PORTS_START(ppp)
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_SERVICE ) PORT_NAME("Service") PORT_CODE(KEYCODE_7)      // Service
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN1 )              // Coin
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_START1 )             // Start / Ok
-	PORT_BIT( 0xc0, IP_ACTIVE_HIGH, IPT_UNUSED )
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )             // Fixes booting in PPP with certain dongle types
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNUSED )
 
 	PORT_START("IN1")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -933,6 +1013,8 @@ static INPUT_PORTS_START(ppp)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(kbm)
+	PORT_INCLUDE( firebeat )
+
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1 )             // Start P1
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_START2 )             // Start P2
@@ -943,7 +1025,8 @@ static INPUT_PORTS_START(kbm)
 
 	PORT_START("IN1")
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_UNKNOWN )           // e-Amusement
-	PORT_BIT( 0xfe, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )            // e-Amusement (Keyboardmania)
+	PORT_BIT( 0xde, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("IN2")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )    /* Dip switches */
@@ -1010,6 +1093,8 @@ static INPUT_PORTS_START(kbm)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(popn)
+	PORT_INCLUDE( firebeat )
+
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Switch 1
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON2 )            // Switch 2
@@ -1060,6 +1145,42 @@ WRITE_LINE_MEMBER(firebeat_state::gcu1_interrupt)
 void firebeat_state::machine_reset()
 {
 	m_layer = 0;
+
+	m_spu_ata_dma = 0;
+	m_spu_ata_dmarq = 0;
+	m_wave_bank = 0;
+
+	if (m_spuata == nullptr) {
+		return;
+	}
+
+	ata_slot_device *spuata = m_spuata->subdevice<ata_slot_device>("0");
+	if (spuata == nullptr) {
+		return;
+	}
+
+	atapi_cdrom_device *spucdrom = spuata->subdevice<atapi_cdrom_device>("cdrom");
+	if (spucdrom == nullptr) {
+		return;
+	}
+
+	uint16_t *identify_device = spucdrom->identify_device_buffer();
+	if (identify_device == nullptr) {
+		return;
+	}
+
+	// HACK: This bypasses a whole slew of DMA recursion issues in the CD-ROM device.
+	// Calling read_dma on ATAPI CD-ROM devices without Ultra DMA will lead to recursion.
+	// The reason Ultra DMA fixes the issue is because atapi_hle_device::fill_buffer is called based on a timer
+	// instead of immediately after marking the buffer as empty like non-Ultra DMA modes do
+	// (see: ata_hle_device::read_buffer_empty).
+	// The call to atapi_hle_device::fill_buffer will immediately call set_dmarq(ASSERT_LINE) which is the point
+	// where it recurses back into spu_ata_dmarq. Without the timer the code that called read_dma never gets a
+	// chance to properly clean up and write the last byte.
+	// When coming out of the recursion, the last data read before recusing gets written to the end of the buffer
+	// causing glitching in audio.
+	// pop'n music easily causes stack overflows due to large DMA requests depending on DMA mode.
+	identify_device[88] = 0x0102;
 }
 
 WRITE_LINE_MEMBER( firebeat_state::ata_interrupt )
@@ -1105,8 +1226,8 @@ void firebeat_state::firebeat(machine_config &config)
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
-	screen.set_size(640, 480);
-	screen.set_visarea(0, 639, 0, 479);
+	screen.set_size(512, 384);
+	screen.set_visarea(0, 511, 0, 383);
 	screen.set_screen_update(FUNC(firebeat_state::screen_update_firebeat_0));
 	screen.set_palette("palette");
 
@@ -1117,8 +1238,8 @@ void firebeat_state::firebeat(machine_config &config)
 	ymz280b_device &ymz(YMZ280B(config, "ymz", 16934400));
 	ymz.irq_handler().set(FUNC(firebeat_state::sound_irq_callback));
 	ymz.set_addrmap(0, &firebeat_state::ymz280b_map);
-	ymz.add_route(0, "lspeaker", 1.0);
-	ymz.add_route(1, "rspeaker", 1.0);
+	ymz.add_route(1, "lspeaker", 1.0);
+	ymz.add_route(0, "rspeaker", 1.0);
 
 	PC16552D(config, "duart_com", 0);  // pgmd to 9600baud
 	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
@@ -1159,16 +1280,16 @@ void firebeat_state::firebeat2(machine_config &config)
 	screen_device &lscreen(SCREEN(config, "lscreen", SCREEN_TYPE_RASTER));
 	lscreen.set_refresh_hz(60);
 	lscreen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
-	lscreen.set_size(640, 480);
-	lscreen.set_visarea(0, 639, 0, 479);
+	lscreen.set_size(512, 384);
+	lscreen.set_visarea(0, 511, 0, 383);
 	lscreen.set_screen_update(FUNC(firebeat_state::screen_update_firebeat_0));
 	lscreen.set_palette("palette");
 
 	screen_device &rscreen(SCREEN(config, "rscreen", SCREEN_TYPE_RASTER));
 	rscreen.set_refresh_hz(60);
 	rscreen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
-	rscreen.set_size(640, 480);
-	rscreen.set_visarea(0, 639, 0, 479);
+	rscreen.set_size(512, 384);
+	rscreen.set_visarea(0, 511, 0, 383);
 	rscreen.set_screen_update(FUNC(firebeat_state::screen_update_firebeat_1));
 	rscreen.set_palette("palette");
 
@@ -1179,8 +1300,8 @@ void firebeat_state::firebeat2(machine_config &config)
 	ymz280b_device &ymz(YMZ280B(config, "ymz", 16934400));
 	ymz.irq_handler().set(FUNC(firebeat_state::sound_irq_callback));
 	ymz.set_addrmap(0, &firebeat_state::ymz280b_map);
-	ymz.add_route(0, "lspeaker", 1.0);
-	ymz.add_route(1, "rspeaker", 1.0);
+	ymz.add_route(1, "lspeaker", 1.0);
+	ymz.add_route(0, "rspeaker", 1.0);
 
 	PC16552D(config, "duart_com", 0);
 	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
@@ -1204,19 +1325,20 @@ void firebeat_state::firebeat_spu(machine_config &config)
 
 	M68000(config, m_audiocpu, 16000000);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &firebeat_state::spu_map);
+	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(500)); // Changes the duration of the audio playback
 
 	CY7C131(config, m_dpram);
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
 	m_dpram->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ3); // address 0x3ff triggers PPC interrupt
 
-	TIMER(config, "sputimer").configure_periodic(FUNC(firebeat_state::spu_timer_callback), attotime::from_hz(1000));
-
 	rf5c400_device &rf5c400(RF5C400(config, "rf5c400", XTAL(16'934'400)));
+	rf5c400.set_addrmap(0, &firebeat_state::rf5c400_map);
 	rf5c400.add_route(0, "lspeaker", 0.5);
 	rf5c400.add_route(1, "rspeaker", 0.5);
 
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
+	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
 }
 
 /*****************************************************************************/
@@ -1400,6 +1522,14 @@ void firebeat_state::init_ppp()
 {
 	init_firebeat();
 	init_lights(write32s_delegate(*this, FUNC(firebeat_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output3_ppp_w)));
+
+	m_cur_cab_data = ppp_cab_data;
+}
+
+void firebeat_state::init_popn()
+{
+	init_firebeat();
+	init_lights(write32s_delegate(*this, FUNC(firebeat_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_state::lamp_output3_ppp_w)));
 }
 
 void firebeat_state::init_ppd()
@@ -1510,8 +1640,6 @@ ROM_START( popn4 )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gq986jaa01", 0, SHA1(e5368ac029b0bdf29943ae66677b5521ae1176e1) )
 
@@ -1529,13 +1657,51 @@ ROM_START( popn5 )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP( "a02jaa04.3q",  0x000000, 0x080000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683) )
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a04jaa01", 0, SHA1(87136ddad1d786b4d5f04381fcbf679ab666e6c9) )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "a04jaa02", 0, SHA1(49a017dde76f84829f6e99a678524c40665c3bfd) )
+ROM_END
+
+ROM_START( popnmt )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP( "a02jaa03.21e", 0x000000, 0x080000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599) )
+
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD("gq976-ja.bin", 0x00, 0xc0, CRC(f03cae1f) SHA1(2307952b383bab541d967a80ca17e5a11c9cf3db) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP( "a02jaa04.3q",  0x000000, 0x080000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683) )
+
+	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "976jaa01", 0, NO_DUMP )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, NO_DUMP )
+ROM_END
+
+
+ROM_START( popnmt2 )
+	// This is an updated version of popnmt released a few months later which has NET@MANIA
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP( "a02jaa03.21e", 0x000000, 0x080000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599) )
+
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD("gq976-ja.bin", 0x00, 0xc0, CRC(f03cae1f) SHA1(2307952b383bab541d967a80ca17e5a11c9cf3db) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP( "a02jaa04.3q",  0x000000, 0x080000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683) )
+
+	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "976jba01", 0, NO_DUMP )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, NO_DUMP )
 ROM_END
 
 ROM_START( popn6 )
@@ -1547,8 +1713,6 @@ ROM_START( popn6 )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqa16jaa01", 0, SHA1(7a7e475d06c74a273f821fdfde0743b33d566e4c) )
@@ -1567,8 +1731,6 @@ ROM_START( popn7 )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "b00jab01", 0, SHA1(259c733ca4d30281205b46b7bf8d60c9d01aa818) )
 
@@ -1586,13 +1748,30 @@ ROM_START( popn8 )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqb30jaa01", 0, SHA1(0ff3e40e3717ce23337b3a2438bdaca01cba9e30) )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "gqb30jaa02", 0, SHA1(f067d502c23efe0267aada5706f5bc7a54605942) )
+ROM_END
+
+ROM_START( popnanm )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
+
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD( "gq987-ja.bin", 0x000000, 0x0000c0, CRC(bf4f80d1) SHA1(615b694d5b11f7001db32000c967ebeb5cac5007) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+
+	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa01", 0, NO_DUMP )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa02", 0, NO_DUMP )
 ROM_END
 
 ROM_START( popnanm2 )
@@ -1604,8 +1783,6 @@ ROM_START( popnanm2 )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
@@ -1653,8 +1830,6 @@ ROM_START( bm3core )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a05jca01", 0, SHA1(b89eced8a1325b087e3f875d1a643bebe9bad5c0) )
 
@@ -1671,8 +1846,6 @@ ROM_START( bm36th )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a21jca01", 0, SHA1(d1b888379cc0b2c2ab58fa2c5be49258043c3ea1) )
@@ -1691,8 +1864,6 @@ ROM_START( bm37th )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcb07jca01", 0, SHA1(f906379bdebee314e2ca97c7756259c8c25897fd) )
 
@@ -1710,8 +1881,6 @@ ROM_START( bm3final )
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
 	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
 
-	ROM_REGION16_LE(0x1000000, "rf5c400", ROMREGION_ERASE00)
-
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcc01jca01", 0, SHA1(3e7af83670d791591ad838823422959987f7aab9) )
 
@@ -1724,20 +1893,23 @@ ROM_END
 
 /*****************************************************************************/
 
-GAME(  2000, ppp,      0,   firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise", MACHINE_NOT_WORKING)
-GAME(  2000, ppd,      0,   firebeat,     ppp,  firebeat_state, init_ppd, ROT0,   "Konami",  "ParaParaDancing", MACHINE_NOT_WORKING)
-GAME(  2000, ppp11,    0,   firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise v1.1", MACHINE_NOT_WORKING)
-GAME(  2000, ppp1mp,   ppp, firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise 1st Mix Plus", MACHINE_NOT_WORKING)
-GAMEL( 2000, kbm,      0,   firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania", MACHINE_NOT_WORKING, layout_firebeat)
-GAMEL( 2000, kbm2nd,   0,   firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 2nd Mix", MACHINE_NOT_WORKING, layout_firebeat)
-GAMEL( 2001, kbm3rd,   0,   firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 3rd Mix", MACHINE_NOT_WORKING, layout_firebeat)
-GAME(  2000, popn4,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 4", MACHINE_NOT_WORKING)
-GAME(  2000, popn5,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 5", MACHINE_NOT_WORKING)
-GAME(  2001, popn6,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 6", MACHINE_NOT_WORKING)
-GAME(  2001, popn7,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 7", MACHINE_NOT_WORKING)
-GAME(  2001, popnanm2, 0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
-GAME(  2002, popn8,    0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Pop'n Music 8", MACHINE_NOT_WORKING)
-GAME(  2000, bm3core,  0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
-GAME(  2001, bm36th,   0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
-GAME(  2002, bm37th,   0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
-GAME(  2003, bm3final, 0,   firebeat_spu, popn, firebeat_state, init_ppp, ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
+GAME(  2000, ppp,      0,      firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise", MACHINE_NOT_WORKING)
+GAME(  2000, ppd,      0,      firebeat,     ppp,  firebeat_state, init_ppd, ROT0,   "Konami",  "ParaParaDancing", MACHINE_NOT_WORKING)
+GAME(  2000, ppp11,    0,      firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise v1.1", MACHINE_NOT_WORKING)
+GAME(  2000, ppp1mp,   ppp,    firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise 1st Mix Plus", MACHINE_NOT_WORKING)
+GAMEL( 2000, kbm,      0,      firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania", MACHINE_NOT_WORKING, layout_firebeat)
+GAMEL( 2000, kbm2nd,   0,      firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 2nd Mix", MACHINE_NOT_WORKING, layout_firebeat)
+GAMEL( 2001, kbm3rd,   0,      firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 3rd Mix", MACHINE_NOT_WORKING, layout_firebeat)
+GAME(  2000, popn4,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 4", MACHINE_NOT_WORKING)
+GAME(  2000, popn5,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 5", MACHINE_NOT_WORKING)
+GAME(  2000, popnmt,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Mickey Tunes", MACHINE_NOT_WORKING)
+GAME(  2000, popnmt2,  popnmt, firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Mickey Tunes!", MACHINE_NOT_WORKING)
+GAME(  2000, popnanm,  0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo", MACHINE_NOT_WORKING)
+GAME(  2001, popn6,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 6", MACHINE_NOT_WORKING)
+GAME(  2001, popn7,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 7", MACHINE_NOT_WORKING)
+GAME(  2001, popnanm2, 0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
+GAME(  2002, popn8,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 8", MACHINE_NOT_WORKING)
+GAME(  2000, bm3core,  0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
+GAME(  2001, bm36th,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
+GAME(  2002, bm37th,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
+GAME(  2003, bm3final, 0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
