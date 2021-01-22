@@ -1819,15 +1819,32 @@ ROM_START( ppp11 )
 ROM_END
 
 // Beatmania III has a different BIOS and SPU program, and they aren't dumped yet
+ROM_START( bm3 )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("972maina01.21e", 0x00000, 0x80000, CRC(9de35bfd) SHA1(57290e0015ea24fa46efdfe1e8299003b7754a3b))
+
+	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD( "gq972-jc", 0x000000, 0x0000c8, NO_DUMP )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("972spua01.3q", 0x00000, 0x80000, CRC(308dbcff) SHA1(87d11eb3e28cb4f3a8f88e3c57a28809dc429ccd))
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "a05jca01", 0, NO_DUMP )
+
+	DISK_REGION( "spu_ata:0:hdd:image" ) // HDD
+	DISK_IMAGE_READONLY( "a05jca02", 0, NO_DUMP )
+ROM_END
+
 ROM_START( bm3core )
 	ROM_REGION32_BE(0x80000, "user1", 0)
-	ROM_LOAD16_WORD_SWAP("974a03.21e", 0x00000, 0x80000, BAD_DUMP CRC(ef9a932d) SHA1(6299d3b9823605e519dbf1f105b59a09197df72f))     // boots with KBM BIOS
+	ROM_LOAD16_WORD_SWAP("972maina01.21e", 0x00000, 0x80000, CRC(9de35bfd) SHA1(57290e0015ea24fa46efdfe1e8299003b7754a3b))
 
 	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
 	ROM_LOAD( "gca05-jc.bin", 0x00, 0xc8, CRC(a4c67c80) SHA1(a87609052fa879116350564353df7f5b70ef3ae5) )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
-	ROM_LOAD16_WORD_SWAP("a01jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+	ROM_LOAD16_WORD_SWAP("972spua01.3q", 0x00000, 0x80000, CRC(308dbcff) SHA1(87d11eb3e28cb4f3a8f88e3c57a28809dc429ccd))
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a05jca01", 0, SHA1(b89eced8a1325b087e3f875d1a643bebe9bad5c0) )
@@ -1838,13 +1855,13 @@ ROM_END
 
 ROM_START( bm36th )
 	ROM_REGION32_BE(0x80000, "user1", 0)
-	ROM_LOAD16_WORD_SWAP("974a03.21e", 0x00000, 0x80000, BAD_DUMP CRC(ef9a932d) SHA1(6299d3b9823605e519dbf1f105b59a09197df72f))     // boots with KBM BIOS
+	ROM_LOAD16_WORD_SWAP("972maina01.21e", 0x00000, 0x80000, CRC(9de35bfd) SHA1(57290e0015ea24fa46efdfe1e8299003b7754a3b))
 
 	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
 	ROM_LOAD( "gca21-jc", 0x000000, 0x0000c8, NO_DUMP )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
-	ROM_LOAD16_WORD_SWAP("a03jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+	ROM_LOAD16_WORD_SWAP("a21jca03.3q", 0x00000, 0x80000, CRC(98ea367a) SHA1(f0b72bdfbba4d265e7b08d606cd82424947d97b9))
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a21jca01", 0, SHA1(d1b888379cc0b2c2ab58fa2c5be49258043c3ea1) )
@@ -1855,13 +1872,13 @@ ROM_END
 
 ROM_START( bm37th )
 	ROM_REGION32_BE(0x80000, "user1", 0)
-	ROM_LOAD16_WORD_SWAP("974a03.21e", 0x00000, 0x80000, BAD_DUMP CRC(ef9a932d) SHA1(6299d3b9823605e519dbf1f105b59a09197df72f))     // boots with KBM BIOS
+	ROM_LOAD16_WORD_SWAP("972maina01.21e", 0x00000, 0x80000, CRC(9de35bfd) SHA1(57290e0015ea24fa46efdfe1e8299003b7754a3b))
 
 	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
-	ROM_LOAD( "gcb07-jc", 0x000000, 0x0000c0, CRC(16115b6a) SHA1(dcb2a3346973941a946b2cdfd31a5a761f666ca3) )
+	ROM_LOAD( "gcb07-jc", 0x000000, 0x0000c0, BAD_DUMP CRC(16115b6a) SHA1(dcb2a3346973941a946b2cdfd31a5a761f666ca3) )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
-	ROM_LOAD16_WORD_SWAP("a03jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+	ROM_LOAD16_WORD_SWAP("a21jca03.3q", 0x00000, 0x80000, CRC(98ea367a) SHA1(f0b72bdfbba4d265e7b08d606cd82424947d97b9))
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcb07jca01", 0, SHA1(f906379bdebee314e2ca97c7756259c8c25897fd) )
@@ -1872,13 +1889,13 @@ ROM_END
 
 ROM_START( bm3final )
 	ROM_REGION32_BE(0x80000, "user1", 0)
-	ROM_LOAD16_WORD_SWAP("974a03.21e", 0x00000, 0x80000, BAD_DUMP CRC(ef9a932d) SHA1(6299d3b9823605e519dbf1f105b59a09197df72f))     // boots with KBM BIOS
+	ROM_LOAD16_WORD_SWAP("972maina01.21e", 0x00000, 0x80000, CRC(9de35bfd) SHA1(57290e0015ea24fa46efdfe1e8299003b7754a3b))
 
 	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
-	ROM_LOAD( "gcc01-jc", 0x000000, 0x0000c0, CRC(9c49fed8) SHA1(212b87c1d25763117611ffb2a36ed568d429d2f4) )
+	ROM_LOAD( "gcc01-jc", 0x000000, 0x0000c0, BAD_DUMP CRC(9c49fed8) SHA1(212b87c1d25763117611ffb2a36ed568d429d2f4) )
 
 	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
-	ROM_LOAD16_WORD_SWAP("a03jaa04.3q", 0x00000, 0x80000, BAD_DUMP CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+	ROM_LOAD16_WORD_SWAP("a21jca03.3q", 0x00000, 0x80000, CRC(98ea367a) SHA1(f0b72bdfbba4d265e7b08d606cd82424947d97b9))
 
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcc01jca01", 0, SHA1(3e7af83670d791591ad838823422959987f7aab9) )
@@ -1908,6 +1925,7 @@ GAME(  2001, popn6,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT
 GAME(  2001, popn7,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 7", MACHINE_NOT_WORKING)
 GAME(  2001, popnanm2, 0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
 GAME(  2002, popn8,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 8", MACHINE_NOT_WORKING)
+GAME(  2000, bm3,      0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III", MACHINE_NOT_WORKING)
 GAME(  2000, bm3core,  0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
 GAME(  2001, bm36th,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
 GAME(  2002, bm37th,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
