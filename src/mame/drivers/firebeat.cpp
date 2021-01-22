@@ -141,6 +141,7 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 
 #include "bus/ata/ataintf.h"
 #include "bus/ata/atapicdr.h"
+#include "bus/ata/idehd.h"
 #include "cpu/m68000/m68000.h"
 #include "cpu/powerpc/ppc.h"
 #include "machine/ins8250.h"
@@ -198,7 +199,10 @@ public:
 
 	void firebeat2(machine_config &config);
 	void firebeat(machine_config &config);
+
+	void firebeat_spu_base(machine_config &config);
 	void firebeat_spu(machine_config &config);
+	void firebeat_spu2(machine_config &config);
 
 	void init_ppd();
 	void init_kbm();
@@ -1197,6 +1201,7 @@ void firebeat_state::cdrom_config(device_t *device)
 static void firebeat_ata_devices(device_slot_interface &device)
 {
 	device.option_add("cdrom", ATAPI_FIXED_CDROM);
+	device.option_add("hdd", IDE_HARDDISK);
 }
 
 void firebeat_state::firebeat(machine_config &config)
@@ -1315,7 +1320,7 @@ void firebeat_state::firebeat2(machine_config &config)
 	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
 }
 
-void firebeat_state::firebeat_spu(machine_config &config)
+void firebeat_state::firebeat_spu_base(machine_config &config)
 {
 	firebeat(config);
 
@@ -1334,8 +1339,22 @@ void firebeat_state::firebeat_spu(machine_config &config)
 	rf5c400.set_addrmap(0, &firebeat_state::rf5c400_map);
 	rf5c400.add_route(0, "lspeaker", 0.5);
 	rf5c400.add_route(1, "rspeaker", 0.5);
+}
 
-	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", nullptr, true);
+void firebeat_state::firebeat_spu(machine_config &config)
+{
+	firebeat_spu_base(config);
+
+	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", "hdd", true);
+	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
+	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
+}
+
+void firebeat_state::firebeat_spu2(machine_config &config)
+{
+	firebeat_spu_base(config);
+
+	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "hdd", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
 }
@@ -1909,24 +1928,24 @@ ROM_END
 
 /*****************************************************************************/
 
-GAME(  2000, ppp,      0,      firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise", MACHINE_NOT_WORKING)
-GAME(  2000, ppd,      0,      firebeat,     ppp,  firebeat_state, init_ppd, ROT0,   "Konami",  "ParaParaDancing", MACHINE_NOT_WORKING)
-GAME(  2000, ppp11,    0,      firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise v1.1", MACHINE_NOT_WORKING)
-GAME(  2000, ppp1mp,   ppp,    firebeat,     ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise 1st Mix Plus", MACHINE_NOT_WORKING)
-GAMEL( 2000, kbm,      0,      firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania", MACHINE_NOT_WORKING, layout_firebeat)
-GAMEL( 2000, kbm2nd,   0,      firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 2nd Mix", MACHINE_NOT_WORKING, layout_firebeat)
-GAMEL( 2001, kbm3rd,   0,      firebeat2,    kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 3rd Mix", MACHINE_NOT_WORKING, layout_firebeat)
-GAME(  2000, popn4,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 4", MACHINE_NOT_WORKING)
-GAME(  2000, popn5,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 5", MACHINE_NOT_WORKING)
-GAME(  2000, popnmt,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Mickey Tunes", MACHINE_NOT_WORKING)
-GAME(  2000, popnmt2,  popnmt, firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Mickey Tunes!", MACHINE_NOT_WORKING)
-GAME(  2000, popnanm,  0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo", MACHINE_NOT_WORKING)
-GAME(  2001, popn6,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 6", MACHINE_NOT_WORKING)
-GAME(  2001, popn7,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 7", MACHINE_NOT_WORKING)
-GAME(  2001, popnanm2, 0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
-GAME(  2002, popn8,    0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 8", MACHINE_NOT_WORKING)
-GAME(  2000, bm3,      0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III", MACHINE_NOT_WORKING)
-GAME(  2000, bm3core,  0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
-GAME(  2001, bm36th,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
-GAME(  2002, bm37th,   0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
-GAME(  2003, bm3final, 0,      firebeat_spu, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
+GAME(  2000, ppp,      0,      firebeat,      ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise", MACHINE_NOT_WORKING)
+GAME(  2000, ppd,      0,      firebeat,      ppp,  firebeat_state, init_ppd, ROT0,   "Konami",  "ParaParaDancing", MACHINE_NOT_WORKING)
+GAME(  2000, ppp11,    0,      firebeat,      ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise v1.1", MACHINE_NOT_WORKING)
+GAME(  2000, ppp1mp,   ppp,    firebeat,      ppp,  firebeat_state, init_ppp, ROT0,   "Konami",  "ParaParaParadise 1st Mix Plus", MACHINE_NOT_WORKING)
+GAMEL( 2000, kbm,      0,      firebeat2,     kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania", MACHINE_NOT_WORKING, layout_firebeat)
+GAMEL( 2000, kbm2nd,   0,      firebeat2,     kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 2nd Mix", MACHINE_NOT_WORKING, layout_firebeat)
+GAMEL( 2001, kbm3rd,   0,      firebeat2,     kbm,  firebeat_state, init_kbm, ROT270, "Konami",  "Keyboardmania 3rd Mix", MACHINE_NOT_WORKING, layout_firebeat)
+GAME(  2000, popn4,    0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 4", MACHINE_NOT_WORKING)
+GAME(  2000, popn5,    0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 5", MACHINE_NOT_WORKING)
+GAME(  2000, popnmt,   0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Mickey Tunes", MACHINE_NOT_WORKING)
+GAME(  2000, popnmt2,  popnmt, firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Mickey Tunes!", MACHINE_NOT_WORKING)
+GAME(  2000, popnanm,  0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo", MACHINE_NOT_WORKING)
+GAME(  2001, popn6,    0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 6", MACHINE_NOT_WORKING)
+GAME(  2001, popn7,    0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 7", MACHINE_NOT_WORKING)
+GAME(  2001, popnanm2, 0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
+GAME(  2002, popn8,    0,      firebeat_spu,  popn, firebeat_state, init_popn,ROT0,   "Konami",  "Pop'n Music 8", MACHINE_NOT_WORKING)
+GAME(  2000, bm3,      0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III", MACHINE_NOT_WORKING)
+GAME(  2000, bm3core,  0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
+GAME(  2001, bm36th,   0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
+GAME(  2002, bm37th,   0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
+GAME(  2003, bm3final, 0,      firebeat_spu2, popn, firebeat_state, init_popn,ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
