@@ -1344,14 +1344,13 @@ void firebeat_state::firebeat_spu(machine_config &config)
 /*****************************************************************************/
 /* Security dongle is a Dallas DS1411 RS232 Adapter with a DS1991 Multikey iButton */
 
-/* popn7 supports 9 different dongles:
+/* popn7 supports 8 different dongles:
    - Manufacture
    - Service
    - Event
    - Oversea
    - No Hardware
    - Rental
-   - Dummy
    - Debug
    - Normal
 */
