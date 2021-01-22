@@ -71,8 +71,8 @@ void k057714_device::device_start()
 
 void k057714_device::device_reset()
 {
-	m_display_width = 0;
-	m_display_height = 0;
+	m_display_width = 639;
+	m_display_height = 479;
 
 	m_vram_read_addr = 0;
 	m_command_fifo0_ptr = 0;
