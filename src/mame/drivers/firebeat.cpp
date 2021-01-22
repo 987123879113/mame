@@ -264,6 +264,7 @@ private:
 	void lamp_output2_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output3_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output3_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	uint16_t spu_unk_r();
 	void spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void spu_220000_w(uint16_t data);
 	void spu_ata_dma_low_w(uint16_t data);
@@ -802,6 +803,18 @@ void firebeat_state::lamp_output3_ppp_w(offs_t offset, uint32_t data, uint32_t m
     IRQ6: ATA
 */
 
+uint16_t firebeat_state::spu_unk_r()
+{
+	// dipswitches?
+
+	uint16_t r = 0;
+	r |= 0x80;      // if set, uses ATA PIO mode, otherwise DMA
+	r |= 0x01;      // enable SDRAM test
+	r |= 0x02;      // Fixes sound effects not playing
+
+	return r;
+}
+
 void firebeat_state::spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
@@ -926,7 +939,7 @@ void firebeat_state::spu_map(address_map &map)
 {
 	map(0x000000, 0x07ffff).rom();
 	map(0x100000, 0x13ffff).ram();
-	map(0x200000, 0x200001).portr("SPU_DSW");
+	map(0x200000, 0x200001).r(FUNC(firebeat_state::spu_unk_r));
 	map(0x220000, 0x220001).w(FUNC(firebeat_state::spu_220000_w));
 	map(0x230000, 0x230001).w(FUNC(firebeat_state::spu_irq_ack_w));
 	map(0x240000, 0x240003).w(FUNC(firebeat_state::spu_ata_dma_low_w)).nopr();
@@ -961,11 +974,6 @@ static INPUT_PORTS_START( firebeat )
 	PORT_START("IN3")
 	PORT_BIT( 0x03, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Fixes "FLASH RAM DATA ERROR" in some games (Mickey Tunes)
 	PORT_BIT( 0xfc, IP_ACTIVE_HIGH, IPT_UNKNOWN )
-INPUT_PORTS_END
-
-static INPUT_PORTS_START( firebeat_spu )
-	PORT_START("SPU_DSW")
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START(ppp)
@@ -1086,7 +1094,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START(popn)
 	PORT_INCLUDE( firebeat )
-	PORT_INCLUDE( firebeat_spu )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Switch 1
