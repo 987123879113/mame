@@ -170,6 +170,7 @@ private:
 	void execute_source(int ref, const std::vector<std::string> &params);
 	void execute_map(int ref, const std::vector<std::string> &params);
 	void execute_memdump(int ref, const std::vector<std::string> &params);
+	void execute_memlog(int ref, const std::vector<std::string> &params);
 	void execute_symlist(int ref, const std::vector<std::string> &params);
 	void execute_softreset(int ref, const std::vector<std::string> &params);
 	void execute_hardreset(int ref, const std::vector<std::string> &params);
