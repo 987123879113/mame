@@ -318,7 +318,7 @@ uint32_t firebeat_state::input_r(offs_t offset, uint32_t mem_mask)
 	}
 	if (ACCESSING_BITS_16_23)
 	{
-		r |= (ioport("FLASH_IN")->read() & 0xff) << 16;
+		r |= (ioport("IN3")->read() & 0xff) << 16;
 	}
 	if (ACCESSING_BITS_8_15)
 	{
@@ -958,7 +958,7 @@ WRITE_LINE_MEMBER(firebeat_state::sound_irq_callback)
 }
 
 static INPUT_PORTS_START( firebeat )
-	PORT_START("FLASH_IN")
+	PORT_START("IN3")
 	PORT_BIT( 0x03, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Fixes "FLASH RAM DATA ERROR" in some games (Mickey Tunes)
 	PORT_BIT( 0xfc, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 INPUT_PORTS_END
