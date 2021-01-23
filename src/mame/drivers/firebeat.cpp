@@ -1408,9 +1408,6 @@ void firebeat_state::firebeat_spu_base(machine_config &config)
 
 	M68000(config, m_audiocpu, 16000000);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &firebeat_state::spu_map);
-	// This isn't correct but it's required for sounds play. Adjusting the time will change the duration of the sound.
-	// More research is required to find a proper way to implement this.
-	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(500));
 
 	CY7C131(config, m_dpram);
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
@@ -1429,6 +1426,10 @@ void firebeat_state::firebeat_spu(machine_config &config)
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
+
+	// This isn't correct but it's required for sounds play. Adjusting the time will change the duration of the sound.
+	// More research is required to find a proper way to implement this.
+	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(500));
 }
 
 void firebeat_state::firebeat_spu_bm3(machine_config &config)
