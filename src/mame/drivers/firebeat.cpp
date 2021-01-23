@@ -246,8 +246,7 @@ private:
 	uint32_t screen_update_firebeat_1(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	INTERRUPT_GEN_MEMBER(firebeat_interrupt);
 	uint32_t input_r(offs_t offset, uint32_t mem_mask = ~0);
-	uint32_t sensor_r(offs_t offset);
-	uint16_t beatmaniaio_r(offs_t offset);
+	uint16_t sensor_r(offs_t offset);
 	DECLARE_WRITE_LINE_MEMBER(ata_interrupt);
 	uint32_t ata_command_r(offs_t offset, uint32_t mem_mask = ~0);
 	void ata_command_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
@@ -337,34 +336,30 @@ uint32_t firebeat_state::input_r(offs_t offset, uint32_t mem_mask)
 	return r;
 }
 
-uint32_t firebeat_state::sensor_r(offs_t offset)
+uint16_t firebeat_state::sensor_r(offs_t offset)
 {
-	if (offset == 0)
-	{
-		return ioport("SENSOR1")->read() | 0x01000100;
-	}
-	else
-	{
-		return ioport("SENSOR2")->read() | 0x01000100;
-	}
-}
-
-uint16_t firebeat_state::beatmaniaio_r(offs_t offset)
-{
-	printf("beatmaniaio_r: %d\n", offset);
-
 	switch (offset) {
-		case 1: case 2: ioport("TURNTABLE_P1")->read();
-		case 3: case 4: ioport("TURNTABLE_P2")->read();
-		case 5: return ioport("EFFECT1")->read();
-		case 6: return ioport("EFFECT2")->read();
-		case 7: return ioport("EFFECT3")->read();
-		case 8: return ioport("EFFECT4")->read();
-		case 9: return ioport("EFFECT5")->read();
-		case 10: return ioport("EFFECT6")->read();
-		case 11: return ioport("EFFECT7")->read();
-		default: return 0xffff;
+		// Used by ParaParaParadise and beatmania III
+		case 0: return ioport("SENSOR1")->read() | 0x0100;
+		case 1: return ioport("SENSOR2")->read() | 0x0100;
+		case 2: return ioport("SENSOR3")->read() | 0x0100;
+		case 3: return ioport("SENSOR4")->read() | 0x0100;
+
+		// Used by beatmania III
+		case 5: return (ioport("TURNTABLE_P1")->read() >> 8) | 0x0100;
+		case 6: return (ioport("TURNTABLE_P1")->read() & 0xff) | 0x0100;
+		case 7: return (ioport("TURNTABLE_P2")->read() >> 8) | 0x0100;
+		case 8: return (ioport("TURNTABLE_P2")->read() & 0xff) | 0x0100;
+		case 9: return ioport("EFFECT1")->read() | 0x0100;
+		case 10: return ioport("EFFECT2")->read() | 0x0100;
+		case 11: return ioport("EFFECT3")->read() | 0x0100;
+		case 12: return ioport("EFFECT4")->read() | 0x0100;
+		case 13: return ioport("EFFECT5")->read() | 0x0100;
+		case 14: return ioport("EFFECT6")->read() | 0x0100;
+		case 15: return ioport("EFFECT7")->read() | 0x0100;
 	}
+
+	return 0;
 }
 
 /*****************************************************************************/
@@ -931,8 +926,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
-	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
-	map(0x7d000348, 0x7d00035f).r(FUNC(firebeat_state::beatmaniaio_r));
+	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_state::sensor_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
@@ -1024,16 +1018,22 @@ static INPUT_PORTS_START(ppp)
 	// Sensors 15...23 are only used by the Korean version of PPP, which has 8 sensor bars
 
 	PORT_START("SENSOR1")
-	PORT_BIT( 0x00070000, IP_ACTIVE_HIGH, IPT_BUTTON3 )     // Sensor 0, 1, 2  (Sensor bar 1)
-	PORT_BIT( 0x00380000, IP_ACTIVE_HIGH, IPT_BUTTON4 )     // Sensor 3, 4, 5  (Sensor bar 2)
-	PORT_BIT( 0x00c00001, IP_ACTIVE_HIGH, IPT_BUTTON5 )     // Sensor 6, 7, 8  (Sensor bar 3)
-	PORT_BIT( 0x0000000e, IP_ACTIVE_HIGH, IPT_BUTTON6 )     // Sensor 9, 10,11 (Sensor bar 4)
+	PORT_BIT( 0x0007, IP_ACTIVE_HIGH, IPT_BUTTON3 )     // Sensor 0, 1, 2  (Sensor bar 1)
+	PORT_BIT( 0x0038, IP_ACTIVE_HIGH, IPT_BUTTON4 )     // Sensor 3, 4, 5  (Sensor bar 2)
+	PORT_BIT( 0x00c0, IP_ACTIVE_HIGH, IPT_BUTTON5 )     // Sensor 6, 7, 8  (Sensor bar 3)
 
 	PORT_START("SENSOR2")
-	PORT_BIT( 0x00070000, IP_ACTIVE_HIGH, IPT_BUTTON7 )     // Sensor 12,13,14 (Sensor bar 5)
-	PORT_BIT( 0x00380000, IP_ACTIVE_HIGH, IPT_BUTTON8 )     // Sensor 15,16,17 (Sensor bar 6)   (unused by PPP)
-	PORT_BIT( 0x00c00001, IP_ACTIVE_HIGH, IPT_BUTTON9 )     // Sensor 18,19,20 (Sensor bar 7)   (unused by PPP)
-	PORT_BIT( 0x0000000e, IP_ACTIVE_HIGH, IPT_BUTTON10 )    // Sensor 21,22,23 (Sensor bar 8)   (unused by PPP)
+	PORT_BIT( 0x0001, IP_ACTIVE_HIGH, IPT_BUTTON5 )     // Sensor 6, 7, 8  (Sensor bar 3)
+	PORT_BIT( 0x000e, IP_ACTIVE_HIGH, IPT_BUTTON6 )     // Sensor 9, 10,11 (Sensor bar 4)
+
+	PORT_START("SENSOR3")
+	PORT_BIT( 0x0007, IP_ACTIVE_HIGH, IPT_BUTTON7 )     // Sensor 12,13,14 (Sensor bar 5)
+	PORT_BIT( 0x0038, IP_ACTIVE_HIGH, IPT_BUTTON8 )     // Sensor 15,16,17 (Sensor bar 6)   (unused by PPP)
+	PORT_BIT( 0x00c0, IP_ACTIVE_HIGH, IPT_BUTTON9 )     // Sensor 18,19,20 (Sensor bar 7)   (unused by PPP)
+
+	PORT_START("SENSOR4")
+	PORT_BIT( 0x0001, IP_ACTIVE_HIGH, IPT_BUTTON9 )     // Sensor 18,19,20 (Sensor bar 7)   (unused by PPP)
+	PORT_BIT( 0x000e, IP_ACTIVE_HIGH, IPT_BUTTON10 )    // Sensor 21,22,23 (Sensor bar 8)   (unused by PPP)
 
 INPUT_PORTS_END
 
@@ -1170,50 +1170,53 @@ static INPUT_PORTS_START(bm3)
 	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "DIP SW:1" )
 
 	PORT_START("SENSOR1")
-	PORT_BIT( 0xffc0fffe, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x00000001, IP_ACTIVE_LOW, IPT_COIN1 ) // Coin sensor
-	PORT_BIT( 0x00010000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) // P1 Button 1
-	PORT_BIT( 0x00020000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) // P1 Button 2
-	PORT_BIT( 0x00040000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) // P1 Button 3
-	PORT_BIT( 0x00080000, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(1) // P1 Button 4
-	PORT_BIT( 0x00100000, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(1) // P1 Button 5
-	PORT_BIT( 0x00200000, IP_ACTIVE_LOW, IPT_START1 ) // P1 Start Button
+	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) // P1 Button 1
+	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) // P1 Button 2
+	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) // P1 Button 3
+	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(1) // P1 Button 4
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(1) // P1 Button 5
+	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_START1 ) // P1 Start Button
 
 	PORT_START("SENSOR2")
-	PORT_BIT( 0xffc0ffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x00010000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2) // P2 Button 1
-	PORT_BIT( 0x00020000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2) // P2 Button 2
-	PORT_BIT( 0x00040000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2) // P2 Button 3
-	PORT_BIT( 0x00080000, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(2) // P2 Button 4
-	PORT_BIT( 0x00100000, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(2) // P2 Button 5
-	PORT_BIT( 0x00200000, IP_ACTIVE_LOW, IPT_START2 ) // P2 Start Button
+	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_COIN1 ) // Coin sensor
+
+	PORT_START("SENSOR3")
+	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2) // P2 Button 1
+	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2) // P2 Button 2
+	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2) // P2 Button 3
+	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(2) // P2 Button 4
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(2) // P2 Button 5
+	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_START2 ) // P2 Start Button
+
+	PORT_START("SENSOR4")
+	PORT_BIT( 0xffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("TURNTABLE_P1")
-	PORT_BIT( 0xffff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(1) PORT_NAME("1P Table") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(1) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(25) PORT_KEYDELTA(10)
 
 	PORT_START("TURNTABLE_P2")
-	PORT_BIT( 0xffff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(2) PORT_NAME("2P Table") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(2) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(25) PORT_KEYDELTA(10)
 
 	PORT_START("EFFECT1")
-	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 1") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 1") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
 
 	PORT_START("EFFECT2")
-	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 2") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 2") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
 
 	PORT_START("EFFECT3")
-	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 3") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 3") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
 
 	PORT_START("EFFECT4")
-	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 4") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 4") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
 
 	PORT_START("EFFECT5")
-	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 5") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 5") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
 
 	PORT_START("EFFECT6")
-	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 5") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 6") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
 
 	PORT_START("EFFECT7")
-	PORT_BIT( 0xffff, 0x00, IPT_DIAL) PORT_NAME("EFFECT 5") PORT_MINMAX(0x00,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 7") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
 
 
 INPUT_PORTS_END
