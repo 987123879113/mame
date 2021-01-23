@@ -81,10 +81,10 @@
     BIOS       Game ID        Year    Game
     ------------------------------------------------------------------
     GQ972      GQ972          2000    Beatmania III
-    GQ972(?)   GCA21          2001    Beatmania III Append 6th Mix
-    GQ972(?)   GCB07          2002    Beatmania III Append 7th Mix
-    GQ972(?)   GCA05          2000    Beatmania III Append Core Remix
-    GQ972(?)   GCC01          2003    Beatmania III The Final
+    GQ972      GCA05          2000    Beatmania III Append Core Remix
+    GCA21      GCA21          2001    Beatmania III Append 6th Mix
+    GCA21      GCB07          2002    Beatmania III Append 7th Mix
+    GCA21      GCC01          2003    Beatmania III The Final
     GQ974      GQ974          2000    Keyboardmania
     GQ974      GCA01          2000    Keyboardmania 2nd Mix
     GQ974      GCA12          2001    Keyboardmania 3rd Mix
@@ -1825,6 +1825,40 @@ ROM_START( popn8 )
 	DISK_IMAGE_READONLY( "gqb30jaa02", 0, SHA1(f067d502c23efe0267aada5706f5bc7a54605942) )
 ROM_END
 
+ROM_START( popnanm2 )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
+
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD( "gea02-ja", 0x000000, 0x0000c0, CRC(ab66b22f) SHA1(7ad73a6ccca513e51b3ab96f4ecd0bdf0a6d1475) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gea02jaa02", 0, SHA1(7212e399779f37a5dcb8317a8f635a3b3f620aa9) )
+ROM_END
+
+ROM_START( popnanm )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
+
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD( "gq987-ja.bin", 0x000000, 0x0000c0, CRC(201327bd) SHA1(461b422382cc35b0027eb5426bd94d1297b5f98c) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa01", 0, SHA1(ee1f9cf480c01ef356451cec30e5303d6c433758) )
+
+	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa02", 0, SHA1(c7e370465dd2d06ee77df8ad0a7249271b9e0484) )
+ROM_END
+
 ROM_START( popnmt )
 	ROM_REGION32_BE(0x80000, "user1", 0)
 	ROM_LOAD16_WORD_SWAP( "a02jaa03.21e", 0x000000, 0x080000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599) )
@@ -1858,40 +1892,6 @@ ROM_START( popnmt2 )
 
 	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(a3e95d0c32b1e8d759666744ce93c923ac9010b1) )
-ROM_END
-
-ROM_START( popnanm )
-	ROM_REGION32_BE(0x80000, "user1", 0)
-	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
-
-	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
-	ROM_LOAD( "gq987-ja.bin", 0x000000, 0x0000c0, CRC(201327bd) SHA1(461b422382cc35b0027eb5426bd94d1297b5f98c) )
-
-	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
-	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
-	DISK_IMAGE_READONLY( "gq987jaa01", 0, SHA1(ee1f9cf480c01ef356451cec30e5303d6c433758) )
-
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "gq987jaa02", 0, SHA1(c7e370465dd2d06ee77df8ad0a7249271b9e0484) )
-ROM_END
-
-ROM_START( popnanm2 )
-	ROM_REGION32_BE(0x80000, "user1", 0)
-	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
-
-	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
-	ROM_LOAD( "gea02-ja", 0x000000, 0x0000c0, CRC(ab66b22f) SHA1(7ad73a6ccca513e51b3ab96f4ecd0bdf0a6d1475) )
-
-	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
-	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
-
-	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
-	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
-
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "gea02jaa02", 0, SHA1(7212e399779f37a5dcb8317a8f635a3b3f620aa9) )
 ROM_END
 
 ROM_START( ppd )
