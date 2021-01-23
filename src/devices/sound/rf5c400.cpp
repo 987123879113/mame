@@ -349,7 +349,7 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 				//     examples:
 				//         ch: 30, start: 00780000, end: 0087ffff, loop: 009ffffe
 				//         ch: 31, start: 00780001, end: 0087ffff, loop: 009ffffe
-				if (loop < start || loop > end)
+				if (loop > end)
 				{
 					pos = start << 16;
 				}
