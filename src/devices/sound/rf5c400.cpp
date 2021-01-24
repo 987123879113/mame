@@ -5,16 +5,6 @@
 
     Written by Ville Linde
     Improvements by the hoot development team
-
-    history -
-    2007-02-08 hoot development team
-        looping
-        stereo panning
-        8-bit sample support
-
-    2007-02-16 hoot development team
-        envelope
-        fixed volume table
 */
 
 #include "emu.h"
@@ -249,8 +239,7 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		env_rstep = env_step * channel->env_scale;
 
 		if (start == end) {
-			// This occurs in pop'n music when trying to play an invalid sample:
-			// ch: 0, start: 00000000, end: 00000000, loop: 00000000
+			// This occurs in pop'n music when trying to play a non-existent sample on the sound test menu
 			continue;
 		}
 
@@ -330,33 +319,16 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			pos += channel->step;
 			if ((pos>>16) > end)
 			{
-				// The loop value cannot be relied upon to be valid.
-				//
-				// pop'n music handles end and loop as such:
-				// - Any sound that is meant to be looped will have the end and loop values set properly:
-				//     examples:
-				//         ch: 9, start: 00000000, end: 00002a61, loop: 00002a61
-				//         ch: 9, start: 00004011, end: 0000b3a7, loop: 00007396
-				//         ch: 9, start: 0000b3b0, end: 00012942, loop: 00007592
-				// - Any sound that is not meant to be looped will have the end value set properly but the loop value not:
-				//     examples:
-				//         ch: 9, start: 00002a6a, end: 00004010, loop: 00000007
-				//         ch: 9, start: 00002a6a, end: 00004010, loop: 00000007
-				//         ch: 9, start: 0001294b, end: 00013cef, loop: 00000007
-				// - BGMs in pop'n music are loaded into a 0x200000 buffer. End value is set properly but not loop.
-				//     - The buffer is refilled via DMA based on the current playback offset. (see: rf5c400_r 0x09)
-				//     - The buffer is expected to loop back to the beginning when it ends.
-				//     examples:
-				//         ch: 30, start: 00780000, end: 0087ffff, loop: 009ffffe
-				//         ch: 31, start: 00780001, end: 0087ffff, loop: 009ffffe
-				if (loop > end)
+				pos -= loop<<16;
+				pos &= 0xFFFFFF0000ULL;
+
+				if (pos < (start<<16))
 				{
-					pos = start << 16;
-				}
-				else
-				{
-					pos -= loop << 16;
-					pos &= 0xFFFFFF0000ULL;
+					// This case only shows up in Firebeat games from what I could tell.
+					// The loop value will be higher than the actual buffer size.
+					// This is used when DMAs will be overwriting the current buffer.
+					// It expects the buffer to be looped without any additional commands.
+					pos = start<<16;
 				}
 			}
 
@@ -380,6 +352,8 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 {
 	if (offset < 0x400)
 	{
+		//osd_printf_debug("%s:rf5c400_r: %08X, %08X\n", machine().describe_context(), offset, mem_mask);
+
 		switch(offset)
 		{
 			case 0x00:
@@ -394,27 +368,24 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 
 			case 0x09:      // position read?
 			{
+				// The game will always call rf5c400_w 0x08 with a channel number and some other value before reading this register.
+				// The call to rf5c400_w 0x08 contains additional information, potentially what information it's expecting to be returned here.
+				// This implementation assumes all commands want the same information as command 6.
 				m_stream->update();
 
-				// The game will always call rf5c400_w 0x08 with a channel number and some other value before reading this register.
-				// I'm not actually sure if the channel here is correct but I have no other leads, and it works when implemented this way.
 				rf5c400_channel* channel = &m_channels[m_req_channel];
-
 				if (channel->env_phase == PHASE_NONE) {
 					return 0;
 				}
 
-				// pop'n music's SPU program expects to read this register 6 times with the same value every read before it will send the next DMA request.
+				// pop'n music's SPU program expects to read this register 6 times with the same value between every read before it will send the next DMA request.
 				//
-				// My understanding of how DMAs are triggered based on this register is as follows:
-				// When a song is first played, the first DMA request reads 0x200000 bytes into the memory range 0x00780000 - 0x00880000.
-				// Every subsequent DMA after that reads 0x100000 bytes into memory.
-				//
-				// When a song first starts playing the game polls this register until it reads 2xxx (doesn't matter what the lower x is).
+				// This register is polled while a streaming BGM is being played.
+				// For pop'n music specifically, the game starts off by reading 0x200000 into 0x00780000 - 0x00880000.
 				// When 2xxx is found (pos - start = 0x00080000), it will trigger the next DMA of 0x100000 overwriting 0x00780000 - 0x00800000, and continues polling the register until it reads 1xxx next.
 				// When 1xxx is found (pos - start = 0x00040000), it will trigger the next DMA of 0x100000 overwriting 0x00800000 - 0x00880000, and continues polling the register until it reads 2xxx next.
 				// ... repeat until song is finished, alternating between 2xxx and 1xxx ...
-				// This ends up so that it'll always be buffering new sample data into the sections of memory that aren't being played yet.
+				// This ends up so that it'll always be buffering new sample data into the sections of memory that aren't being used.
 				auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
 				auto ch_offset = (channel->pos >> 16) - start;
 				return ch_offset >> 6;
@@ -497,11 +468,11 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				break;
 			}
 
-			case 0x08:      // relative to env attack (channel no)
+			case 0x08:
 			{
 				// There's some other data stuffed in the upper bits beyond the channel: data >> 5
-				// The other data might be some kind of register or command.
-				// I've seen 0, 4, 5, and 6.
+				// The other data might be some kind of register or command. I've seen 0, 4, 5, and 6.
+				// Firebeat uses 6 when polling rf5c400_r 0x09.
 				m_req_channel = data & 0x1f;
 				break;
 			}
