@@ -312,7 +312,6 @@ debugger_commands::debugger_commands(running_machine& machine, debugger_cpu& cpu
 	m_console.register_command("mapi",      CMDFLAG_NONE, AS_IO, 1, 1, std::bind(&debugger_commands::execute_map, this, _1, _2));
 	m_console.register_command("mapo",      CMDFLAG_NONE, AS_OPCODES, 1, 1, std::bind(&debugger_commands::execute_map, this, _1, _2));
 	m_console.register_command("memdump",   CMDFLAG_NONE, 0, 0, 1, std::bind(&debugger_commands::execute_memdump, this, _1, _2));
-	m_console.register_command("memlog",    CMDFLAG_NONE, 0, 1, 2, std::bind(&debugger_commands::execute_memlog, this, _1, _2));
 
 	m_console.register_command("symlist",   CMDFLAG_NONE, 0, 0, 1, std::bind(&debugger_commands::execute_symlist, this, _1, _2));
 
@@ -3787,122 +3786,6 @@ void debugger_commands::execute_memdump(int ref, const std::vector<std::string> 
 	}
 }
 
-/*-------------------------------------------------
-    execute_memlog - execute the memlog command
--------------------------------------------------*/
-
-void debugger_commands::execute_memlog(int ref, const std::vector<std::string> &params)
-{
-	/* validate parameters */
-	u64 offset;
-	if (!validate_number_parameter(params[0], offset))
-		return;
-
-	u64 length = 0x100;
-	if (params.size() > 1 && !validate_number_parameter(params[1], length))
-		return;
-
-	printf("execute_memlog: offset: %08lx, length: %08lx\n", offset, length);
-
-	u64 width = 0;
-
-	address_space *space;
-	if (!validate_cpu_space_parameter(nullptr, ref, space))
-		return;
-
-	u64 rowsize = space->byte_to_address(16);
-
-	int shift = space->addr_shift();
-	u64 granularity = shift >= 0 ? 1 : 1 << -shift;
-
-	/* further validation */
-	if (width == 0)
-		width = space->data_width() / 8;
-	if (width < space->address_to_byte(1))
-		width = space->address_to_byte(1);
-	if (width != 1 && width != 2 && width != 4 && width != 8)
-	{
-		m_console.printf("Invalid width! (must be 1,2,4 or 8)\n");
-		return;
-	}
-	if (width < granularity)
-	{
-		m_console.printf("Invalid width! (must be at least %d)\n", granularity);
-		return;
-	}
-	if (rowsize == 0 || (rowsize % space->byte_to_address(width)) != 0)
-	{
-		m_console.printf("Invalid row size! (must be a positive multiple of %d)\n", space->byte_to_address(width));
-		return;
-	}
-
-	u64 endoffset = (offset + length - 1) & space->addrmask();
-	offset = offset & space->addrmask();
-
-	/* now write the data out */
-	util::ovectorstream output;
-	output.reserve(200);
-
-	const unsigned delta = (shift >= 0) ? (width << shift) : (width >> -shift);
-
-	auto dis = space->device().machine().disable_side_effects();
-	bool be = space->endianness() == ENDIANNESS_BIG;
-
-	output.clear();
-	output.rdbuf()->clear();
-
-	/* print the address */
-	util::stream_format(output, "%0*X: ", space->logaddrchars(), offset);
-
-	bool found_end = false;
-	u64 i = offset;
-	for (u64 j = 0; (i + j) <= endoffset; j += delta)
-	{
-		offs_t curaddr = i + j;
-		if (space->device().memory().translate(space->spacenum(), TRANSLATE_READ_DEBUG, curaddr))
-		{
-			u64 data = 0;
-			switch (width)
-			{
-			case 8:
-				data = space->read_qword_unaligned(i+j);
-				break;
-			case 4:
-				data = space->read_dword_unaligned(i+j);
-				break;
-			case 2:
-				data = space->read_word_unaligned(i+j);
-				break;
-			case 1:
-				data = space->read_byte(i+j);
-				break;
-			}
-
-			for (unsigned int b = 0; b != width; b++) {
-				u8 byte = data >> (8 * (be ? (width-1-b) : b));
-
-				if (byte == 0) {
-					found_end = true;
-					break;
-				}
-
-				util::stream_format(output, "%c", byte);
-			}
-		}
-		else
-		{
-			break;
-		}
-
-		if (found_end) {
-			break;
-		}
-	}
-
-	/* output the result */
-	auto const &text = output.vec();
-	m_console.printf("%.*s\n", int(unsigned(text.size())), &text[0]);
-}
 
 /*-------------------------------------------------
     execute_symlist - execute the symlist command
