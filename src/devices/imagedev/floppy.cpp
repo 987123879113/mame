@@ -2428,6 +2428,9 @@ bool mac_floppy_device::wpt_r()
 		logerror("fdc disk sense reg %x %s %p\n", m_reg, regnames[m_reg], image.get());
 
 	switch(m_reg) {
+	case 0x0: // Step direction
+		return dir;
+
 	case 0x1: // Step signal
 		// We don't do the delay
 		return true;
@@ -2520,7 +2523,7 @@ void mac_floppy_device::seek_phase_w(int phases)
 
 		case 0x7: // Start eject
 			logerror("cmd start eject\n");
-			call_unload();
+			unload();
 			break;
 
 		case 0x9: // MFM mode on

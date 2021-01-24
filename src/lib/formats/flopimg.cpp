@@ -2487,8 +2487,8 @@ std::vector<std::vector<uint8_t>> floppy_image_format_t::extract_sectors_from_bi
 	// Then extract the sectors
 	for(int i=0; i<idblk_count; i++) {
 		uint32_t pos = idblk[i];
-		ATTR_UNUSED uint8_t track = sbyte_mfm_r(bitstream, pos);
-		ATTR_UNUSED uint8_t head = sbyte_mfm_r(bitstream, pos);
+		[[maybe_unused]] uint8_t track = sbyte_mfm_r(bitstream, pos);
+		[[maybe_unused]] uint8_t head = sbyte_mfm_r(bitstream, pos);
 		uint8_t sector = sbyte_mfm_r(bitstream, pos);
 		uint8_t size = sbyte_mfm_r(bitstream, pos);
 
@@ -2610,8 +2610,8 @@ std::vector<std::vector<uint8_t>> floppy_image_format_t::extract_sectors_from_bi
 	// Then extract the sectors
 	for(uint32_t i=0; i<idblk_count; i++) {
 		uint32_t pos = idblk[i];
-		ATTR_UNUSED uint8_t track = sbyte_mfm_r(bitstream, pos);
-		ATTR_UNUSED uint8_t head = sbyte_mfm_r(bitstream, pos);
+		[[maybe_unused]] uint8_t track = sbyte_mfm_r(bitstream, pos);
+		[[maybe_unused]] uint8_t head = sbyte_mfm_r(bitstream, pos);
 		uint8_t sector = sbyte_mfm_r(bitstream, pos);
 		uint8_t size = sbyte_mfm_r(bitstream, pos);
 		if(size >= 8)
@@ -2845,7 +2845,7 @@ void floppy_image_format_t::build_mac_track_gcr(int track, int head, floppy_imag
 		30318342 / 429,
 		30318342 / 472,
 		30318342 / 525,
-		30318342 / 590		
+		30318342 / 590
 	};
 
 	static const std::array<uint8_t, 12> notag{};
@@ -2912,12 +2912,14 @@ void floppy_image_format_t::build_mac_track_gcr(int track, int head, floppy_imag
 			uint16_t sumb = cb + vb + (suma >> 8);
 			cb = sumb;
 			vb = vb ^ ca;
-			cc = cc + vc + (sumb >> 8);
+			if(i != 174)
+				cc = cc + vc + (sumb >> 8);
 			vc = vc ^ cb;
 
 			uint32_t nb = i != 174 ? 32 : 24;
 			raw_w(buffer, nb, gcr6_encode(va, vb, vc) >> (32-nb));
 		}
+
 		raw_w(buffer, 32, gcr6_encode(ca, cb, cc));
 		raw_w(buffer, 32, 0xdeaaffff);
 	}
@@ -2958,10 +2960,10 @@ std::vector<std::vector<uint8_t>> floppy_image_format_t::extract_sectors_from_tr
 		if(hstate == 0xd5aa96)
 			hpos.push_back(pos == nib.size() - 1 ? 0 : pos+1);
 	}
-				
+
 	for(uint32_t pos : hpos) {
 		uint8_t h[7];
-					
+
 		for(auto &e : h) {
 			e = nib[pos];
 			pos ++;
@@ -2973,7 +2975,7 @@ std::vector<std::vector<uint8_t>> floppy_image_format_t::extract_sectors_from_tr
 		uint8_t v3 = gcr6bw_tb[h[3]];
 		uint8_t tr = gcr6bw_tb[h[0]] | (v2 & 1 ? 0x40 : 0x00);
 		uint8_t se = gcr6bw_tb[h[1]];
-		//					uint8_t si = v2 & 0x20 ? 1 : 0;
+		//                  uint8_t si = v2 & 0x20 ? 1 : 0;
 		//                  uint8_t ds = v3 & 0x20 ? 1 : 0;
 		//                  uint8_t fmt = v3 & 0x1f;
 		uint8_t c1 = (tr^se^v2^v3) & 0x3f;
@@ -3026,15 +3028,13 @@ std::vector<std::vector<uint8_t>> floppy_image_format_t::extract_sectors_from_tr
 			cb = sumb;
 			vc = vc ^ cb;
 
-			if(i == 174)
-				vc = 0;
-
-			cc = cc + vc + (sumb >> 8);
-
 			sdata[3*i] = va;
 			sdata[3*i+1] = vb;
-			if(i != 174)
+
+			if(i != 174) {
+				cc = cc + vc + (sumb >> 8);
 				sdata[3*i+2] = vc;
+			}
 		}
 		for(auto &e : h) {
 			e = nib[pos];
@@ -3100,7 +3100,7 @@ std::vector<std::vector<uint8_t>> floppy_image_format_t::extract_sectors_from_bi
 	// Then extract the sectors
 	for(int i=0; i<hblk_count; i++) {
 		uint32_t pos = hblk[i];
-		ATTR_UNUSED uint8_t block_id = sbyte_gcr5_r(bitstream, pos);
+		[[maybe_unused]] uint8_t block_id = sbyte_gcr5_r(bitstream, pos);
 		uint8_t crc = sbyte_gcr5_r(bitstream, pos);
 		uint8_t sector = sbyte_gcr5_r(bitstream, pos);
 		uint8_t track = sbyte_gcr5_r(bitstream, pos);
@@ -3182,8 +3182,8 @@ std::vector<std::vector<uint8_t>> floppy_image_format_t::extract_sectors_from_bi
 	// Then extract the sectors
 	for(int i=0; i<hblk_count; i++) {
 		uint32_t pos = hblk[i];
-		ATTR_UNUSED uint8_t block_id = sbyte_gcr5_r(bitstream, pos);
-		ATTR_UNUSED uint8_t track = sbyte_gcr5_r(bitstream, pos);
+		[[maybe_unused]] uint8_t block_id = sbyte_gcr5_r(bitstream, pos);
+		[[maybe_unused]] uint8_t track = sbyte_gcr5_r(bitstream, pos);
 		uint8_t sector = sbyte_gcr5_r(bitstream, pos);
 
 		pos = dblk[i];
