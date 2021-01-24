@@ -94,11 +94,11 @@
     GQ977      GQA11          2000    Para Para Paradise 1st Mix+
     GQA02(?)   GQ986          2000    Pop'n Music 4
     ???        G?A04          2000    Pop'n Music 5
-    ???        GQ976          2000    Pop'n Music Mickey Tunes
-    ???        GQ976          2000    Pop'n Music Mickey Tunes!
     ???        GQA16          2001    Pop'n Music 6
     GQA02      GCB00          2001    Pop'n Music 7
     ???        GQB30          2002    Pop'n Music 8
+    ???        GQ976          2000    Pop'n Music Mickey Tunes
+    ???        GQ976          2000    Pop'n Music Mickey Tunes!
     ???        GQ987          2000    Pop'n Music Animelo
     ???        GEA02          2001    Pop'n Music Animelo 2
 
@@ -200,7 +200,6 @@ public:
 	void firebeat2(machine_config &config);
 	void firebeat(machine_config &config);
 
-	void firebeat_spu_base(machine_config &config);
 	void firebeat_spu(machine_config &config);
 	void firebeat_spu_bm3(machine_config &config);
 
@@ -241,6 +240,8 @@ private:
 	uint32_t m_spu_ata_dma;
 	int m_spu_ata_dmarq;
 	uint32_t m_wave_bank;
+
+	void firebeat_spu_base(machine_config &config);
 
 	uint32_t screen_update_firebeat_0(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	uint32_t screen_update_firebeat_1(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -296,6 +297,11 @@ private:
 	void spu_map(address_map &map);
 	void ymz280b_map(address_map &map);
 	void rf5c400_map(address_map& map);
+
+	uint32_t fdd_unk_r(offs_t offset, uint32_t mem_mask = ~0);
+	void fdd_unk_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+
+	DECLARE_WRITE_LINE_MEMBER( bm3_vblank );
 };
 
 
@@ -491,7 +497,6 @@ static const int ppp_cab_data[3] = { 8, 0, 0 };
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
 //  printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
-
 	switch (offset)
 	{
 		case 0: return m_cur_cab_data[0] << 28;
@@ -633,6 +638,8 @@ TIMER_CALLBACK_MEMBER(firebeat_state::keyboard_timer_callback)
 
 uint32_t firebeat_state::extend_board_irq_r(offs_t offset, uint32_t mem_mask)
 {
+	// printf("%s: extend_board_irq_r: %08X, %08X\n", machine().describe_context().c_str(), offset, mem_mask);
+
 	uint32_t r = 0;
 
 	if (ACCESSING_BITS_24_31)
@@ -645,14 +652,28 @@ uint32_t firebeat_state::extend_board_irq_r(offs_t offset, uint32_t mem_mask)
 
 void firebeat_state::extend_board_irq_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-//  printf("extend_board_irq_w: %08X, %08X, %08X\n", data, offset, mem_mask);
+	// printf("%s: extend_board_irq_w: %08X, %08X, %08X\n", machine().describe_context().c_str(), data, offset, mem_mask);
 
 	if (ACCESSING_BITS_24_31)
 	{
 		m_extend_board_irq_active &= ~((data >> 24) & 0xff);
 
 		m_extend_board_irq_enable = (data >> 24) & 0xff;
+
+		// printf("m_extend_board_irq_enable: %02x\n", m_extend_board_irq_enable);
 	}
+}
+
+uint32_t firebeat_state::fdd_unk_r(offs_t offset, uint32_t mem_mask)
+{
+	// printf("%s: fdd_unk_r: %08X, %08X\n", machine().describe_context().c_str(), offset, mem_mask);
+
+	return 0;
+}
+
+void firebeat_state::fdd_unk_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	// printf("%s: fdd_unk_w: %08X, %08X, %08X\n", machine().describe_context().c_str(), data, offset, mem_mask);
 }
 
 /*****************************************************************************/
@@ -865,7 +886,6 @@ void firebeat_state::firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t m
 	COMBINE_DATA(&m_waveram[offset + m_wave_bank]);
 }
 
-
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 {
 	if (m_spuata != nullptr && m_spu_ata_dmarq != state)
@@ -908,6 +928,7 @@ void firebeat_state::firebeat_map(address_map &map)
 {
 	map(0x00000000, 0x01ffffff).ram().share("work_ram");
 	map(0x70000000, 0x70000fff).rw(FUNC(firebeat_state::midi_uart_r), FUNC(firebeat_state::midi_uart_w)).umask32(0xff000000);
+	map(0x70001fc0, 0x70001fdf).rw(FUNC(firebeat_state::fdd_unk_r), FUNC(firebeat_state::fdd_unk_w));
 	map(0x70006000, 0x70006003).w(FUNC(firebeat_state::extend_board_irq_w));
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_state::keyboard_wheel_r));
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
@@ -1233,6 +1254,9 @@ void firebeat_state::machine_reset()
 	m_spu_ata_dmarq = 0;
 	m_wave_bank = 0;
 
+	// Modify the underlying CD-ROM device's identify buffer to return Ultra DMA mode
+	// This is a workaround for issues with the ATAPI CD-ROM code that causes stack
+	// overflows with non-Ultra DMAs
 	if (!m_spuata) {
 		return;
 	}
@@ -1252,16 +1276,6 @@ void firebeat_state::machine_reset()
 		return;
 	}
 
-	// HACK: Calling read_dma on ATAPI CD-ROM devices without Ultra DMA will lead to recursion.
-	// The reason Ultra DMA fixes the issue is because atapi_hle_device::fill_buffer is called based on a timer
-	// instead of immediately after marking the buffer as empty like non-Ultra DMA modes do
-	// (see: ata_hle_device::read_buffer_empty).
-	// The call to atapi_hle_device::fill_buffer will immediately call set_dmarq(ASSERT_LINE) which is the point
-	// where it recurses back into spu_ata_dmarq. Without the timer the code that called read_dma never gets a
-	// chance to properly clean up and write the last byte.
-	// When coming out of the recursion, the last data read before recusing gets written to the end of the buffer
-	// causing glitching in audio.
-	// pop'n music easily causes stack overflows due to large DMA requests depending on DMA mode.
 	identify_device[88] = 0x0102;
 }
 
@@ -1441,11 +1455,49 @@ void firebeat_state::firebeat_spu_bm3(machine_config &config)
 		// beatmania III is the only game on the Firebeat platform to use 640x480
 		screen->set_size(640, 480);
 		screen->set_visarea(0, 639, 0, 479);
+		screen->screen_vblank().set(FUNC(firebeat_state::bm3_vblank));
 	}
 
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "hdd", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
+}
+
+
+WRITE_LINE_MEMBER(firebeat_state::bm3_vblank)
+{
+	// Patch out FDD errors since the game otherwise runs fine without it
+	// and the FDD might not be implemented for a while
+	if(strcmp(machine().system().name, "bm3") == 0)
+	{
+		if (m_work_ram[0x918C / 4] == 0x4809202D) m_work_ram[0x918C / 4] = 0x38600000;
+		if (m_work_ram[0x3380C / 4] == 0x4BFFFD99) m_work_ram[0x3380C / 4] = 0x38600000;
+		if (m_work_ram[0x33834 / 4] == 0x4BFFFD71) m_work_ram[0x33834 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm3core") == 0)
+	{
+		if (m_work_ram[0x91E4 / 4] == 0x480A19F5) m_work_ram[0x91E4 / 4] = 0x38600000;
+		if (m_work_ram[0x37BB0 / 4] == 0x4BFFFD71) m_work_ram[0x37BB0 / 4] = 0x38600000;
+		if (m_work_ram[0x37BD8 / 4] == 0x4BFFFD49) m_work_ram[0x37BD8 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm36th") == 0)
+	{
+		if (m_work_ram[0x91E4 / 4] == 0x480BC8BD) m_work_ram[0x91E4 / 4] = 0x38600000;
+		if (m_work_ram[0x451D8 / 4] == 0x4BFFFD75) m_work_ram[0x451D8 / 4] = 0x38600000;
+		if (m_work_ram[0x45200 / 4] == 0x4BFFFD4D) m_work_ram[0x45200 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm37th") == 0)
+	{
+		if (m_work_ram[0x91E4 / 4] == 0x480CF62D) m_work_ram[0x91E4 / 4] = 0x38600000;
+		if (m_work_ram[0x46A58 / 4] == 0x4BFFFD45) m_work_ram[0x46A58 / 4] = 0x38600000;
+		if (m_work_ram[0x46AB8 / 4] == 0x4BFFFCE5) m_work_ram[0x46AB8 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm3final") == 0)
+	{
+		if (m_work_ram[0x47F8 / 4] == 0x480CEF91) m_work_ram[0x47F8 / 4] = 0x38600000;
+		if (m_work_ram[0x3FAF4 / 4] == 0x4BFFFD59) m_work_ram[0x3FAF4 / 4] = 0x38600000;
+		if (m_work_ram[0x3FB54 / 4] == 0x4BFFFCF9) m_work_ram[0x3FB54 / 4] = 0x38600000;
+	}
 }
 
 /*****************************************************************************/
