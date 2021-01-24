@@ -224,9 +224,9 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
 
-		start = ((channel->startH & 0xFF00) << 8) | channel->startL;
-		end = ((channel->endHloopH & 0xFF) << 16) | channel->endL;
-		loop = ((channel->endHloopH & 0xFF00) << 8) | channel->loopL;
+		start = ((uint32_t)(channel->startH & 0xFF00) << 8) | channel->startL;
+		end = ((uint32_t)(channel->endHloopH & 0xFF) << 16) | channel->endL;
+		loop = ((uint32_t)(channel->endHloopH & 0xFF00) << 8) | channel->loopL;
 		pos = channel->pos;
 		vol = channel->volume & 0xFF;
 		lvol = channel->pan & 0xFF;
@@ -238,7 +238,8 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		env_step = channel->env_step;
 		env_rstep = env_step * channel->env_scale;
 
-		if (start == end) {
+		if (start == end)
+		{
 			// This occurs in pop'n music when trying to play a non-existent sample on the sound test menu
 			continue;
 		}
@@ -374,7 +375,8 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 				m_stream->update();
 
 				rf5c400_channel* channel = &m_channels[m_req_channel];
-				if (channel->env_phase == PHASE_NONE) {
+				if (channel->env_phase == PHASE_NONE)
+				{
 					return 0;
 				}
 
@@ -386,7 +388,7 @@ uint16_t rf5c400_device::rf5c400_r(offs_t offset, uint16_t mem_mask)
 				// When 1xxx is found (pos - start = 0x00040000), it will trigger the next DMA of 0x100000 overwriting 0x00800000 - 0x00880000, and continues polling the register until it reads 2xxx next.
 				// ... repeat until song is finished, alternating between 2xxx and 1xxx ...
 				// This ends up so that it'll always be buffering new sample data into the sections of memory that aren't being used.
-				auto start = ((channel->startH & 0xFF00) << 8) | channel->startL;
+				auto start = ((uint32_t)(channel->startH & 0xFF00) << 8) | channel->startL;
 				auto ch_offset = (channel->pos >> 16) - start;
 				return ch_offset >> 6;
 			}
@@ -438,7 +440,7 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				{
 					case 0x60:
 						m_channels[ch].pos =
-							((m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
+							((uint32_t)(m_channels[ch].startH & 0xFF00) << 8) | m_channels[ch].startL;
 						m_channels[ch].pos <<= 16;
 
 						m_channels[ch].env_phase = PHASE_ATTACK;
