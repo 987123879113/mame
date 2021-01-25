@@ -241,6 +241,8 @@ private:
 	int m_spu_ata_dmarq;
 	uint32_t m_wave_bank;
 
+	bool sync_ata_irq;
+
 	void firebeat_spu_base(machine_config &config);
 
 	uint32_t screen_update_firebeat_0(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
@@ -278,6 +280,7 @@ private:
 	void firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
+	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
 //  TIMER_CALLBACK_MEMBER(keyboard_timer_callback);
 	void set_ibutton(uint8_t *data);
 	int ibutton_w(uint8_t data);
@@ -819,9 +822,42 @@ void firebeat_state::lamp_output3_ppp_w(offs_t offset, uint32_t data, uint32_t m
 
 /*  SPU board M68K IRQs
 
-    IRQ1: ?
+    IRQ1: Executes all commands stored in a buffer.
+          The buffer can contain up to 8 commands.
+          This seems to be unused.
 
-    IRQ2: Timer?
+    IRQ2: Executes one command stored in a different buffer from IRQ1.
+          The buffer can contain up to 8 commands.
+	      The command index counter increments after each IRQ2 call.
+		  If there is no command in the slot at the current counter
+		  then it just increments without executing a command.
+
+		  For beatmania III:
+			cmd[0] = nop
+			cmd[1] = 0x91bc -> Send stop command for all rf5c400 channels that are done playing
+			cmd[2] = 0x310a -> Error checking? Sending some kind of state to main CPU???
+			cmd[3] = 0x29c6 -> Increment a timer for each running DMA(ATA command?)
+				Each timer must count up to 0x02e8 (744) before it will move on to the next DMA
+
+				In another part of the program (0x363c for a21jca03.bin) is the following code for
+				determining when to start and stop the DMA:
+
+				start_dma();
+				while (get_dma_timer() < dma_max_timer) {
+					if (irq6_was_called_flag) {
+						break;
+					}
+				}
+				end_dma();
+				return;
+
+				irq6_was_called_flag is set only when IRQ6 was called.
+				get_dma_timer is what is incremented by 0x29c6.
+			cmd[4] = 0x94de -> Animates channel volume if required
+			cmd[5] = 0x7b2c -> Send some kind of buffer statuses to spu_220000_w. Related to IRQ4 since commands come from PPC to set buffer data
+			cmd[6] = 0x977e -> Animates channel frequency if required
+			cmd[7] = 0x9204 -> Sends current state of rf5c400 channels as well as a list (bitmask integer) of usable channels up to main CPU memory.
+			                   Also sends a flag to to spu_220000_w that shows if there are available SE slots.
 
     IRQ4: Dual-port RAM mailbox (when PPC writes to 0x3FE)
           Handles commands from PPC (bytes 0x00 and 0x01)
@@ -849,8 +885,6 @@ void firebeat_state::spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_ma
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
 		if (data & 0x02)
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ2, CLEAR_LINE);
-		if (data & 0x04)
-			m_audiocpu->set_input_line(INPUT_LINE_IRQ4, CLEAR_LINE);
 		if (data & 0x08)
 			m_audiocpu->set_input_line(INPUT_LINE_IRQ6, CLEAR_LINE);
 	}
@@ -858,7 +892,18 @@ void firebeat_state::spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_ma
 
 void firebeat_state::spu_220000_w(uint16_t data)
 {
-	// IRQ2 handler 5 sets all bits
+	// Set when clearing waveram memory during initialization
+	// uint16_t bank = ((~data) >> 6) & 3;
+	// uint16_t offset = (!!((~data) & (1 << 5))) * 8192;
+	// uint16_t verify = !!((~data) & (1 << 4)); // 0 = writing memory, 1 = verifying memory
+
+	// For IRQ2:
+	// Command 5 (0x7b2c):
+	// if buffer[4] == 0 and buffer[0] < buffer[5], it writes what buffer(thread?) is currently busy(?)
+	// There are 8 buffers/threads total
+	//
+	// Command 7 (0x9204):
+	// If all 30 SE channels are in use, bit 3 will be set to 1
 }
 
 void firebeat_state::spu_ata_dma_low_w(uint16_t data)
@@ -910,7 +955,18 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_interrupt)
 {
-	m_audiocpu->set_input_line(INPUT_LINE_IRQ6, state);
+	if (state == 0)
+		m_audiocpu->set_input_line(INPUT_LINE_IRQ2, state);
+
+	sync_ata_irq = state;
+}
+
+TIMER_DEVICE_CALLBACK_MEMBER(firebeat_state::spu_timer_callback)
+{
+	if (sync_ata_irq)
+		m_audiocpu->set_input_line(INPUT_LINE_IRQ6, 1);
+
+	m_audiocpu->set_input_line(INPUT_LINE_IRQ2, 1);
 }
 
 /*****************************************************************************/
@@ -1441,9 +1497,10 @@ void firebeat_state::firebeat_spu(machine_config &config)
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
 
-	// This isn't correct but it's required for sounds play. Adjusting the time will change the duration of the sound.
-	// More research is required to find a proper way to implement this.
-	m_audiocpu->set_periodic_int(FUNC(firebeat_state::irq2_line_assert), attotime::from_hz(500));
+	// 500 hz works best for pop'n music.
+	// Any lower and sometimes you'll hear buzzing from certain keysounds, or fades take too long.
+	// Any higher and keysounds get cut short.
+	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_state::spu_timer_callback), attotime::from_hz(500));
 }
 
 void firebeat_state::firebeat_spu_bm3(machine_config &config)
@@ -1461,6 +1518,11 @@ void firebeat_state::firebeat_spu_bm3(machine_config &config)
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "hdd", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_state::spu_ata_dmarq));
+
+	// 500 hz seems ok for beatmania III.
+	// Any higher makes things act weird.
+	// Lower doesn't have that huge of an effect compared to pop'n? (limited tested).
+	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_state::spu_timer_callback), attotime::from_hz(500));
 }
 
 

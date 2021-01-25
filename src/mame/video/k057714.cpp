@@ -596,7 +596,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
 			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
 
-			if (draw)
+			if (fbaddr < VRAM_SIZE_HALF && draw)
 			{
 				if (blend_mode)
 				{
