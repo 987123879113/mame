@@ -272,7 +272,7 @@ private:
 	void lamp_output3_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint16_t spu_unk_r();
 	void spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
-	void spu_220000_w(uint16_t data);
+	void spu_status_led_w(uint16_t data);
 	void spu_ata_dma_low_w(uint16_t data);
 	void spu_ata_dma_high_w(uint16_t data);
 	void spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
@@ -854,10 +854,10 @@ void firebeat_state::lamp_output3_ppp_w(offs_t offset, uint32_t data, uint32_t m
 				irq6_was_called_flag is set only when IRQ6 was called.
 				get_dma_timer is what is incremented by 0x29c6.
 			cmd[4] = 0x94de -> Animates channel volume if required
-			cmd[5] = 0x7b2c -> Send some kind of buffer statuses to spu_220000_w. Related to IRQ4 since commands come from PPC to set buffer data
+			cmd[5] = 0x7b2c -> Send some kind of buffer statuses to spu_status_led_w. Related to IRQ4 since commands come from PPC to set buffer data
 			cmd[6] = 0x977e -> Animates channel frequency if required
 			cmd[7] = 0x9204 -> Sends current state of rf5c400 channels as well as a list (bitmask integer) of usable channels up to main CPU memory.
-			                   Also sends a flag to to spu_220000_w that shows if there are available SE slots.
+			                   Also sends a flag to to spu_status_led_w that shows if there are available SE slots.
 
     IRQ4: Dual-port RAM mailbox (when PPC writes to 0x3FE)
           Handles commands from PPC (bytes 0x00 and 0x01)
@@ -890,7 +890,7 @@ void firebeat_state::spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_ma
 	}
 }
 
-void firebeat_state::spu_220000_w(uint16_t data)
+void firebeat_state::spu_status_led_w(uint16_t data)
 {
 	// Set when clearing waveram memory during initialization
 	// uint16_t bank = ((~data) >> 6) & 3;
@@ -1022,7 +1022,7 @@ void firebeat_state::spu_map(address_map &map)
 	map(0x000000, 0x07ffff).rom();
 	map(0x100000, 0x13ffff).ram();
 	map(0x200000, 0x200001).r(FUNC(firebeat_state::spu_unk_r));
-	map(0x220000, 0x220001).w(FUNC(firebeat_state::spu_220000_w));
+	map(0x220000, 0x220001).w(FUNC(firebeat_state::spu_status_led_w));
 	map(0x230000, 0x230001).w(FUNC(firebeat_state::spu_irq_ack_w));
 	map(0x240000, 0x240003).w(FUNC(firebeat_state::spu_ata_dma_low_w)).nopr();
 	map(0x250000, 0x250003).w(FUNC(firebeat_state::spu_ata_dma_high_w)).nopr();
