@@ -406,11 +406,11 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 	int width = m_frame[frame].width + 1;
 	int alpha = m_frame[frame].alpha;
 	int blend_mode = alpha & 3;
-	int alpha1 = (alpha >> 2) & 0x1f;
-	int alpha2 = (alpha >> 7) & 0x1f;
+	int alpha1 = (alpha >> 7) & 0x1f; // beatmania III uses this for blend mode 1
+	int alpha2 = (alpha >> 2) & 0x1f; // But pop'n music has alpha 1 and 2 the same for blend mode 1
 
 	if (blend_mode == 2) {
-		alpha1 = (alpha1 * 16) / alpha2;
+		alpha1 = (alpha2 * 16) / alpha1;
 	}
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
