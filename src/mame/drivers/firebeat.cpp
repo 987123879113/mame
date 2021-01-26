@@ -970,8 +970,8 @@ TIMER_DEVICE_CALLBACK_MEMBER(firebeat_state::spu_timer_callback)
 {
 	if (sync_ata_irq)
 		m_audiocpu->set_input_line(INPUT_LINE_IRQ6, 1);
-
-	m_audiocpu->set_input_line(INPUT_LINE_IRQ2, 1);
+	else
+		m_audiocpu->set_input_line(INPUT_LINE_IRQ2, 1);
 }
 
 /*****************************************************************************/
