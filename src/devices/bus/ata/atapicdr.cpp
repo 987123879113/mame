@@ -42,8 +42,6 @@ void atapi_cdrom_device::device_start()
 	m_image = subdevice<cdrom_image_device>("image");
 	m_cdda = subdevice<cdda_device>("cdda");
 
-	printf("Device started\n");
-
 	memset(m_identify_buffer, 0, sizeof(m_identify_buffer));
 
 	m_identify_buffer[ 0 ] = 0x8500; // ATAPI device, cmd set 5 compliant, DRQ within 3 ms of PACKET command

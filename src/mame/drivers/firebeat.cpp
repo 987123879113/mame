@@ -177,6 +177,11 @@ struct IBUTTON
 };
 
 
+enum
+{
+	TIMER_SPU_DMA
+};
+
 //#define PRINT_SPU_MEM 0
 
 class firebeat_state : public driver_device
@@ -212,6 +217,7 @@ protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	virtual void video_start() override;
+	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 
 private:
 	required_device<ppc4xx_device> m_maincpu;
@@ -241,6 +247,7 @@ private:
 	int m_spu_ata_dmarq;
 	uint32_t m_wave_bank;
 
+	emu_timer *m_dma_timer;
 	bool sync_ata_irq;
 
 	void firebeat_spu_base(machine_config &config);
@@ -279,6 +286,7 @@ private:
 	uint16_t firebeat_waveram_r(offs_t offset);
 	void firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
+	TIMER_CALLBACK_MEMBER(spu_dma_callback);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
 	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
 //  TIMER_CALLBACK_MEMBER(keyboard_timer_callback);
@@ -309,8 +317,17 @@ private:
 
 
 
-
-
+void firebeat_state::device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr)
+{
+	switch (id)
+	{
+	case TIMER_SPU_DMA:
+		spu_dma_callback(ptr, param);
+		break;
+	default:
+		throw emu_fatalerror("Unknown id in cat_state::device_timer");
+	}
+}
 
 void firebeat_state::video_start()
 {
@@ -936,6 +953,25 @@ void firebeat_state::firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t m
 	COMBINE_DATA(&m_waveram[offset + m_wave_bank]);
 }
 
+TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
+{
+	auto max = m_spu_ata_dma + 128;
+
+	while (m_spu_ata_dmarq && m_spu_ata_dma < max)
+	{
+		uint16_t data = m_spuata->read_dma();
+		m_waveram[m_wave_bank+m_spu_ata_dma] = data;
+		m_spu_ata_dma++;
+	}
+
+	if (m_spu_ata_dmarq) {
+		m_dma_timer->adjust(attotime::from_usec(25));
+	} else {
+		m_spuata->write_dmack(CLEAR_LINE);
+		m_dma_timer->enable(false);
+	}
+}
+
 WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 {
 	if (m_spuata != nullptr && m_spu_ata_dmarq != state)
@@ -945,15 +981,8 @@ WRITE_LINE_MEMBER(firebeat_state::spu_ata_dmarq)
 		if (m_spu_ata_dmarq)
 		{
 			m_spuata->write_dmack(ASSERT_LINE);
-
-			while (m_spu_ata_dmarq)
-			{
-				uint16_t data = m_spuata->read_dma();
-				m_waveram[m_wave_bank+m_spu_ata_dma] = data;
-				m_spu_ata_dma++;
-			}
-
-			m_spuata->write_dmack(CLEAR_LINE);
+			m_dma_timer->enable(true);
+			m_dma_timer->adjust(attotime::zero);
 		}
 	}
 }
@@ -983,6 +1012,8 @@ void firebeat_state::machine_start()
 
 	/* configure fast RAM regions for DRC */
 	m_maincpu->ppcdrc_add_fastram(0x00000000, 0x01ffffff, false, m_work_ram);
+
+	m_dma_timer = timer_alloc(TIMER_SPU_DMA);
 }
 
 void firebeat_state::firebeat_map(address_map &map)
