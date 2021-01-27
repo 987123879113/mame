@@ -165,9 +165,10 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 namespace {
 
 // Cabinet configuration data
-static const int cab_data[2] = { 0x0, 0x8 };
-static const int kbm_cab_data[2] = { 0x2, 0x8 };
-static const int ppd_cab_data[2] = { 0x1, 0x9 };
+static const int cab_data[3] = { 0, 0, 0 };
+static const int kbm_cab_data[3] = { 2, 0, 0 };
+static const int ppd_cab_data[3] = { 1, 0, 0 };
+static const int ppp_cab_data[3] = { 8, 0, 0 };
 
 struct IBUTTON_SUBKEY
 {
@@ -179,6 +180,11 @@ struct IBUTTON_SUBKEY
 struct IBUTTON
 {
 	IBUTTON_SUBKEY subkey[3];
+};
+
+enum
+{
+	TIMER_SPU_DMA
 };
 
 /*****************************************************************************/
@@ -232,7 +238,7 @@ protected:
 
 /***********/
 	uint32_t input_r(offs_t offset, uint32_t mem_mask = ~0);
-	uint32_t sensor_r(offs_t offset);
+	uint16_t sensor_r(offs_t offset);
 
 /***********/
 	uint32_t ata_command_r(offs_t offset, uint32_t mem_mask = ~0);
@@ -292,10 +298,12 @@ public:
 	void rf5c400_map(address_map& map);
 
 protected:
+	virtual void machine_start() override;
 	virtual void machine_reset() override;
+	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 
 	uint16_t spu_unk_r();
-	void spu_220000_w(uint16_t data);
+	void spu_status_led_w(uint16_t data);
 	void spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void spu_ata_dma_low_w(uint16_t data);
 	void spu_ata_dma_high_w(uint16_t data);
@@ -306,6 +314,9 @@ protected:
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
 	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
 
+	TIMER_CALLBACK_MEMBER(spu_dma_callback);
+	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
+
 	uint32_t m_spu_ata_dma;
 	int m_spu_ata_dmarq;
 	uint32_t m_wave_bank;
@@ -314,6 +325,10 @@ protected:
 	required_device<cy7c131_device> m_dpram;
 	required_device<ata_interface_device> m_spuata;
 	required_shared_ptr<uint16_t> m_waveram;
+
+private:
+	emu_timer *m_dma_timer;
+	bool sync_ata_irq;
 };
 
 /*****************************************************************************/
@@ -382,6 +397,8 @@ public:
 
 	void firebeat_bm3(machine_config &config);
 	void init_bm3();
+
+	DECLARE_WRITE_LINE_MEMBER( bm3_vblank );
 
 	// TODO: Floppy disk implementation
 };
@@ -491,7 +508,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
-	map(0x7d000340, 0x7d000347).r(FUNC(firebeat_state::sensor_r));
+	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_state::sensor_r));
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
@@ -516,19 +533,12 @@ void firebeat_state::ymz280b_map(address_map &map)
 
 uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 {
-	uint32_t r = 0;
-
 //  printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
 	switch (offset)
 	{
-		case 0:
-		{
-			r = m_cur_cab_data[m_cab_data_ptr & 1] << 28;
-			m_cab_data_ptr++;
-			return r;
-		}
-		case 2:     return 0x00000000;
-		case 4:     return 0x00000000;
+		case 0: return m_cur_cab_data[0] << 28;
+		case 2: return m_cur_cab_data[1] << 28;
+		case 4: return m_cur_cab_data[2] << 28;
 	}
 
 	return 0;
@@ -738,16 +748,30 @@ uint32_t firebeat_state::input_r(offs_t offset, uint32_t mem_mask)
 	return r;
 }
 
-uint32_t firebeat_state::sensor_r(offs_t offset)
+uint16_t firebeat_state::sensor_r(offs_t offset)
 {
-	if (offset == 0)
-	{
-		return ioport("SENSOR1")->read() | 0x01000100;
+	switch (offset) {
+		// Used by ParaParaParadise and beatmania III
+		case 0: return ioport("SENSOR1")->read() | 0x0100;
+		case 1: return ioport("SENSOR2")->read() | 0x0100;
+		case 2: return ioport("SENSOR3")->read() | 0x0100;
+		case 3: return ioport("SENSOR4")->read() | 0x0100;
+
+		// Used by beatmania III
+		case 5: return (ioport("TURNTABLE_P1")->read() >> 8) | 0x0100;
+		case 6: return (ioport("TURNTABLE_P1")->read() & 0xff) | 0x0100;
+		case 7: return (ioport("TURNTABLE_P2")->read() >> 8) | 0x0100;
+		case 8: return (ioport("TURNTABLE_P2")->read() & 0xff) | 0x0100;
+		case 9: return ioport("EFFECT1")->read() | 0x0100;
+		case 10: return ioport("EFFECT2")->read() | 0x0100;
+		case 11: return ioport("EFFECT3")->read() | 0x0100;
+		case 12: return ioport("EFFECT4")->read() | 0x0100;
+		case 13: return ioport("EFFECT5")->read() | 0x0100;
+		case 14: return ioport("EFFECT6")->read() | 0x0100;
+		case 15: return ioport("EFFECT7")->read() | 0x0100;
 	}
-	else
-	{
-		return ioport("SENSOR2")->read() | 0x01000100;
-	}
+
+	return 0;
 }
 
 /*****************************************************************************/
@@ -942,11 +966,26 @@ WRITE_LINE_MEMBER(firebeat_state::sound_irq_callback)
 
 /*****************************************************************************/
 
+void firebeat_spu_state::machine_start()
+{
+	m_dma_timer = timer_alloc(TIMER_SPU_DMA);
+}
+
 void firebeat_spu_state::machine_reset()
 {
 	m_spu_ata_dma = 0;
 	m_spu_ata_dmarq = 0;
 	m_wave_bank = 0;
+}
+
+void firebeat_spu_state::device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr)
+{
+	switch (id)
+	{
+	case TIMER_SPU_DMA:
+		spu_dma_callback(ptr, param);
+		break;
+	}
 }
 
 void firebeat_spu_state::firebeat_spu_base(machine_config &config)
@@ -958,10 +997,6 @@ void firebeat_spu_state::firebeat_spu_base(machine_config &config)
 
 	M68000(config, m_audiocpu, 16000000);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &firebeat_spu_state::spu_map);
-	// This isn't correct but it's required for sounds to play.
-	// Adjusting the time will change the duration of the sound.
-	// More research is required to find a proper way to implement this.
-	m_audiocpu->set_periodic_int(FUNC(firebeat_spu_state::irq2_line_assert), attotime::from_hz(500));
 
 	CY7C131(config, m_dpram);
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
@@ -984,7 +1019,7 @@ void firebeat_spu_state::spu_map(address_map &map)
 	map(0x000000, 0x07ffff).rom();
 	map(0x100000, 0x13ffff).ram();
 	map(0x200000, 0x200001).r(FUNC(firebeat_spu_state::spu_unk_r));
-	map(0x220000, 0x220001).w(FUNC(firebeat_spu_state::spu_220000_w));
+	map(0x220000, 0x220001).w(FUNC(firebeat_spu_state::spu_status_led_w));
 	map(0x230000, 0x230001).w(FUNC(firebeat_spu_state::spu_irq_ack_w));
 	map(0x240000, 0x240003).w(FUNC(firebeat_spu_state::spu_ata_dma_low_w)).nopr();
 	map(0x250000, 0x250003).w(FUNC(firebeat_spu_state::spu_ata_dma_high_w)).nopr();
@@ -1001,11 +1036,52 @@ void firebeat_spu_state::rf5c400_map(address_map& map)
 	map(0x0000000, 0x1ffffff).ram().share("rf5c400");
 }
 
+
 /*  SPU board M68K IRQs
-    IRQ1: ?
-    IRQ2: Timer?
+
+    IRQ1: Executes all commands stored in a buffer.
+          The buffer can contain up to 8 commands.
+          This seems to be unused.
+
+    IRQ2: Executes one command stored in a different buffer from IRQ1.
+          The buffer can contain up to 8 commands.
+	      The command index counter increments after each IRQ2 call.
+		  If there is no command in the slot at the current counter then it just increments without executing a command.
+
+		  Timing matters. In particular if the speed of the IRQ 2 calls is too fast then the volume and frequency animations will be wrong.
+		  The most common issue with bad timing is keysounds will be cut off.
+		  pop'n music Animelo 2 also has an issue when playing CHA-LA HEAD CHA-LA where one of the beginning keysounds will stay on a
+		  very high pitched frequency. The lower(?) the IRQ 2 frequency, the longer the keysound stays played it seems.
+
+		  For beatmania III:
+			cmd[0] = nop
+			cmd[1] = 0x91bc -> Send stop command for all rf5c400 channels that are done playing
+			cmd[2] = 0x310a -> Error checking? Sending some kind of state to main CPU???
+			cmd[3] = 0x29c6 -> Increment a timer for each running DMA(ATA command?)
+				Each timer must count up to 0x02e8 (744) before it will move on to the next DMA, which I believe is the time out counter.
+
+				In another part of the program (0x363c for a21jca03.bin) is the following code for determining when to start and stop the DMA:
+
+				start_dma();
+				while (get_dma_timer() < dma_max_timer) {
+					if (irq6_called_flag) {
+						break;
+					}
+				}
+				end_dma();
+
+				irq6_called_flag is set only when IRQ6 is called.
+				get_dma_timer is the timer that is incremented by 0x29c6.
+			cmd[4] = 0x94de -> Animates rf5c400 channel volumes
+			cmd[5] = 0x7b2c -> Send some kind of buffer status flags to spu_status_led_w. Related to IRQ4 since commands come from PPC to set buffer data
+			cmd[6] = 0x977e -> Animates rf5c400 channel frequencies
+			cmd[7] = 0x9204 -> Sends current state of rf5c400 channels as well as a list (bitmask integer) of usable channels up to main CPU memory.
+			                   Also sends a flag to to spu_status_led_w that shows if there are available SE slots.
+							   If there are no available SE slots then it will set bit 3 to .
+
     IRQ4: Dual-port RAM mailbox (when PPC writes to 0x3FE)
           Handles commands from PPC (bytes 0x00 and 0x01)
+
     IRQ6: ATA
 */
 
@@ -1021,9 +1097,22 @@ uint16_t firebeat_spu_state::spu_unk_r()
 	return r;
 }
 
-void firebeat_spu_state::spu_220000_w(uint16_t data)
+void firebeat_spu_state::spu_status_led_w(uint16_t data)
 {
-	// IRQ2 handler 5 sets all bits
+	// Verified with real hardware that the patterns match the status LEDs on the board
+
+	// Set when clearing waveram memory during initialization:
+	// uint16_t bank = ((~data) >> 6) & 3;
+	// uint16_t offset = (!!((~data) & (1 << 5))) * 8192;
+	// uint16_t verify = !!((~data) & (1 << 4)); // 0 = writing memory, 1 = verifying memory
+
+	// For IRQ2:
+	// Command 5 (0x7b2c):
+	// if buffer[4] == 0 and buffer[0] < buffer[5], it writes what buffer(thread?) is currently busy(?)
+	// There are 8 buffers/threads total
+	//
+	// Command 7 (0x9204):
+	// If all 30 SE channels are in use, bit 3 will be set to 1
 }
 
 void firebeat_spu_state::spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask)
@@ -1073,22 +1162,49 @@ WRITE_LINE_MEMBER(firebeat_spu_state::spu_ata_dmarq)
 		if (m_spu_ata_dmarq)
 		{
 			m_spuata->write_dmack(ASSERT_LINE);
-
-			while (m_spu_ata_dmarq)
-			{
-				uint16_t data = m_spuata->read_dma();
-				m_waveram[m_wave_bank+m_spu_ata_dma] = data;
-				m_spu_ata_dma++;
-			}
-
-			m_spuata->write_dmack(CLEAR_LINE);
+			m_dma_timer->enable(true);
+			m_dma_timer->adjust(attotime::zero);
 		}
+	}
+}
+
+TIMER_CALLBACK_MEMBER(firebeat_spu_state::spu_dma_callback)
+{
+	// These values were picked because they roughly match real in-game footage of
+	// when sounds start playing, and more importantly to free up CPU time for the
+	// main CPU during DMAs to avoid stuttering.
+	auto next_dma_timing = attotime::from_usec(75);
+	auto dma_end_target = m_spu_ata_dma + 128;
+
+	while (m_spu_ata_dmarq && m_spu_ata_dma < dma_end_target)
+	{
+		uint16_t data = m_spuata->read_dma();
+		m_waveram[m_wave_bank+m_spu_ata_dma] = data;
+		m_spu_ata_dma++;
+	}
+
+	if (m_spu_ata_dmarq) {
+		m_dma_timer->adjust(next_dma_timing);
+	} else {
+		m_spuata->write_dmack(CLEAR_LINE);
+		m_dma_timer->enable(false);
 	}
 }
 
 WRITE_LINE_MEMBER(firebeat_spu_state::spu_ata_interrupt)
 {
-	m_audiocpu->set_input_line(INPUT_LINE_IRQ6, state);
+	if (state == 0)
+		m_audiocpu->set_input_line(INPUT_LINE_IRQ2, state);
+
+	sync_ata_irq = state;
+}
+
+TIMER_DEVICE_CALLBACK_MEMBER(firebeat_spu_state::spu_timer_callback)
+{
+	if (sync_ata_irq)
+		m_audiocpu->set_input_line(INPUT_LINE_IRQ6, 1);
+	else
+		m_audiocpu->set_input_line(INPUT_LINE_IRQ2, 1);
 }
 
 /*****************************************************************************
@@ -1103,6 +1219,7 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 		// beatmania III is the only game on the Firebeat platform to use 640x480
 		screen->set_size(640, 480);
 		screen->set_visarea(0, 639, 0, 479);
+		screen->screen_vblank().set(FUNC(firebeat_bm3_state::bm3_vblank));
 	}
 
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices_hdd, "hdd", nullptr, true);
@@ -1114,6 +1231,42 @@ void firebeat_bm3_state::init_bm3()
 {
 	init_firebeat();
 	init_lights(write32s_delegate(*this), write32s_delegate(*this), write32s_delegate(*this));
+}
+
+WRITE_LINE_MEMBER(firebeat_bm3_state::bm3_vblank)
+{
+	// Patch out FDD errors since the game otherwise runs fine without it
+	// and the FDD might not be implemented for a while
+	if(strcmp(machine().system().name, "bm3") == 0)
+	{
+		if (m_work_ram[0x918C / 4] == 0x4809202D) m_work_ram[0x918C / 4] = 0x38600000;
+		if (m_work_ram[0x3380C / 4] == 0x4BFFFD99) m_work_ram[0x3380C / 4] = 0x38600000;
+		if (m_work_ram[0x33834 / 4] == 0x4BFFFD71) m_work_ram[0x33834 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm3core") == 0)
+	{
+		if (m_work_ram[0x91E4 / 4] == 0x480A19F5) m_work_ram[0x91E4 / 4] = 0x38600000;
+		if (m_work_ram[0x37BB0 / 4] == 0x4BFFFD71) m_work_ram[0x37BB0 / 4] = 0x38600000;
+		if (m_work_ram[0x37BD8 / 4] == 0x4BFFFD49) m_work_ram[0x37BD8 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm36th") == 0)
+	{
+		if (m_work_ram[0x91E4 / 4] == 0x480BC8BD) m_work_ram[0x91E4 / 4] = 0x38600000;
+		if (m_work_ram[0x451D8 / 4] == 0x4BFFFD75) m_work_ram[0x451D8 / 4] = 0x38600000;
+		if (m_work_ram[0x45200 / 4] == 0x4BFFFD4D) m_work_ram[0x45200 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm37th") == 0)
+	{
+		if (m_work_ram[0x91E4 / 4] == 0x480CF62D) m_work_ram[0x91E4 / 4] = 0x38600000;
+		if (m_work_ram[0x46A58 / 4] == 0x4BFFFD45) m_work_ram[0x46A58 / 4] = 0x38600000;
+		if (m_work_ram[0x46AB8 / 4] == 0x4BFFFCE5) m_work_ram[0x46AB8 / 4] = 0x38600000;
+	}
+	else if(strcmp(machine().system().name, "bm3final") == 0)
+	{
+		if (m_work_ram[0x47F8 / 4] == 0x480CEF91) m_work_ram[0x47F8 / 4] = 0x38600000;
+		if (m_work_ram[0x3FAF4 / 4] == 0x4BFFFD59) m_work_ram[0x3FAF4 / 4] = 0x38600000;
+		if (m_work_ram[0x3FB54 / 4] == 0x4BFFFCF9) m_work_ram[0x3FB54 / 4] = 0x38600000;
+	}
 }
 
 /*****************************************************************************
@@ -1148,6 +1301,8 @@ void firebeat_ppp_state::init_ppp()
 {
 	init_firebeat();
 	init_lights(write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output3_ppp_w)));
+
+	m_cur_cab_data = ppp_cab_data;
 }
 
 void firebeat_ppp_state::init_ppd()
@@ -1520,16 +1675,22 @@ static INPUT_PORTS_START(ppp)
 	// Sensors 15...23 are only used by the Korean version of PPP, which has 8 sensor bars
 
 	PORT_START("SENSOR1")
-	PORT_BIT( 0x00070000, IP_ACTIVE_HIGH, IPT_BUTTON3 )     // Sensor 0, 1, 2  (Sensor bar 1)
-	PORT_BIT( 0x00380000, IP_ACTIVE_HIGH, IPT_BUTTON4 )     // Sensor 3, 4, 5  (Sensor bar 2)
-	PORT_BIT( 0x00c00001, IP_ACTIVE_HIGH, IPT_BUTTON5 )     // Sensor 6, 7, 8  (Sensor bar 3)
-	PORT_BIT( 0x0000000e, IP_ACTIVE_HIGH, IPT_BUTTON6 )     // Sensor 9, 10,11 (Sensor bar 4)
+	PORT_BIT( 0x0007, IP_ACTIVE_HIGH, IPT_BUTTON3 )     // Sensor 0, 1, 2  (Sensor bar 1)
+	PORT_BIT( 0x0038, IP_ACTIVE_HIGH, IPT_BUTTON4 )     // Sensor 3, 4, 5  (Sensor bar 2)
+	PORT_BIT( 0x00c0, IP_ACTIVE_HIGH, IPT_BUTTON5 )     // Sensor 6, 7, 8  (Sensor bar 3)
 
 	PORT_START("SENSOR2")
-	PORT_BIT( 0x00070000, IP_ACTIVE_HIGH, IPT_BUTTON7 )     // Sensor 12,13,14 (Sensor bar 5)
-	PORT_BIT( 0x00380000, IP_ACTIVE_HIGH, IPT_BUTTON8 )     // Sensor 15,16,17 (Sensor bar 6)   (unused by PPP)
-	PORT_BIT( 0x00c00001, IP_ACTIVE_HIGH, IPT_BUTTON9 )     // Sensor 18,19,20 (Sensor bar 7)   (unused by PPP)
-	PORT_BIT( 0x0000000e, IP_ACTIVE_HIGH, IPT_BUTTON10 )    // Sensor 21,22,23 (Sensor bar 8)   (unused by PPP)
+	PORT_BIT( 0x0001, IP_ACTIVE_HIGH, IPT_BUTTON5 )     // Sensor 6, 7, 8  (Sensor bar 3)
+	PORT_BIT( 0x000e, IP_ACTIVE_HIGH, IPT_BUTTON6 )     // Sensor 9, 10,11 (Sensor bar 4)
+
+	PORT_START("SENSOR3")
+	PORT_BIT( 0x0007, IP_ACTIVE_HIGH, IPT_BUTTON7 )     // Sensor 12,13,14 (Sensor bar 5)
+	PORT_BIT( 0x0038, IP_ACTIVE_HIGH, IPT_BUTTON8 )     // Sensor 15,16,17 (Sensor bar 6)   (unused by PPP)
+	PORT_BIT( 0x00c0, IP_ACTIVE_HIGH, IPT_BUTTON9 )     // Sensor 18,19,20 (Sensor bar 7)   (unused by PPP)
+
+	PORT_START("SENSOR4")
+	PORT_BIT( 0x0001, IP_ACTIVE_HIGH, IPT_BUTTON9 )     // Sensor 18,19,20 (Sensor bar 7)   (unused by PPP)
+	PORT_BIT( 0x000e, IP_ACTIVE_HIGH, IPT_BUTTON10 )    // Sensor 21,22,23 (Sensor bar 8)   (unused by PPP)
 
 INPUT_PORTS_END
 
