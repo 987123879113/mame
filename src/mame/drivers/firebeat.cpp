@@ -329,7 +329,7 @@ protected:
 
 private:
 	emu_timer *m_dma_timer;
-	bool sync_ata_irq;
+	bool m_sync_ata_irq;
 };
 
 /*****************************************************************************/
@@ -512,7 +512,10 @@ void firebeat_state::firebeat(machine_config &config)
 void firebeat_state::firebeat_map(address_map &map)
 {
 	map(0x00000000, 0x01ffffff).ram().share("work_ram");
+	map(0x70000000, 0x70000fff).noprw();
+	map(0x70001fc0, 0x70001fdf).noprw();
 	map(0x70006000, 0x70006003).w(FUNC(firebeat_state::extend_board_irq_w));
+	map(0x70008000, 0x7000800f).noprw();
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
@@ -986,6 +989,7 @@ void firebeat_spu_state::machine_reset()
 	m_spu_ata_dma = 0;
 	m_spu_ata_dmarq = 0;
 	m_wave_bank = 0;
+	m_sync_ata_irq = 0;
 }
 
 void firebeat_spu_state::device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr)
@@ -1206,12 +1210,12 @@ WRITE_LINE_MEMBER(firebeat_spu_state::spu_ata_interrupt)
 	if (state == 0)
 		m_audiocpu->set_input_line(INPUT_LINE_IRQ2, state);
 
-	sync_ata_irq = state;
+	m_sync_ata_irq = state;
 }
 
 TIMER_DEVICE_CALLBACK_MEMBER(firebeat_spu_state::spu_timer_callback)
 {
-	if (sync_ata_irq)
+	if (m_sync_ata_irq)
 		m_audiocpu->set_input_line(INPUT_LINE_IRQ6, 1);
 	else
 		m_audiocpu->set_input_line(INPUT_LINE_IRQ2, 1);
