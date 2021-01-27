@@ -195,7 +195,6 @@ static void firebeat_ata_devices(device_slot_interface &device)
 
 static void firebeat_ata_devices_hdd(device_slot_interface &device)
 {
-	device.option_add("cdrom", ATAPI_FIXED_CDROM);
 	device.option_add("hdd", IDE_HARDDISK);
 }
 
@@ -400,7 +399,12 @@ public:
 
 	DECLARE_WRITE_LINE_MEMBER( bm3_vblank );
 
+private:
+	void firebeat_bm3_map(address_map &map);
+
 	// TODO: Floppy disk implementation
+	uint32_t fdd_unk_r(offs_t offset, uint32_t mem_mask = ~0);
+	void fdd_unk_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 };
 
 class firebeat_popn_state : public firebeat_spu_state
@@ -1214,6 +1218,8 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 {
 	firebeat_spu_base(config);
 
+	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_bm3_state::firebeat_bm3_map);
+
 	screen_device *screen = subdevice<screen_device>("screen");
 	if (screen != nullptr) {
 		// beatmania III is the only game on the Firebeat platform to use 640x480
@@ -1225,12 +1231,35 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices_hdd, "hdd", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_bm3_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_bm3_state::spu_ata_dmarq));
+
+	// 500 hz seems ok for beatmania III.
+	// Any higher makes things act weird.
+	// Lower doesn't have that huge of an effect compared to pop'n? (limited tested).
+	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_bm3_state::spu_timer_callback), attotime::from_hz(500));
 }
 
 void firebeat_bm3_state::init_bm3()
 {
 	init_firebeat();
 	init_lights(write32s_delegate(*this), write32s_delegate(*this), write32s_delegate(*this));
+}
+
+void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
+{
+	firebeat_spu_map(map);
+	map(0x70001fc0, 0x70001fdf).rw(FUNC(firebeat_bm3_state::fdd_unk_r), FUNC(firebeat_bm3_state::fdd_unk_w));
+}
+
+uint32_t firebeat_bm3_state::fdd_unk_r(offs_t offset, uint32_t mem_mask)
+{
+	printf("%s: fdd_unk_r: %08X, %08X\n", machine().describe_context().c_str(), offset, mem_mask);
+
+	return 0;
+}
+
+void firebeat_bm3_state::fdd_unk_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	printf("%s: fdd_unk_w: %08X, %08X, %08X\n", machine().describe_context().c_str(), data, offset, mem_mask);
 }
 
 WRITE_LINE_MEMBER(firebeat_bm3_state::bm3_vblank)
@@ -1280,6 +1309,11 @@ void firebeat_popn_state::firebeat_popn(machine_config &config)
 	m_spuata->slot(0).set_option_machine_config("cdrom", dvdrom_config);
 	m_spuata->irq_handler().set(FUNC(firebeat_popn_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_popn_state::spu_ata_dmarq));
+
+	// 500 hz works best for pop'n music.
+	// Any lower and sometimes you'll hear buzzing from certain keysounds, or fades take too long.
+	// Any higher and keysounds get cut short.
+	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_popn_state::spu_timer_callback), attotime::from_hz(500));
 }
 
 void firebeat_popn_state::dvdrom_config(device_t *device)
