@@ -215,7 +215,6 @@ protected:
 
 	static void cdrom_config(device_t *device);
 
-
 	void firebeat_map(address_map &map);
 	void ymz280b_map(address_map &map);
 
@@ -397,8 +396,7 @@ public:
 	void firebeat_popn(machine_config &config);
 	void init_popn();
 
-protected:
-	virtual void machine_reset() override;
+	static void dvdrom_config(device_t *device);
 };
 
 /*****************************************************************************/
@@ -1121,40 +1119,19 @@ void firebeat_bm3_state::init_bm3()
 /*****************************************************************************
 * pop'n music
 ******************************************************************************/
-void firebeat_popn_state::machine_reset()
-{
-	// Modify the underlying CD-ROM device's identify buffer to return Ultra DMA mode
-	// This is a workaround for issues with the ATAPI CD-ROM code that causes stack
-	// overflows with non-Ultra DMAs
-	if (!m_spuata) {
-		return;
-	}
-
-	ata_slot_device *spuata = m_spuata->subdevice<ata_slot_device>("0");
-	if (spuata == nullptr) {
-		return;
-	}
-
-	atapi_cdrom_device *spucdrom = spuata->subdevice<atapi_cdrom_device>("cdrom");
-	if (spucdrom == nullptr) {
-		return;
-	}
-
-	uint16_t *identify_device = spucdrom->identify_device_buffer();
-	if (identify_device == nullptr) {
-		return;
-	}
-
-	identify_device[88] = 0x0102;
-}
-
 void firebeat_popn_state::firebeat_popn(machine_config &config)
 {
 	firebeat_spu_base(config);
 
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", nullptr, true);
+	m_spuata->slot(0).set_option_machine_config("cdrom", dvdrom_config);
 	m_spuata->irq_handler().set(FUNC(firebeat_popn_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_popn_state::spu_ata_dmarq));
+}
+
+void firebeat_popn_state::dvdrom_config(device_t *device)
+{
+	downcast<atapi_cdrom_device &>(*device).set_ultra_dma_mode(0x0102);
 }
 
 void firebeat_popn_state::init_popn()
@@ -1658,6 +1635,77 @@ static INPUT_PORTS_START(popn)
 
 INPUT_PORTS_END
 
+static INPUT_PORTS_START(bm3)
+	PORT_INCLUDE( firebeat )
+
+	PORT_START("IN0")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE) PORT_NAME(DEF_STR(Test))              // Test
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service")                // Service
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_SERVICE2 ) PORT_NAME("A")                      // A
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_SERVICE3 ) PORT_NAME("B")                      // B
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_BUTTON6 ) PORT_PLAYER(1) PORT_NAME("P1 Foot") // P1 Foot Pedal
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON6 ) PORT_PLAYER(2) PORT_NAME("P2 Foot") // P2 Foot Pedal
+
+	PORT_START("IN1")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("SENSOR1")
+	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) // P1 Button 1
+	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) // P1 Button 2
+	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) // P1 Button 3
+	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(1) // P1 Button 4
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(1) // P1 Button 5
+	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_START1 )                 // P1 Start Button
+
+	PORT_START("SENSOR2")
+	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_COIN1 ) // Coin sensor
+
+	PORT_START("SENSOR3")
+	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2) // P2 Button 1
+	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2) // P2 Button 2
+	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2) // P2 Button 3
+	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_PLAYER(2) // P2 Button 4
+	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(2) // P2 Button 5
+	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_START2 )                 // P2 Start Button
+
+	PORT_START("SENSOR4")
+	PORT_BIT( 0xffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("TURNTABLE_P1")
+	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(1) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
+
+	PORT_START("TURNTABLE_P2")
+	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(2) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
+
+	PORT_START("EFFECT1")
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 1") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_START("EFFECT2")
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 2") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_START("EFFECT3")
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 3") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_START("EFFECT4")
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 4") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_START("EFFECT5")
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 5") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_START("EFFECT6")
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 6") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_START("EFFECT7")
+	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 7") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_START("WHEEL_P1") // ?
+	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("WHEEL_P2") // ?
+	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+INPUT_PORTS_END
+
 /*****************************************************************************/
 
 ROM_START( ppp )
@@ -1872,7 +1920,23 @@ ROM_START( ppp11 )
 	DISK_IMAGE_READONLY( "gc977jaa02", 1, SHA1(74ce8c90575fd562807def7d561392d0f91f2bc6) )
 ROM_END
 
-// Beatmania III has a different BIOS and SPU program, and they aren't dumped yet
+ROM_START( bm3 )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("972maina01.21e", 0x00000, 0x80000, CRC(9de35bfd) SHA1(57290e0015ea24fa46efdfe1e8299003b7754a3b))
+
+	ROM_REGION(0xc0, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD( "gq972-jc", 0x000000, 0x0000c0, BAD_DUMP CRC(25003a96) SHA1(6c9cca4eba6f4334d3fb04744b2929c801b710c0) )
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("972spua01.3q", 0x00000, 0x80000, CRC(308dbcff) SHA1(87d11eb3e28cb4f3a8f88e3c57a28809dc429ccd))
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "gc97201", 0, SHA1(216ced68f2082bf891dc3e89fb0663f559cc4915) )
+
+	DISK_REGION( "spu_ata:0:hdd:image" ) // HDD
+	DISK_IMAGE_READONLY( "gc97202", 0, SHA1(84049bab473d29eca3c6d536956ef20ae410967d) )
+ROM_END
+
 ROM_START( bm3core )
 	ROM_REGION32_BE(0x80000, "user1", 0)
 	ROM_LOAD16_WORD_SWAP("974a03.21e", 0x00000, 0x80000, BAD_DUMP CRC(ef9a932d) SHA1(6299d3b9823605e519dbf1f105b59a09197df72f))     // boots with KBM BIOS
@@ -1970,7 +2034,8 @@ GAME(  2001, popn7,    0,   firebeat_popn, popn, firebeat_popn_state, init_popn,
 GAME(  2002, popn8,    0,   firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0,   "Konami",  "Pop'n Music 8", MACHINE_NOT_WORKING)
 GAME(  2001, popnanm2, 0,   firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0,   "Konami",  "Pop'n Music Animelo 2", MACHINE_NOT_WORKING)
 
-GAME(  2000, bm3core,  0,   firebeat_bm3,  popn, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
-GAME(  2001, bm36th,   0,   firebeat_bm3,  popn, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
-GAME(  2002, bm37th,   0,   firebeat_bm3,  popn, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
-GAME(  2003, bm3final, 0,   firebeat_bm3,  popn, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
+GAME(  2000, bm3,      0,   firebeat_bm3,  bm3, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III", MACHINE_NOT_WORKING)
+GAME(  2000, bm3core,  0,   firebeat_bm3,  bm3, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III Append Core Remix", MACHINE_NOT_WORKING)
+GAME(  2001, bm36th,   0,   firebeat_bm3,  bm3, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING)
+GAME(  2002, bm37th,   0,   firebeat_bm3,  bm3, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING)
+GAME(  2003, bm3final, 0,   firebeat_bm3,  bm3, firebeat_bm3_state,  init_bm3,  ROT0,   "Konami",  "Beatmania III The Final", MACHINE_NOT_WORKING)
