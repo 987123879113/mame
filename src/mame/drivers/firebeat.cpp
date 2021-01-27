@@ -955,9 +955,13 @@ void firebeat_state::firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t m
 
 TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
 {
-	auto max = m_spu_ata_dma + 128;
+	// These values were picked because they roughly match real in-game footage of
+	// when sounds start playing, and more importantly to free up CPU time for the
+	// main CPU during DMAs to avoid stuttering.
+	auto next_dma_timing = attotime::from_usec(75);
+	auto dma_end_target = m_spu_ata_dma + 128;
 
-	while (m_spu_ata_dmarq && m_spu_ata_dma < max)
+	while (m_spu_ata_dmarq && m_spu_ata_dma < dma_end_target)
 	{
 		uint16_t data = m_spuata->read_dma();
 		m_waveram[m_wave_bank+m_spu_ata_dma] = data;
@@ -965,7 +969,7 @@ TIMER_CALLBACK_MEMBER(firebeat_state::spu_dma_callback)
 	}
 
 	if (m_spu_ata_dmarq) {
-		m_dma_timer->adjust(attotime::from_usec(25));
+		m_dma_timer->adjust(next_dma_timing);
 	} else {
 		m_spuata->write_dmack(CLEAR_LINE);
 		m_dma_timer->enable(false);
