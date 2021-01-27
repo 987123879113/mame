@@ -71,6 +71,11 @@ void k057714_device::device_start()
 
 void k057714_device::device_reset()
 {
+	// Default display width/height are a guess.
+	// All Firebeat games except beatmania III, which uses 640x480, will set the
+	// display width/height through registers.
+	// The assumption here is that since beatmania III doesn't set the display width/height
+	// then the game is assuming that it's already at the correct settings upon boot.
 	m_display_width = 639;
 	m_display_height = 479;
 
