@@ -206,7 +206,8 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_work_ram(*this, "work_ram"),
 		m_ata(*this, "ata"),
-		m_gcu(*this, "gcu")
+		m_gcu(*this, "gcu"),
+		m_duart_com(*this, "duart_com")
 	{ }
 
 	void firebeat(machine_config &config);
@@ -278,6 +279,7 @@ protected:
 	required_shared_ptr<uint32_t> m_work_ram;
 	required_device<ata_interface_device> m_ata;
 	required_device<k057714_device> m_gcu;
+	required_device<pc16552_device> m_duart_com;
 };
 
 class firebeat_spu_state : public firebeat_state
@@ -353,7 +355,6 @@ public:
 	firebeat_kbm_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_state(mconfig, type, tag),
 		m_duart_midi(*this, "duart_midi"),
-		m_duart_com(*this, "duart_com"),
 		m_kbd(*this, "kbd%u", 0),
 		m_gcu_sub(*this, "gcu_sub")
 	{ }
@@ -382,7 +383,6 @@ private:
 //  int m_keyboard_state[2];
 
 	required_device<pc16552_device> m_duart_midi;
-	required_device<pc16552_device> m_duart_com;
 	required_device_array<midi_keyboard_device, 2> m_kbd;
 	required_device<k057714_device> m_gcu_sub;
 };
@@ -503,6 +503,10 @@ void firebeat_state::firebeat(machine_config &config)
 	ymz.set_addrmap(0, &firebeat_state::ymz280b_map);
 	ymz.add_route(1, "lspeaker", 1.0);
 	ymz.add_route(0, "rspeaker", 1.0);
+
+	PC16552D(config, "duart_com", 0);
+	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
+	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
 }
 
 void firebeat_state::firebeat_map(address_map &map)
@@ -518,9 +522,11 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
 	map(0x7d800000, 0x7d9fffff).rw("flash_snd1", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
 	map(0x7da00000, 0x7dbfffff).rw("flash_snd2", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
+	map(0x7dc00000, 0x7dc0000f).rw(m_duart_com, FUNC(pc16552_device::read), FUNC(pc16552_device::write));
 	map(0x7e000000, 0x7e00003f).rw("rtc", FUNC(rtc65271_device::rtc_r), FUNC(rtc65271_device::rtc_w));
 	map(0x7e000100, 0x7e00013f).rw("rtc", FUNC(rtc65271_device::xram_r), FUNC(rtc65271_device::xram_w));
 	map(0x7e800000, 0x7e8000ff).rw(m_gcu, FUNC(k057714_device::read), FUNC(k057714_device::write));
+	map(0x7e800100, 0x7e8001ff).noprw(); // Secondary GCU, only used by Keyboardmania
 	map(0x7fe00000, 0x7fe0000f).rw(FUNC(firebeat_state::ata_command_r), FUNC(firebeat_state::ata_command_w));
 	map(0x7fe80000, 0x7fe8000f).rw(FUNC(firebeat_state::ata_control_r), FUNC(firebeat_state::ata_control_w));
 	map(0x7ff80000, 0x7fffffff).rom().region("user1", 0);       /* System BIOS */
@@ -1510,15 +1516,15 @@ void firebeat_kbm_state::firebeat_kbm(machine_config &config)
 	ymz.add_route(1, "lspeaker", 1.0);
 	ymz.add_route(0, "rspeaker", 1.0);
 
-	PC16552D(config, "duart_com", 0);
-	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
-	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
 	PC16552D(config, "duart_midi", 0);
 	ns16550_device &midi_chan0(NS16550(config, "duart_midi:chan0", XTAL(24'000'000)));
 	midi_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::midi_uart_ch0_irq_callback));
 	ns16550_device &midi_chan1(NS16550(config, "duart_midi:chan1", XTAL(24'000'000)));
 	midi_chan1.out_int_callback().set(FUNC(firebeat_kbm_state::midi_uart_ch1_irq_callback));
 
+	PC16552D(config, "duart_com", 0);
+	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
+	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
 	MIDI_KBD(config, m_kbd[0], 31250).tx_callback().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
 	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
 }
@@ -1529,7 +1535,6 @@ void firebeat_kbm_state::firebeat_kbm_map(address_map &map)
 	map(0x70000000, 0x70000fff).rw(FUNC(firebeat_kbm_state::midi_uart_r), FUNC(firebeat_kbm_state::midi_uart_w)).umask32(0xff000000);
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_kbm_state::keyboard_wheel_r));
 	map(0x7e800100, 0x7e8001ff).rw(m_gcu_sub, FUNC(k057714_device::read), FUNC(k057714_device::write));
-	map(0x7dc00000, 0x7dc0000f).rw(m_duart_com, FUNC(pc16552_device::read), FUNC(pc16552_device::write));
 }
 
 uint32_t firebeat_kbm_state::keyboard_wheel_r(offs_t offset)
