@@ -198,6 +198,18 @@ static void firebeat_ata_devices_hdd(device_slot_interface &device)
 	device.option_add("hdd", IDE_HARDDISK);
 }
 
+static void cdrom_config(device_t *device)
+{
+	device->subdevice<cdda_device>("cdda")->add_route(0, "^^lspeaker", 0.5);
+	device->subdevice<cdda_device>("cdda")->add_route(1, "^^rspeaker", 0.5);
+	device = device->subdevice("cdda");
+}
+
+static void dvdrom_config(device_t *device)
+{
+	downcast<atapi_cdrom_device &>(*device).set_ultra_dma_mode(0x0102);
+}
+
 class firebeat_state : public driver_device
 {
 public:
@@ -211,66 +223,28 @@ public:
 	{ }
 
 	void firebeat(machine_config &config);
-	void init_firebeat();
 
 protected:
 	virtual void machine_start() override;
-	virtual void video_start() override;
 
 	uint32_t screen_update_firebeat_0(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	static void cdrom_config(device_t *device);
+	void init_firebeat();
 
 	void firebeat_map(address_map &map);
 	void ymz280b_map(address_map &map);
 
-/***********/
-	uint32_t cabinet_r(offs_t offset, uint32_t mem_mask = ~0);
-
-/***********/
-	void set_ibutton(uint8_t *data);
-	int ibutton_w(uint8_t data);
-	void security_w(uint8_t data);
-
-/***********/
-	uint32_t extend_board_irq_r(offs_t offset, uint32_t mem_mask = ~0);
-	void extend_board_irq_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
-
-/***********/
-	uint32_t input_r(offs_t offset, uint32_t mem_mask = ~0);
-	uint16_t sensor_r(offs_t offset);
-
-/***********/
-	uint32_t ata_command_r(offs_t offset, uint32_t mem_mask = ~0);
-	void ata_command_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
-
-	uint32_t ata_control_r(offs_t offset, uint32_t mem_mask = ~0);
-	void ata_control_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
-
-/***********/
-//  uint32_t comm_uart_r(offs_t offset, uint32_t mem_mask = ~ 0);
-//  void comm_uart_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
-
-/***********/
 	void init_lights(write32s_delegate out1, write32s_delegate out2, write32s_delegate out3);
 	void lamp_output_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output2_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output3_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
-/***********/
 	INTERRUPT_GEN_MEMBER(firebeat_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(ata_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(gcu_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(sound_irq_callback);
 
-/***********/
-	int m_cab_data_ptr;
-	const int * m_cur_cab_data;
-
-	IBUTTON m_ibutton;
-	int m_ibutton_state;
-	int m_ibutton_read_subkey_ptr;
-	uint8_t m_ibutton_subkey_data[0x40];
+	const int* m_cur_cab_data;
 
 	uint8_t m_extend_board_irq_enable;
 	uint8_t m_extend_board_irq_active;
@@ -279,6 +253,34 @@ protected:
 	required_shared_ptr<uint32_t> m_work_ram;
 	required_device<ata_interface_device> m_ata;
 	required_device<k057714_device> m_gcu;
+
+private:
+	uint32_t cabinet_r(offs_t offset, uint32_t mem_mask = ~0);
+
+	void set_ibutton(uint8_t *data);
+	int ibutton_w(uint8_t data);
+	void security_w(uint8_t data);
+
+	uint32_t extend_board_irq_r(offs_t offset, uint32_t mem_mask = ~0);
+	void extend_board_irq_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+
+	uint32_t input_r(offs_t offset, uint32_t mem_mask = ~0);
+	uint16_t sensor_r(offs_t offset);
+
+	uint32_t ata_command_r(offs_t offset, uint32_t mem_mask = ~0);
+	void ata_command_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+
+	uint32_t ata_control_r(offs_t offset, uint32_t mem_mask = ~0);
+	void ata_control_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+
+//  uint32_t comm_uart_r(offs_t offset, uint32_t mem_mask = ~ 0);
+//  void comm_uart_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+
+	IBUTTON m_ibutton;
+	int m_ibutton_state;
+	int m_ibutton_read_subkey_ptr;
+	uint8_t m_ibutton_subkey_data[0x40];
+
 	required_device<pc16552_device> m_duart_com;
 };
 
@@ -287,22 +289,30 @@ class firebeat_spu_state : public firebeat_state
 public:
 	firebeat_spu_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_state(mconfig, type, tag),
+		m_spuata(*this, "spu_ata"),
 		m_audiocpu(*this, "audiocpu"),
 		m_dpram(*this, "spuram"),
-		m_spuata(*this, "spu_ata"),
 		m_waveram(*this, "rf5c400")
 	{ }
 
+protected:
 	void firebeat_spu_base(machine_config &config);
 	void firebeat_spu_map(address_map &map);
 	void spu_map(address_map &map);
 	void rf5c400_map(address_map& map);
 
-protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 	virtual void device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr) override;
 
+	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
+	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
+	TIMER_CALLBACK_MEMBER(spu_dma_callback);
+	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
+
+	required_device<ata_interface_device> m_spuata;
+
+private:
 	uint16_t spu_unk_r();
 	void spu_status_led_w(uint16_t data);
 	void spu_irq_ack_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
@@ -312,11 +322,8 @@ protected:
 	uint16_t firebeat_waveram_r(offs_t offset);
 	void firebeat_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
-	DECLARE_WRITE_LINE_MEMBER(spu_ata_interrupt);
-
-	TIMER_CALLBACK_MEMBER(spu_dma_callback);
-	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
+	emu_timer *m_dma_timer;
+	bool m_sync_ata_irq;
 
 	uint32_t m_spu_ata_dma;
 	int m_spu_ata_dmarq;
@@ -324,12 +331,7 @@ protected:
 
 	required_device<m68000_device> m_audiocpu;
 	required_device<cy7c131_device> m_dpram;
-	required_device<ata_interface_device> m_spuata;
 	required_shared_ptr<uint16_t> m_waveram;
-
-private:
-	emu_timer *m_dma_timer;
-	bool m_sync_ata_irq;
 };
 
 /*****************************************************************************/
@@ -344,6 +346,7 @@ public:
 	void init_ppd();
 	void init_ppp();
 
+private:
 	void lamp_output_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output2_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output3_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
@@ -362,12 +365,13 @@ public:
 	uint32_t screen_update_firebeat_1(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	void init_kbm();
-	void init_keyboard();
-
 	void firebeat_kbm(machine_config &config);
-	void firebeat_kbm_map(address_map &map);
 
 private:
+	void firebeat_kbm_map(address_map &map);
+
+	void init_keyboard();
+
 	uint32_t keyboard_wheel_r(offs_t offset);
 	uint8_t midi_uart_r(offs_t offset);
 	void midi_uart_w(offs_t offset, uint8_t data);
@@ -378,7 +382,6 @@ private:
 	DECLARE_WRITE_LINE_MEMBER(midi_uart_ch0_irq_callback);
 	DECLARE_WRITE_LINE_MEMBER(midi_uart_ch1_irq_callback);
 
-private:
 //  emu_timer *m_keyboard_timer;
 //  int m_keyboard_state[2];
 
@@ -397,14 +400,14 @@ public:
 	void firebeat_bm3(machine_config &config);
 	void init_bm3();
 
-	DECLARE_WRITE_LINE_MEMBER( bm3_vblank );
-
 private:
 	void firebeat_bm3_map(address_map &map);
 
 	// TODO: Floppy disk implementation
 	uint32_t fdd_unk_r(offs_t offset, uint32_t mem_mask = ~0);
 	void fdd_unk_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+
+	DECLARE_WRITE_LINE_MEMBER( bm3_vblank );
 };
 
 class firebeat_popn_state : public firebeat_spu_state
@@ -416,15 +419,9 @@ public:
 
 	void firebeat_popn(machine_config &config);
 	void init_popn();
-
-	static void dvdrom_config(device_t *device);
 };
 
 /*****************************************************************************/
-
-void firebeat_state::video_start()
-{
-}
 
 uint32_t firebeat_state::screen_update_firebeat_0(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect){ return m_gcu->draw(screen, bitmap, cliprect); }
 uint32_t firebeat_kbm_state::screen_update_firebeat_1(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect){ return m_gcu_sub->draw(screen, bitmap, cliprect); }
@@ -436,13 +433,6 @@ void firebeat_state::machine_start()
 
 	/* configure fast RAM regions for DRC */
 	m_maincpu->ppcdrc_add_fastram(0x00000000, 0x01ffffff, false, m_work_ram);
-}
-
-void firebeat_state::cdrom_config(device_t *device)
-{
-	device->subdevice<cdda_device>("cdda")->add_route(0, "^^lspeaker", 0.5);
-	device->subdevice<cdda_device>("cdda")->add_route(1, "^^rspeaker", 0.5);
-	device = device->subdevice("cdda");
 }
 
 void firebeat_state::init_firebeat()
@@ -529,7 +519,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7e000000, 0x7e00003f).rw("rtc", FUNC(rtc65271_device::rtc_r), FUNC(rtc65271_device::rtc_w));
 	map(0x7e000100, 0x7e00013f).rw("rtc", FUNC(rtc65271_device::xram_r), FUNC(rtc65271_device::xram_w));
 	map(0x7e800000, 0x7e8000ff).rw(m_gcu, FUNC(k057714_device::read), FUNC(k057714_device::write));
-	map(0x7e800100, 0x7e8001ff).noprw(); // Secondary GCU, only used by Keyboardmania
+	map(0x7e800100, 0x7e8001ff).noprw(); // Secondary GCU, only used by Keyboardmania but is written to during the bootloader of other games
 	map(0x7fe00000, 0x7fe0000f).rw(FUNC(firebeat_state::ata_command_r), FUNC(firebeat_state::ata_command_w));
 	map(0x7fe80000, 0x7fe8000f).rw(FUNC(firebeat_state::ata_control_r), FUNC(firebeat_state::ata_control_w));
 	map(0x7ff80000, 0x7fffffff).rom().region("user1", 0);       /* System BIOS */
@@ -1324,11 +1314,6 @@ void firebeat_popn_state::firebeat_popn(machine_config &config)
 	// Any lower and sometimes you'll hear buzzing from certain keysounds, or fades take too long.
 	// Any higher and keysounds get cut short.
 	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_popn_state::spu_timer_callback), attotime::from_hz(500));
-}
-
-void firebeat_popn_state::dvdrom_config(device_t *device)
-{
-	downcast<atapi_cdrom_device &>(*device).set_ultra_dma_mode(0x0102);
 }
 
 void firebeat_popn_state::init_popn()
