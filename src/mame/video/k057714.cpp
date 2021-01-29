@@ -153,14 +153,16 @@ void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 	switch (reg)
 	{
 		case 0x00:
-			if (ACCESSING_BITS_16_31) {
+			if (ACCESSING_BITS_16_31)
+			{
 				// Viewport configurations discovered in game code: 640x480, 512x384, 800x600, 640x384
 				m_display_width = (data >> 16) & 0xffff;
 			}
 			break;
 
 		case 0x04:
-			if (ACCESSING_BITS_16_31) {
+			if (ACCESSING_BITS_16_31)
+			{
 				m_display_height = (data >> 16) & 0xffff;
 			}
 			break;
@@ -415,7 +417,8 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 	int alpha1 = (alpha >> 2) & 0x1f;
 	int alpha2 = (alpha >> 7) & 0x1f;
 
-	if (blend_mode == 2) {
+	if (blend_mode == 2)
+	{
 		alpha1 = (alpha1 * 16) / alpha2;
 	}
 
@@ -437,7 +440,8 @@ void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle
 		for (int i = 0; i <= width; i++)
 		{
 			uint16_t pix = vram16[(m_frame[frame].base + li + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
-			if ((pix & 0x8000) != trans_value) {
+			if ((pix & 0x8000) != trans_value)
+			{
 				uint32_t r = (pix >> 10) & 0x1f;
 				uint32_t g = (pix >> 5) & 0x1f;
 				uint32_t b = (pix >> 0) & 0x1f;
@@ -534,12 +538,19 @@ void k057714_device::draw_object(uint32_t *cmd)
 	int alpha2_1 = (cmd[3] >> 22) & 0x1f;
 	int alpha2_2 = (cmd[3] >> 27) & 0x1f;
 
-	if (xflip && ((4 - ((width - 1) % 4)) <= (address_x % 4))) {
+	if (xscale == 0 || yscale == 0)
+	{
+		return;
+	}
+
+	if (xflip && ((4 - ((width - 1) % 4)) <= (address_x % 4)))
+	{
 		// Based on logic from pop'n music 8 @ 0x800b30d0
 		address_x -= 4;
 	}
 
-	if (yflip) {
+	if (yflip)
+	{
 		// Based on logic from pop'n music 8 @ 0x800b3140
 		y -= (((height * 64) - 1) / yscale) - (((height - 1) * 64) / yscale);
 	}
@@ -602,7 +613,7 @@ void k057714_device::draw_object(uint32_t *cmd)
 			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
 			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
 
-			if (draw)
+			if (fbaddr < VRAM_SIZE_HALF && draw)
 			{
 				if (blend_mode)
 				{

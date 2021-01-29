@@ -1364,7 +1364,7 @@ void firebeat_ppp_state::init_ppd()
 	init_firebeat();
 	init_lights(write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output3_ppp_w)));
 
-	m_cabinet_info = 1;
+	m_cabinet_info = 9;
 }
 
 void firebeat_ppp_state::firebeat_ppp_map(address_map &map)
