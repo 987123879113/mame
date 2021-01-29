@@ -164,12 +164,6 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 
 namespace {
 
-// Cabinet configuration data
-static const int cab_data[3] = { 0, 0, 0 };
-static const int kbm_cab_data[3] = { 2, 0, 0 };
-static const int ppd_cab_data[3] = { 1, 0, 0 };
-static const int ppp_cab_data[3] = { 8, 0, 0 };
-
 struct IBUTTON_SUBKEY
 {
 	uint8_t identifier[8];
@@ -244,7 +238,7 @@ protected:
 	DECLARE_WRITE_LINE_MEMBER(gcu_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(sound_irq_callback);
 
-	const int* m_cur_cab_data;
+	int m_cabinet_info;
 
 	uint8_t m_extend_board_irq_enable;
 	uint8_t m_extend_board_irq_active;
@@ -407,6 +401,7 @@ public:
 private:
 	void firebeat_bm3_map(address_map &map);
 
+	uint32_t spectrum_analyzer_r(offs_t offset);
 	uint16_t sensor_r(offs_t offset);
 
 	// TODO: Floppy disk implementation
@@ -450,7 +445,7 @@ void firebeat_state::init_firebeat()
 	m_extend_board_irq_enable = 0x3f;
 	m_extend_board_irq_active = 0x00;
 
-	m_cur_cab_data = cab_data;
+	m_cabinet_info = 0;
 
 	m_maincpu->ppc4xx_spu_set_tx_handler(write8smo_delegate(*this, FUNC(firebeat_state::security_w)));
 
@@ -508,10 +503,10 @@ void firebeat_state::firebeat(machine_config &config)
 void firebeat_state::firebeat_map(address_map &map)
 {
 	map(0x00000000, 0x01ffffff).ram().share("work_ram");
-	map(0x70000000, 0x70000fff).noprw();
-	map(0x70001fc0, 0x70001fdf).noprw();
+	map(0x70000000, 0x70000fff).noprw(); // Keyboardmania MIDI UART
+	map(0x70001fc0, 0x70001fdf).noprw(); // beatmania III FDD?
 	map(0x70006000, 0x70006003).w(FUNC(firebeat_state::extend_board_irq_w));
-	map(0x70008000, 0x7000800f).noprw();
+	map(0x70008000, 0x7000807f).noprw(); // Keyboardmania wheel, beatmania III "Spectral Analyzer" (part of ST-224???)
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
@@ -545,9 +540,11 @@ uint32_t firebeat_state::cabinet_r(offs_t offset, uint32_t mem_mask)
 //  printf("cabinet_r: %08X, %08X\n", offset, mem_mask);
 	switch (offset)
 	{
-		case 0: return m_cur_cab_data[0] << 28;
-		case 2: return m_cur_cab_data[1] << 28;
-		case 4: return m_cur_cab_data[2] << 28;
+		case 0: return m_cabinet_info << 28;
+
+		// These never seem to be anything other than 0?
+		case 2: return 0;
+		case 4: return 0;
 	}
 
 	return 0;
@@ -1229,6 +1226,15 @@ void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
 	firebeat_spu_map(map);
 	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_bm3_state::sensor_r));
 	map(0x70001fc0, 0x70001fdf).rw(FUNC(firebeat_bm3_state::fdd_unk_r), FUNC(firebeat_bm3_state::fdd_unk_w));
+
+	map(0x70008000, 0x7000807f).r(FUNC(firebeat_bm3_state::spectrum_analyzer_r));
+}
+
+uint32_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
+{
+	// Visible in the sound test menu
+	// And most likely the spectral analyzer game skin (haven't tested)
+	return 0;
 }
 
 uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
@@ -1341,7 +1347,7 @@ void firebeat_ppp_state::init_ppp()
 	init_firebeat();
 	init_lights(write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output3_ppp_w)));
 
-	m_cur_cab_data = ppp_cab_data;
+	m_cabinet_info = 8;
 }
 
 void firebeat_ppp_state::init_ppd()
@@ -1349,7 +1355,7 @@ void firebeat_ppp_state::init_ppd()
 	init_firebeat();
 	init_lights(write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output3_ppp_w)));
 
-	m_cur_cab_data = ppd_cab_data;
+	m_cabinet_info = 1;
 }
 
 void firebeat_ppp_state::firebeat_ppp_map(address_map &map)
@@ -1471,7 +1477,7 @@ void firebeat_kbm_state::init_kbm()
 
 //  pc16552d_init(machine(), 1, 24000000, midi_uart_irq_callback, 0);     // MIDI UART
 
-	m_cur_cab_data = kbm_cab_data;
+	m_cabinet_info = 2;
 }
 
 void firebeat_kbm_state::init_keyboard()
