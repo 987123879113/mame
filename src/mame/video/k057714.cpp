@@ -38,7 +38,6 @@ void k057714_device::device_start()
 	m_irq.resolve_safe();
 
 	m_vram = std::make_unique<uint32_t[]>(VRAM_SIZE/4);
-	memset(m_vram.get(), 0, VRAM_SIZE);
 
 	save_pointer(NAME(m_vram), VRAM_SIZE/4);
 	save_item(NAME(m_vram_read_addr));
@@ -97,6 +96,8 @@ void k057714_device::device_reset()
 		elem.height = 0;
 		elem.alpha = (16 << 7) | (16 << 2); // Set alpha 1 and 2 to 16 (100%) and blend mode to 0
 	}
+
+	memset(m_vram.get(), 0, VRAM_SIZE);
 }
 
 void k057714_device::device_stop()
