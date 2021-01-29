@@ -1548,17 +1548,18 @@ void firebeat_kbm_state::firebeat_kbm(machine_config &config)
 	ymz.add_route(1, "lspeaker", 1.0);
 	ymz.add_route(0, "rspeaker", 1.0);
 
+	PC16552D(config, "duart_com", 0);
+	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
+	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
+
 	PC16552D(config, "duart_midi", 0);
 	ns16550_device &midi_chan0(NS16550(config, "duart_midi:chan0", XTAL(24'000'000)));
 	midi_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::midi_uart_ch0_irq_callback));
 	ns16550_device &midi_chan1(NS16550(config, "duart_midi:chan1", XTAL(24'000'000)));
 	midi_chan1.out_int_callback().set(FUNC(firebeat_kbm_state::midi_uart_ch1_irq_callback));
 
-	PC16552D(config, "duart_com", 0);
-	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
-	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
-	MIDI_KBD(config, m_kbd[0], 31250).tx_callback().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
-	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
+	MIDI_KBD(config, m_kbd[0], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
+	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
 }
 
 void firebeat_kbm_state::firebeat_kbm_map(address_map &map)
@@ -1595,9 +1596,9 @@ void firebeat_kbm_state::midi_uart_w(offs_t offset, uint8_t data)
 
 WRITE_LINE_MEMBER(firebeat_kbm_state::midi_uart_ch0_irq_callback)
 {
-	if ((m_extend_board_irq_enable & 0x01) == 0 && state != CLEAR_LINE)
+	if ((m_extend_board_irq_enable & 0x02) == 0 && state != CLEAR_LINE)
 	{
-		m_extend_board_irq_active |= 0x01;
+		m_extend_board_irq_active |= 0x02;
 		m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE);
 	}
 	else
@@ -1606,9 +1607,9 @@ WRITE_LINE_MEMBER(firebeat_kbm_state::midi_uart_ch0_irq_callback)
 
 WRITE_LINE_MEMBER(firebeat_kbm_state::midi_uart_ch1_irq_callback)
 {
-	if ((m_extend_board_irq_enable & 0x02) == 0 && state != CLEAR_LINE)
+	if ((m_extend_board_irq_enable & 0x01) == 0 && state != CLEAR_LINE)
 	{
-		m_extend_board_irq_active |= 0x02;
+		m_extend_board_irq_active |= 0x01;
 		m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE);
 	}
 	else
