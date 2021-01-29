@@ -265,7 +265,6 @@ private:
 	void extend_board_irq_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
 	uint32_t input_r(offs_t offset, uint32_t mem_mask = ~0);
-	uint16_t sensor_r(offs_t offset);
 
 	uint32_t ata_command_r(offs_t offset, uint32_t mem_mask = ~0);
 	void ata_command_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
@@ -343,10 +342,15 @@ public:
 		firebeat_state(mconfig, type, tag)
 	{ }
 
+	void firebeat_ppp(machine_config &config);
 	void init_ppd();
 	void init_ppp();
 
 private:
+	void firebeat_ppp_map(address_map &map);
+
+	uint16_t sensor_r(offs_t offset);
+
 	void lamp_output_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output2_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void lamp_output3_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
@@ -402,6 +406,8 @@ public:
 
 private:
 	void firebeat_bm3_map(address_map &map);
+
+	uint16_t sensor_r(offs_t offset);
 
 	// TODO: Floppy disk implementation
 	uint32_t fdd_unk_r(offs_t offset, uint32_t mem_mask = ~0);
@@ -509,7 +515,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
-	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_state::sensor_r));
+	map(0x7d000340, 0x7d00035f).noprw(); // Sensors/external IO
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
@@ -749,32 +755,6 @@ uint32_t firebeat_state::input_r(offs_t offset, uint32_t mem_mask)
 	}
 
 	return r;
-}
-
-uint16_t firebeat_state::sensor_r(offs_t offset)
-{
-	switch (offset) {
-		// Used by ParaParaParadise and beatmania III
-		case 0: return ioport("SENSOR1")->read() | 0x0100;
-		case 1: return ioport("SENSOR2")->read() | 0x0100;
-		case 2: return ioport("SENSOR3")->read() | 0x0100;
-		case 3: return ioport("SENSOR4")->read() | 0x0100;
-
-		// Used by beatmania III
-		case 5: return (ioport("TURNTABLE_P1")->read() >> 8) | 0x0100;
-		case 6: return (ioport("TURNTABLE_P1")->read() & 0xff) | 0x0100;
-		case 7: return (ioport("TURNTABLE_P2")->read() >> 8) | 0x0100;
-		case 8: return (ioport("TURNTABLE_P2")->read() & 0xff) | 0x0100;
-		case 9: return ioport("EFFECT1")->read() | 0x0100;
-		case 10: return ioport("EFFECT2")->read() | 0x0100;
-		case 11: return ioport("EFFECT3")->read() | 0x0100;
-		case 12: return ioport("EFFECT4")->read() | 0x0100;
-		case 13: return ioport("EFFECT5")->read() | 0x0100;
-		case 14: return ioport("EFFECT6")->read() | 0x0100;
-		case 15: return ioport("EFFECT7")->read() | 0x0100;
-	}
-
-	return 0;
 }
 
 /*****************************************************************************/
@@ -1247,7 +1227,31 @@ void firebeat_bm3_state::init_bm3()
 void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
 {
 	firebeat_spu_map(map);
+	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_bm3_state::sensor_r));
 	map(0x70001fc0, 0x70001fdf).rw(FUNC(firebeat_bm3_state::fdd_unk_r), FUNC(firebeat_bm3_state::fdd_unk_w));
+}
+
+uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
+{
+	switch (offset) {
+		case 0: return ioport("IO1")->read() | 0x0100;
+		case 1: return ioport("IO2")->read() | 0x0100;
+		case 2: return ioport("IO3")->read() | 0x0100;
+		case 3: return ioport("IO4")->read() | 0x0100;
+		case 5: return (ioport("TURNTABLE_P1")->read() >> 8) | 0x0100;
+		case 6: return (ioport("TURNTABLE_P1")->read() & 0xff) | 0x0100;
+		case 7: return (ioport("TURNTABLE_P2")->read() >> 8) | 0x0100;
+		case 8: return (ioport("TURNTABLE_P2")->read() & 0xff) | 0x0100;
+		case 9: return ioport("EFFECT1")->read() | 0x0100;
+		case 10: return ioport("EFFECT2")->read() | 0x0100;
+		case 11: return ioport("EFFECT3")->read() | 0x0100;
+		case 12: return ioport("EFFECT4")->read() | 0x0100;
+		case 13: return ioport("EFFECT5")->read() | 0x0100;
+		case 14: return ioport("EFFECT6")->read() | 0x0100;
+		case 15: return ioport("EFFECT7")->read() | 0x0100;
+	}
+
+	return 0;
 }
 
 uint32_t firebeat_bm3_state::fdd_unk_r(offs_t offset, uint32_t mem_mask)
@@ -1326,6 +1330,12 @@ void firebeat_popn_state::init_popn()
 /*****************************************************************************
 * ParaParaParadise / ParaParaDancing
 ******************************************************************************/
+void firebeat_ppp_state::firebeat_ppp(machine_config &config)
+{
+	firebeat(config);
+	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_ppp_state::firebeat_ppp_map);
+}
+
 void firebeat_ppp_state::init_ppp()
 {
 	init_firebeat();
@@ -1340,6 +1350,24 @@ void firebeat_ppp_state::init_ppd()
 	init_lights(write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output2_ppp_w)), write32s_delegate(*this, FUNC(firebeat_ppp_state::lamp_output3_ppp_w)));
 
 	m_cur_cab_data = ppd_cab_data;
+}
+
+void firebeat_ppp_state::firebeat_ppp_map(address_map &map)
+{
+	firebeat_map(map);
+	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_ppp_state::sensor_r));
+}
+
+uint16_t firebeat_ppp_state::sensor_r(offs_t offset)
+{
+	switch (offset) {
+		case 0: return ioport("SENSOR1")->read() | 0x0100;
+		case 1: return ioport("SENSOR2")->read() | 0x0100;
+		case 2: return ioport("SENSOR3")->read() | 0x0100;
+		case 3: return ioport("SENSOR4")->read() | 0x0100;
+	}
+
+	return 0;
 }
 
 void firebeat_ppp_state::lamp_output_ppp_w(offs_t offset, uint32_t data, uint32_t mem_mask)
@@ -1838,7 +1866,7 @@ static INPUT_PORTS_START(bm3)
 	PORT_START("IN1")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
-	PORT_START("SENSOR1")
+	PORT_START("IO1")
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) // P1 Button 1
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) // P1 Button 2
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) // P1 Button 3
@@ -1846,10 +1874,10 @@ static INPUT_PORTS_START(bm3)
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(1) // P1 Button 5
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_START1 )                 // P1 Start Button
 
-	PORT_START("SENSOR2")
+	PORT_START("IO2")
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_COIN1 ) // Coin sensor
 
-	PORT_START("SENSOR3")
+	PORT_START("IO3")
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2) // P2 Button 1
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2) // P2 Button 2
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2) // P2 Button 3
@@ -1857,7 +1885,7 @@ static INPUT_PORTS_START(bm3)
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_PLAYER(2) // P2 Button 5
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_START2 )                 // P2 Start Button
 
-	PORT_START("SENSOR4")
+	PORT_START("IO4")
 	PORT_BIT( 0xffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("TURNTABLE_P1")
@@ -2239,10 +2267,10 @@ ROM_END
 
 /*****************************************************************************/
 
-GAME( 2000, ppp,    0,   firebeat, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise", MACHINE_NOT_WORKING )
-GAME( 2000, ppd,    0,   firebeat, ppp, firebeat_ppp_state, init_ppd, ROT0, "Konami", "ParaParaDancing", MACHINE_NOT_WORKING )
-GAME( 2000, ppp11,  0,   firebeat, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise v1.1", MACHINE_NOT_WORKING )
-GAME( 2000, ppp1mp, ppp, firebeat, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise 1st Mix Plus", MACHINE_NOT_WORKING )
+GAME( 2000, ppp,    0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise", MACHINE_NOT_WORKING )
+GAME( 2000, ppd,    0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppd, ROT0, "Konami", "ParaParaDancing", MACHINE_NOT_WORKING )
+GAME( 2000, ppp11,  0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise v1.1", MACHINE_NOT_WORKING )
+GAME( 2000, ppp1mp, ppp, firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise 1st Mix Plus", MACHINE_NOT_WORKING )
 
 GAMEL( 2000, kbm,    0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania", MACHINE_NOT_WORKING, layout_firebeat )
 GAMEL( 2000, kbm2nd, 0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania 2nd Mix", MACHINE_NOT_WORKING, layout_firebeat )
