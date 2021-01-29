@@ -176,11 +176,6 @@ struct IBUTTON
 	IBUTTON_SUBKEY subkey[3];
 };
 
-enum
-{
-	TIMER_SPU_DMA
-};
-
 /*****************************************************************************/
 static void firebeat_ata_devices(device_slot_interface &device)
 {
@@ -325,6 +320,11 @@ private:
 	required_device<m68000_device> m_audiocpu;
 	required_device<cy7c131_device> m_dpram;
 	required_shared_ptr<uint16_t> m_waveram;
+
+	enum
+	{
+		TIMER_SPU_DMA
+	};
 };
 
 /*****************************************************************************/
@@ -503,14 +503,10 @@ void firebeat_state::firebeat(machine_config &config)
 void firebeat_state::firebeat_map(address_map &map)
 {
 	map(0x00000000, 0x01ffffff).ram().share("work_ram");
-	map(0x70000000, 0x70000fff).noprw(); // Keyboardmania MIDI UART
-	map(0x70001fc0, 0x70001fdf).noprw(); // beatmania III FDD?
 	map(0x70006000, 0x70006003).w(FUNC(firebeat_state::extend_board_irq_w));
-	map(0x70008000, 0x7000807f).noprw(); // Keyboardmania wheel, beatmania III "Spectral Analyzer" (part of ST-224???)
 	map(0x7000a000, 0x7000a003).r(FUNC(firebeat_state::extend_board_irq_r));
 	map(0x74000000, 0x740003ff).noprw(); // SPU shared RAM
 	map(0x7d000200, 0x7d00021f).r(FUNC(firebeat_state::cabinet_r));
-	map(0x7d000340, 0x7d00035f).noprw(); // Sensors/external IO
 	map(0x7d000400, 0x7d000401).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write));
 	map(0x7d000800, 0x7d000803).r(FUNC(firebeat_state::input_r));
 	map(0x7d400000, 0x7d5fffff).rw("flash_main", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
@@ -999,7 +995,7 @@ void firebeat_spu_state::spu_map(address_map &map)
 {
 	map(0x000000, 0x07ffff).rom();
 	map(0x100000, 0x13ffff).ram();
-	map(0x200000, 0x200001).r(FUNC(firebeat_spu_state::spu_unk_r));
+	map(0x200000, 0x200001).portr("SPU_DSW");
 	map(0x220000, 0x220001).w(FUNC(firebeat_spu_state::spu_status_led_w));
 	map(0x230000, 0x230001).w(FUNC(firebeat_spu_state::spu_irq_ack_w));
 	map(0x240000, 0x240003).w(FUNC(firebeat_spu_state::spu_ata_dma_low_w)).nopr();
@@ -1065,18 +1061,6 @@ void firebeat_spu_state::rf5c400_map(address_map& map)
 
     IRQ6: ATA
 */
-
-uint16_t firebeat_spu_state::spu_unk_r()
-{
-	// dipswitches?
-
-	uint16_t r = 0;
-	r |= 0x80;      // if set, uses ATA PIO mode, otherwise DMA
-	r |= 0x01;      // enable SDRAM test
-	r |= 0x02;      // Fixes sound effects not playing
-
-	return r;
-}
 
 void firebeat_spu_state::spu_status_led_w(uint16_t data)
 {
@@ -1224,9 +1208,10 @@ void firebeat_bm3_state::init_bm3()
 void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
 {
 	firebeat_spu_map(map);
+
+	map(0x7d000330, 0x7d00033f).nopw(); // ?
 	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_bm3_state::sensor_r));
 	map(0x70001fc0, 0x70001fdf).rw(FUNC(firebeat_bm3_state::fdd_unk_r), FUNC(firebeat_bm3_state::fdd_unk_w));
-
 	map(0x70008000, 0x7000807f).r(FUNC(firebeat_bm3_state::spectrum_analyzer_r));
 }
 
@@ -1717,6 +1702,18 @@ static INPUT_PORTS_START( firebeat )
 	PORT_BIT( 0x03, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Fixes "FLASH RAM DATA ERROR" in some games (Mickey Tunes)
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( firebeat_spu )
+	PORT_START("SPU_DSW")
+	PORT_DIPUNKNOWN_DIPLOC( 0x01, IP_ACTIVE_LOW, "SPU DSW:1" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x02, IP_ACTIVE_LOW, "SPU DSW:2" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x04, IP_ACTIVE_LOW, "SPU DSW:3" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x08, IP_ACTIVE_LOW, "SPU DSW:4" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x10, IP_ACTIVE_LOW, "SPU DSW:5" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x20, IP_ACTIVE_LOW, "SPU DSW:6" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x40, IP_ACTIVE_LOW, "SPU DSW:7" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "SPU DSW:8" )
+INPUT_PORTS_END
+
 static INPUT_PORTS_START(ppp)
 	PORT_INCLUDE( firebeat )
 
@@ -1835,6 +1832,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START(popn)
 	PORT_INCLUDE( firebeat )
+	PORT_INCLUDE( firebeat_spu )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON1 )            // Switch 1
@@ -1860,6 +1858,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START(bm3)
 	PORT_INCLUDE( firebeat )
+	PORT_INCLUDE( firebeat_spu )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE) PORT_NAME(DEF_STR(Test))              // Test
@@ -1920,12 +1919,6 @@ static INPUT_PORTS_START(bm3)
 
 	PORT_START("EFFECT7")
 	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 7") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
-
-	PORT_START("WHEEL_P1") // ?
-	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
-
-	PORT_START("WHEEL_P2") // ?
-	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 INPUT_PORTS_END
 
