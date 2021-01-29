@@ -1217,9 +1217,33 @@ void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
 
 uint32_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
 {
-	// Visible in the sound test menu
-	// And most likely the spectral analyzer game skin (haven't tested)
-	return 0;
+	// Visible in the sound test menu and most likely the spectral analyzer game skin
+	//
+	// Notes about where this could be coming from...
+	// - It's not the ST-224: Only sends audio in and out, with a MIDI in
+	// - It's not the RF5C400: There are no unimplemented registers or anything of that sort that could give this info
+	// - The memory address mapping is the same as Keyboardmania's wheel, which plugs into a connector on extend board
+	//   but there's nothing actually plugged into that spot on a beatmania III configuration, so it's not external
+	// - Any place where the audio is directed somewhere (amps, etc) does not have a way to get back to the PCBs
+	//   from what I can tell based on looking at the schematics in the beatmania III manual
+	// - I think it's probably calculated somewhere within one of the main boards (main/extend/SPU) but couldn't find any
+	//   potentially interesting chips at a glance of PCB pics
+	// - The manual does not seem to make mention of this feature *at all* much less troubleshooting it, so no leads there
+
+	// 6 notch spectrum analyzer
+	// No idea what frequency range each notch corresponds but it does not affect core gameplay in any way.
+	// Notch 1: 0x0c
+	// Notch 2: 0x0a
+	// Notch 3: 0x08
+	// Notch 4: 0x06
+	// Notch 5: 0x04
+	// Notch 6: 0x02
+
+	// TODO: Fill in logic (reuse vgm_visualizer in some way?)
+	// auto ch = offset & 0xf0; // 0 = Left, 1 = Right
+	auto data = 0;
+
+	return data;
 }
 
 uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
