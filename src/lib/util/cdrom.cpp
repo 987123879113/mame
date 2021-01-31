@@ -396,6 +396,90 @@ cdrom_file *cdrom_open(chd_file *chd)
 	return file;
 }
 
+/**
+ * @fn  cdrom_file *cdrom_open_raw(chd_file *chd)
+ *
+ * @brief   Queries if a given cdrom open.
+ *
+ * @param [in,out]  chd If non-null, the chd.
+ *
+ * @return  null if it fails, else a cdrom_file*.
+ */
+
+cdrom_file *cdrom_open_raw(chd_file *chd)
+{
+	int i;
+	cdrom_file *file;
+	uint32_t physofs, chdofs, logofs;
+
+	/* punt if no CHD */
+	if (!chd)
+		return nullptr;
+
+	/* allocate memory for the CD-ROM file */
+	file = new (std::nothrow) cdrom_file();
+	if (file == nullptr)
+		return nullptr;
+
+	/* fill in the data */
+	file->chd = chd;
+
+	/* calculate the starting frame for each track, keeping in mind that CHDMAN
+	   pads tracks out with extra frames to fit 4-frame size boundries
+	*/
+	physofs = chdofs = logofs = 0;
+
+	i = 0;
+	file->cdtoc.tracks[i].trktype = CD_TRACK_MODE1_DVD;
+	file->cdtoc.tracks[i].subtype = CD_SUB_NONE;
+	file->cdtoc.tracks[i].datasize = 2048;
+	file->cdtoc.tracks[i].subsize = 0;
+	file->cdtoc.tracks[i].frames = chd->logical_bytes() / 2048;
+	file->cdtoc.tracks[i].extraframes = 0;
+	file->cdtoc.tracks[i].pregap = 0;
+	file->cdtoc.tracks[i].pgtype = 0;
+	file->cdtoc.tracks[i].pgdatasize = 0;
+	file->cdtoc.tracks[i].postgap = 0;
+	file->cdtoc.tracks[i].physframeofs = physofs;
+	file->cdtoc.tracks[i].chdframeofs = chdofs;
+	file->cdtoc.tracks[i].logframeofs = logofs;
+
+	// postgap counts against the next track
+	logofs += file->cdtoc.tracks[i].postgap;
+
+	physofs += file->cdtoc.tracks[i].frames;
+	chdofs  += file->cdtoc.tracks[i].frames;
+	chdofs  += file->cdtoc.tracks[i].extraframes;
+	logofs  += file->cdtoc.tracks[i].frames;
+
+	printf("Track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d\n", i+1,
+		file->cdtoc.tracks[i].trktype,
+		file->cdtoc.tracks[i].subtype,
+		file->cdtoc.tracks[i].datasize,
+		file->cdtoc.tracks[i].subsize,
+		file->cdtoc.tracks[i].frames,
+		file->cdtoc.tracks[i].extraframes,
+		file->cdtoc.tracks[i].pregap,
+		file->cdtoc.tracks[i].pgtype,
+		file->cdtoc.tracks[i].pgdatasize,
+		file->cdtoc.tracks[i].postgap,
+		file->cdtoc.tracks[i].logframeofs,
+		file->cdtoc.tracks[i].physframeofs,
+		file->cdtoc.tracks[i].chdframeofs);
+
+	i++;
+	file->cdtoc.numtrks = i;
+
+	/* fill out dummy entries for the last track to help our search */
+	file->cdtoc.tracks[i].physframeofs = physofs;
+	file->cdtoc.tracks[i].logframeofs = logofs;
+	file->cdtoc.tracks[i].chdframeofs = chdofs;
+
+	LOG(("CD has %d tracks\n", file->cdtoc.numtrks));
+
+	return file;
+}
+
 
 /*-------------------------------------------------
     cdrom_close - "close" a CD-ROM file
@@ -466,6 +550,11 @@ chd_error read_partial_sector(cdrom_file *file, void *dest, uint32_t lbasector, 
 	// if a CHD, just read
 	if (file->chd != nullptr)
 	{
+		if (file->cdtoc.tracks[0].trktype == CD_TRACK_MODE1_DVD) {
+			result = file->chd->read_bytes(uint64_t(chdsector) * DVD_FRAME_SIZE + startoffs, dest, length);
+		} else {
+			result = file->chd->read_bytes(uint64_t(chdsector) * uint64_t(CD_FRAME_SIZE) + startoffs, dest, length);
+		}
 		result = file->chd->read_bytes(uint64_t(chdsector) * uint64_t(CD_FRAME_SIZE) + startoffs, dest, length);
 		/* swap CDDA in the case of LE GDROMs */
 		if ((file->cdtoc.flags & CD_FLAG_GDROMLE) && (file->cdtoc.tracks[tracknum].trktype == CD_TRACK_AUDIO))
@@ -553,6 +642,11 @@ uint32_t cdrom_read_data(cdrom_file *file, uint32_t lbasector, void *buffer, uin
 		if ((datatype == CD_TRACK_MODE1) && (tracktype == CD_TRACK_MODE1_RAW))
 		{
 			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 16, 2048, phys) == CHDERR_NONE);
+		}
+
+		if ((datatype == CD_TRACK_MODE1) && (tracktype == CD_TRACK_MODE1_DVD))
+		{
+			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 0, 2048, phys) == CHDERR_NONE);
 		}
 
 		/* return 2352 byte mode 1 raw sector from 2048 bytes of mode 1 data */

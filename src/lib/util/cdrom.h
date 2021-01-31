@@ -32,6 +32,8 @@ const uint32_t CD_TRACK_PADDING = 4;
 #define CD_FRAME_SIZE           (CD_MAX_SECTOR_DATA + CD_MAX_SUBCODE_DATA)
 #define CD_FRAMES_PER_HUNK      (8)
 
+#define DVD_FRAME_SIZE          2048
+
 #define CD_METADATA_WORDS       (1+(CD_MAX_TRACKS * 6))
 
 enum
@@ -43,9 +45,10 @@ enum
 	CD_TRACK_MODE2_FORM2,       /* mode 2 2324 bytes/sector */
 	CD_TRACK_MODE2_FORM_MIX,    /* mode 2 2336 bytes/sector */
 	CD_TRACK_MODE2_RAW,         /* mode 2 2352 bytes / sector */
-	CD_TRACK_AUDIO,         /* redbook audio track 2352 bytes/sector (588 samples) */
+	CD_TRACK_AUDIO,             /* redbook audio track 2352 bytes/sector (588 samples) */
 
-	CD_TRACK_RAW_DONTCARE       /* special flag for cdrom_read_data: just return me whatever is there */
+	CD_TRACK_RAW_DONTCARE,      /* special flag for cdrom_read_data: just return me whatever is there */
+	CD_TRACK_MODE1_DVD          /* Raw HDD CHD for DVDs, 2048 bytes/sector, frame size = sector size */
 };
 
 enum
@@ -109,6 +112,7 @@ struct cdrom_toc
 
 /* base functionality */
 cdrom_file *cdrom_open(chd_file *chd);
+cdrom_file *cdrom_open_raw(chd_file *chd);
 void cdrom_close(cdrom_file *file);
 
 cdrom_file *cdrom_open(const char *inputfile);

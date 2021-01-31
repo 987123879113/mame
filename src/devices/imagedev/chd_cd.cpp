@@ -66,6 +66,11 @@ void cdrom_image_device::device_start()
 	if( chd != nullptr )
 	{
 		m_cdrom_handle = cdrom_open( chd );
+
+		if (m_cdrom_handle == nullptr)
+		{
+			m_cdrom_handle = cdrom_open_raw( chd );
+		}
 	}
 	else
 	{
@@ -104,6 +109,11 @@ image_init_result cdrom_image_device::call_load()
 	/* open the CHD file */
 	if (chd) {
 		m_cdrom_handle = cdrom_open( chd );
+
+
+		if (m_cdrom_handle == nullptr) {
+			m_cdrom_handle = cdrom_open_raw( chd );
+		}
 	} else {
 		m_cdrom_handle = cdrom_open(filename());
 	}
