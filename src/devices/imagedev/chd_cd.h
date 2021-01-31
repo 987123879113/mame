@@ -31,6 +31,7 @@ public:
 	virtual ~cdrom_image_device();
 
 	void set_interface(const char *interface) { m_interface = interface; }
+	void enable_raw_images(bool mode) { m_enable_raw_images = mode; }
 
 	// image-level overrides
 	virtual image_init_result call_load() override;
@@ -64,6 +65,7 @@ protected:
 	cdrom_file  *m_cdrom_handle;
 	const char  *m_extension_list;
 	const char  *m_interface;
+	bool        m_enable_raw_images;
 };
 
 // device type definition
