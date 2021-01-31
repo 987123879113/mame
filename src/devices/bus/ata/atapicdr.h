@@ -50,8 +50,30 @@ protected:
 	virtual void device_reset() override;
 };
 
+class atapi_dvdrom_device : public atapi_cdrom_device
+{
+public:
+	atapi_dvdrom_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+protected:
+	atapi_dvdrom_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+
+	virtual void device_add_mconfig(machine_config &config) override;
+};
+
+class atapi_fixed_dvdrom_device : public atapi_dvdrom_device
+{
+public:
+	atapi_fixed_dvdrom_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+protected:
+	virtual void device_reset() override;
+};
+
 // device type definition
-DECLARE_DEVICE_TYPE(ATAPI_CDROM,       atapi_cdrom_device)
-DECLARE_DEVICE_TYPE(ATAPI_FIXED_CDROM, atapi_fixed_cdrom_device)
+DECLARE_DEVICE_TYPE(ATAPI_CDROM,        atapi_cdrom_device)
+DECLARE_DEVICE_TYPE(ATAPI_FIXED_CDROM,  atapi_fixed_cdrom_device)
+DECLARE_DEVICE_TYPE(ATAPI_DVDROM,       atapi_dvdrom_device)
+DECLARE_DEVICE_TYPE(ATAPI_FIXED_DVDROM, atapi_fixed_dvdrom_device)
 
 #endif // MAME_BUS_ATA_ATAPICDR_H

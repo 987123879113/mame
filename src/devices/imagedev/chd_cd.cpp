@@ -31,9 +31,11 @@ cdrom_image_device::cdrom_image_device(const machine_config &mconfig, device_typ
 		device_image_interface(mconfig, *this),
 		m_cdrom_handle(nullptr),
 		m_extension_list(nullptr),
-		m_interface(nullptr)
+		m_interface(nullptr),
+		m_enable_raw_images(false)
 {
 }
+
 //-------------------------------------------------
 //  cdrom_image_device - destructor
 //-------------------------------------------------
@@ -62,10 +64,15 @@ void cdrom_image_device::device_config_complete()
 void cdrom_image_device::device_start()
 {
 	// try to locate the CHD from a DISK_REGION
-	chd_file *chd = machine().rom_load().get_disk_handle(owner()->tag() );
+	chd_file *chd = machine().rom_load().get_disk_handle(owner()->tag());
 	if( chd != nullptr )
 	{
 		m_cdrom_handle = cdrom_open( chd );
+
+		if ( m_cdrom_handle == nullptr && m_enable_raw_images )
+		{
+			m_cdrom_handle = cdrom_open_raw( chd );
+		}
 	}
 	else
 	{
@@ -75,8 +82,8 @@ void cdrom_image_device::device_start()
 
 void cdrom_image_device::device_stop()
 {
-	if (m_cdrom_handle)
-		cdrom_close(m_cdrom_handle);
+	if ( m_cdrom_handle )
+		cdrom_close( m_cdrom_handle );
 	if( m_self_chd.opened() )
 		m_self_chd.close();
 }
@@ -86,12 +93,12 @@ image_init_result cdrom_image_device::call_load()
 	chd_error   err = (chd_error)0;
 	chd_file    *chd = nullptr;
 
-	if (m_cdrom_handle)
-		cdrom_close(m_cdrom_handle);
+	if ( m_cdrom_handle )
+		cdrom_close( m_cdrom_handle );
 
-	if (!loaded_through_softlist())
+	if ( ! loaded_through_softlist() )
 	{
-		if (is_filetype("chd") && is_loaded()) {
+		if ( is_filetype("chd") && is_loaded() ) {
 			err = m_self_chd.open( image_core_file() );    /* CDs are never writeable */
 			if ( err )
 				goto error;
@@ -102,10 +109,15 @@ image_init_result cdrom_image_device::call_load()
 	}
 
 	/* open the CHD file */
-	if (chd) {
+	if ( chd != nullptr) {
 		m_cdrom_handle = cdrom_open( chd );
+
+		if ( m_cdrom_handle == nullptr && m_enable_raw_images )
+		{
+			m_cdrom_handle = cdrom_open_raw( chd );
+		}
 	} else {
-		m_cdrom_handle = cdrom_open(filename());
+		m_cdrom_handle = cdrom_open( filename() );
 	}
 	if ( ! m_cdrom_handle )
 		goto error;
@@ -122,8 +134,8 @@ error:
 
 void cdrom_image_device::call_unload()
 {
-	assert(m_cdrom_handle);
-	cdrom_close(m_cdrom_handle);
+	assert( m_cdrom_handle );
+	cdrom_close( m_cdrom_handle );
 	m_cdrom_handle = nullptr;
 	if( m_self_chd.opened() )
 		m_self_chd.close();

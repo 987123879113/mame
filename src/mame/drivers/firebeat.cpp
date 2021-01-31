@@ -184,6 +184,11 @@ struct IBUTTON
 static void firebeat_ata_devices(device_slot_interface &device)
 {
 	device.option_add("cdrom", ATAPI_FIXED_CDROM);
+}
+
+static void firebeat_ata_spu_devices(device_slot_interface &device)
+{
+	device.option_add("dvdrom", ATAPI_FIXED_DVDROM);
 	device.option_add("hdd", IDE_HARDDISK);
 }
 
@@ -195,7 +200,7 @@ static void cdrom_config(device_t *device)
 
 static void dvdrom_config(device_t *device)
 {
-	downcast<atapi_cdrom_device &>(*device).set_ultra_dma_mode(0x0102);
+	downcast<atapi_dvdrom_device &>(*device).set_ultra_dma_mode(0x0102);
 }
 
 class firebeat_state : public driver_device
@@ -1221,7 +1226,7 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 	screen->set_size(640, 480);
 	screen->set_visarea(0, 639, 0, 479);
 
-	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "hdd", nullptr, true);
+	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_spu_devices, "hdd", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_bm3_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_bm3_state::spu_ata_dmarq));
 	m_spuata->slot(0).set_fixed(true);
@@ -1360,10 +1365,10 @@ void firebeat_popn_state::firebeat_popn(machine_config &config)
 {
 	firebeat_spu_base(config);
 
-	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "cdrom", nullptr, true);
+	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_spu_devices, "dvdrom", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_popn_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_popn_state::spu_ata_dmarq));
-	m_spuata->slot(0).set_option_machine_config("cdrom", dvdrom_config);
+	m_spuata->slot(0).set_option_machine_config("dvdrom", dvdrom_config);
 	m_spuata->slot(0).set_fixed(true);
 
 	// 500 hz works best for pop'n music.
@@ -2119,7 +2124,7 @@ ROM_START( popn4 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gq986jaa01", 0, SHA1(e5368ac029b0bdf29943ae66677b5521ae1176e1) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
 	DISK_IMAGE( "gq986jaa02", 0, SHA1(53367d3d5f91422fe386c42716492a0ae4332390) )
 ROM_END
 
@@ -2136,7 +2141,7 @@ ROM_START( popn5 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a04jaa01", 0, SHA1(87136ddad1d786b4d5f04381fcbf679ab666e6c9) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "a04jaa02", 0, SHA1(49a017dde76f84829f6e99a678524c40665c3bfd) )
 ROM_END
 
@@ -2153,7 +2158,7 @@ ROM_START( popn6 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqa16jaa01", 0, SHA1(7a7e475d06c74a273f821fdfde0743b33d566e4c) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
 	DISK_IMAGE( "gqa16jaa02", 0, SHA1(e39067300e9440ff19cb98c1abc234fa3d5b26d1) )
 ROM_END
 
@@ -2170,7 +2175,7 @@ ROM_START( popn7 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "b00jab01", 0, SHA1(259c733ca4d30281205b46b7bf8d60c9d01aa818) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "b00jaa02", 0, SHA1(c8ce2f8ee6aeeedef9c110a59e68fcec7b669ad6) )
 ROM_END
 
@@ -2187,7 +2192,7 @@ ROM_START( popn8 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqb30jaa01", 0, SHA1(0ff3e40e3717ce23337b3a2438bdaca01cba9e30) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "gqb30jaa02", 0, SHA1(f067d502c23efe0267aada5706f5bc7a54605942) )
 ROM_END
 
@@ -2204,7 +2209,7 @@ ROM_START( popnanm )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gq987jaa01", 0, SHA1(ee1f9cf480c01ef356451cec30e5303d6c433758) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "gq987jaa02", 0, SHA1(d72515bac3fcd9f28c39fa1402292009734df678) )
 ROM_END
 
@@ -2221,7 +2226,7 @@ ROM_START( popnanm2 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
 	DISK_IMAGE_READONLY( "gea02jaa02", 0, SHA1(7212e399779f37a5dcb8317a8f635a3b3f620aa9) )
 ROM_END
 
@@ -2238,8 +2243,8 @@ ROM_START( popnmt )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "976jaa01", 0, SHA1(622a9350107e9fb17609ea1a234ca35489915da7) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(3881bb1e4deb829ba272c541cb7d203924571f3b) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(1868806b785198c9e027157594fa4856e971105c) )
 ROM_END
 
 ROM_START( popnmt2 )
@@ -2256,8 +2261,8 @@ ROM_START( popnmt2 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "976jba01", 0, SHA1(f8a70ca0718dc222cebbef238b5954494503d315) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(3881bb1e4deb829ba272c541cb7d203924571f3b) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(1868806b785198c9e027157594fa4856e971105c) )
 ROM_END
 
 ROM_START( bm3 )
