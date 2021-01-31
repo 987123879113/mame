@@ -291,6 +291,7 @@ SOUNDS["KS0164"] = true
 SOUNDS["TT5665"] = true
 --SOUNDS["RP2C33_SOUND"] = true
 --SOUNDS["UDA1344"] = true
+SOUNDS["VGMVIZ"] = true
 
 --------------------------------------------------
 -- specify available video cores
@@ -2539,6 +2540,8 @@ files {
 	MAME_DIR .. "src/mame/machine/k573msu.h",
 	MAME_DIR .. "src/mame/machine/k573npu.cpp",
 	MAME_DIR .. "src/mame/machine/k573npu.h",
+	MAME_DIR .. "src/mame/machine/firebeat_visualizer.cpp",
+	MAME_DIR .. "src/mame/machine/firebeat_visualizer.h",
 	MAME_DIR .. "src/mame/machine/zs01.cpp",
 	MAME_DIR .. "src/mame/machine/zs01.h",
 	MAME_DIR .. "src/mame/drivers/labyrunr.cpp",

@@ -155,6 +155,8 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 #include "sound/ymz280b.h"
 #include "video/k057714.h"
 
+#include "machine/firebeat_visualizer.h"
+
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
@@ -439,7 +441,8 @@ public:
 		firebeat_spu_state(mconfig, type, tag),
 		m_io(*this, "IO%u", 1U),
 		m_io_turntables(*this, "TURNTABLE_P%u", 1U),
-		m_io_effects(*this, "EFFECT%u", 1U)
+		m_io_effects(*this, "EFFECT%u", 1U),
+		m_visualizer(*this, "visualizer")
 	{ }
 
 	void firebeat_bm3(machine_config &config);
@@ -448,7 +451,7 @@ public:
 private:
 	void firebeat_bm3_map(address_map &map);
 
-	uint32_t spectrum_analyzer_r(offs_t offset);
+	uint8_t spectrum_analyzer_r(offs_t offset);
 	uint16_t sensor_r(offs_t offset);
 
 	// TODO: Floppy disk implementation
@@ -460,6 +463,8 @@ private:
 	required_ioport_array<4> m_io;
 	required_ioport_array<2> m_io_turntables;
 	required_ioport_array<7> m_io_effects;
+
+	required_device<firebeat_bm3visualizer_device> m_visualizer;
 };
 
 class firebeat_popn_state : public firebeat_spu_state
@@ -1209,6 +1214,12 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 	// Any higher makes things act weird.
 	// Lower doesn't have that huge of an effect compared to pop'n? (limited tested).
 	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_bm3_state::spu_timer_callback), attotime::from_hz(500));
+
+	rf5c400_device *rf5c400 = subdevice<rf5c400_device>("rf5c400");
+
+	KONAMI_FIREBEAT_AUDIO_VISUALIZER(config, m_visualizer, 0);
+	rf5c400->add_route(0, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
+	rf5c400->add_route(1, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
 }
 
 void firebeat_bm3_state::init_bm3()
@@ -1227,9 +1238,9 @@ void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
 	map(0x70008000, 0x7000807f).r(FUNC(firebeat_bm3_state::spectrum_analyzer_r));
 }
 
-uint32_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
+uint8_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
 {
-	// Visible in the sound test menu and most likely the spectral analyzer game skin
+	// Visible in the sound test menu and used for the spectral analyzer game skin
 	//
 	// Notes about where this could be coming from...
 	// - It's not the ST-224: Only sends audio in and out, with a MIDI in
@@ -1243,19 +1254,30 @@ uint32_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
 	// - The manual does not seem to make mention of this feature *at all* much less troubleshooting it, so no leads there
 
 	// 6 notch spectrum analyzer
-	// No idea what frequency range each notch corresponds but it does not affect core gameplay in any way.
-	// Notch 1: 0x0c
-	// Notch 2: 0x0a
-	// Notch 3: 0x08
-	// Notch 4: 0x06
-	// Notch 5: 0x04
-	// Notch 6: 0x02
+	// Notch 1 (90-240)
+	// Notch 2 (240-600)
+	// Notch 3 (600-1.5K)
+	// Notch 4 (1.5K-3.4K)
+	// Notch 5 (3.4K-9.2K)
+	// Notch 6 (9.2K-18K)
+	//
+	// Return values notes:
+	// - Anything lower than <= 8 will not display anything in-game
+	// - The way this register is read is weird. It reads the upper and lower half of the register separately as bytes,
+	// but it the upper byte doesn't seem like it's actually used
+	// - In-game the skin shows up to +9 dB but it actually caps out at +3 dB on the skin
 
-	// TODO: Fill in logic (reuse vgm_visualizer in some way?)
-	// auto ch = offset & 0xf0; // 0 = Left, 1 = Right
-	auto data = 0;
+	int ch = offset >= 0x40; // 0 = Left, 1 = Right
+	int notch = 6 - (((offset >> 2) & 0x0f) >> 1);
+	int is_upper = !!(offset & 4);
 
-	return data;
+	auto r = m_visualizer->get_bar_value(ch, notch);
+
+	if (is_upper) {
+		return (r >> 8) & 0xff;
+	}
+
+	return r & 0xff;
 }
 
 uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
