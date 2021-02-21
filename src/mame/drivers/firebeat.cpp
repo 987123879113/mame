@@ -144,6 +144,7 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 #include "bus/ata/idehd.h"
 #include "cpu/m68000/m68000.h"
 #include "cpu/powerpc/ppc.h"
+#include "machine/fdc37c665gt.h"
 #include "machine/ins8250.h"
 #include "machine/intelfsh.h"
 #include "machine/mb8421.h"
@@ -154,6 +155,8 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 #include "sound/rf5c400.h"
 #include "sound/ymz280b.h"
 #include "video/k057714.h"
+
+#include "machine/firebeat_visualizer.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -431,6 +434,10 @@ class firebeat_bm3_state : public firebeat_spu_state
 public:
 	firebeat_bm3_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_spu_state(mconfig, type, tag),
+		m_duart_midi(*this, "duart_midi"),
+		m_fdc(*this, "fdc"),
+		m_floppy(*this, "fdc:fdc:0"),
+		m_visualizer(*this, "visualizer"),
 		m_io(*this, "IO%u", 1U),
 		m_io_turntables(*this, "TURNTABLE_P%u", 1U),
 		m_io_effects(*this, "EFFECT%u", 1U)
@@ -442,18 +449,26 @@ public:
 private:
 	void firebeat_bm3_map(address_map &map);
 
-	uint32_t spectrum_analyzer_r(offs_t offset);
+	uint8_t midi_uart_r(offs_t offset);
+	void midi_uart_w(offs_t offset, uint8_t data);
+
+	uint8_t spectrum_analyzer_r(offs_t offset);
 	uint16_t sensor_r(offs_t offset);
 
-	// TODO: Floppy disk implementation
-	uint32_t fdd_unk_r(offs_t offset, uint32_t mem_mask = ~0);
-	void fdd_unk_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	DECLARE_WRITE_LINE_MEMBER(midi_uart_ch1_irq_callback);
 
-	DECLARE_WRITE_LINE_MEMBER( bm3_vblank );
+	required_device<pc16552_device> m_duart_midi;
+	required_device<fdc37c665gt_device> m_fdc;
+	required_device<floppy_connector> m_floppy;
+	required_device<firebeat_bm3visualizer_device> m_visualizer;
 
 	required_ioport_array<4> m_io;
 	required_ioport_array<2> m_io_turntables;
 	required_ioport_array<7> m_io_effects;
+
+	DECLARE_WRITE_LINE_MEMBER(floppy_irq_callback);
+
+	DECLARE_FLOPPY_FORMATS(floppy_formats);
 };
 
 class firebeat_popn_state : public firebeat_spu_state
@@ -745,10 +760,11 @@ void firebeat_state::security_w(uint8_t data)
 // Extend board IRQs
 // 0x01: MIDI UART channel 2
 // 0x02: MIDI UART channel 1
-// 0x04: ?
-// 0x08: ?
+// 0x04: FDD
+// 0x08: ST-224?
 // 0x10: ?
 // 0x20: ?
+// 0x40: Used by spectrum analyzer feature in beatmania III. Audio related?
 
 uint8_t firebeat_state::extend_board_irq_r(offs_t offset)
 {
@@ -759,8 +775,14 @@ void firebeat_state::extend_board_irq_w(offs_t offset, uint8_t data)
 {
 //  printf("extend_board_irq_w: %08X, %08X\n", data, offset);
 
+	auto prev_enable = m_extend_board_irq_enable;
+
 	m_extend_board_irq_active &= ~(data & 0xff);
 	m_extend_board_irq_enable = data & 0xff;
+
+	if (BIT(m_extend_board_irq_enable, 2) == 0 && BIT(m_extend_board_irq_enable ^ prev_enable, 2) == 1) {
+		m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
+	}
 }
 
 /*****************************************************************************/
@@ -1168,6 +1190,26 @@ TIMER_DEVICE_CALLBACK_MEMBER(firebeat_spu_state::spu_timer_callback)
 /*****************************************************************************
 * beatmania III
 ******************************************************************************/
+static void pc_hd_floppies(device_slot_interface &device)
+{
+	device.option_add("35hd", FLOPPY_35_HD);
+}
+
+FLOPPY_FORMATS_MEMBER(firebeat_bm3_state::floppy_formats)
+	FLOPPY_PC_FORMAT
+FLOPPY_FORMATS_END
+
+WRITE_LINE_MEMBER(firebeat_bm3_state::floppy_irq_callback)
+{
+// printf("firebeat_bm3_state::floppy_irq_callback %d %d\n", state, BIT(m_extend_board_irq_enable, 2));
+
+	if (BIT(m_extend_board_irq_enable, 2) == 0 && state)
+	{
+		m_extend_board_irq_active |= 0x04;
+		m_maincpu->set_input_line(INPUT_LINE_IRQ1, state);
+	}
+}
+
 void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 {
 	firebeat_spu_base(config);
@@ -1178,7 +1220,6 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 	screen_device *screen = subdevice<screen_device>("screen");
 	screen->set_size(640, 480);
 	screen->set_visarea(0, 639, 0, 479);
-	screen->screen_vblank().set(FUNC(firebeat_bm3_state::bm3_vblank));
 
 	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "hdd", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_bm3_state::spu_ata_interrupt));
@@ -1189,6 +1230,21 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 	// Any higher makes things act weird.
 	// Lower doesn't have that huge of an effect compared to pop'n? (limited tested).
 	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_bm3_state::spu_timer_callback), attotime::from_hz(500));
+
+	FDC37C665GT(config, m_fdc, 24_MHz_XTAL, upd765_family_device::mode_t::PS2);
+	m_fdc->fintr().set(FUNC(firebeat_bm3_state::floppy_irq_callback));
+
+	FLOPPY_CONNECTOR(config, m_floppy, pc_hd_floppies, "35hd", firebeat_bm3_state::floppy_formats);
+
+	rf5c400_device *rf5c400 = subdevice<rf5c400_device>("rf5c400");
+
+	KONAMI_FIREBEAT_AUDIO_VISUALIZER(config, m_visualizer, 0);
+	rf5c400->add_route(0, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
+	rf5c400->add_route(1, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
+
+	PC16552D(config, "duart_midi", 0);
+	NS16550(config, "duart_midi:chan0", XTAL(24'000'000));
+	NS16550(config, "duart_midi:chan1", XTAL(24'000'000)).out_int_callback().set(FUNC(firebeat_bm3_state::midi_uart_ch1_irq_callback));
 }
 
 void firebeat_bm3_state::init_bm3()
@@ -1201,15 +1257,39 @@ void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
 {
 	firebeat_spu_map(map);
 
+	map(0x70000000, 0x70000fff).rw(FUNC(firebeat_bm3_state::midi_uart_r), FUNC(firebeat_bm3_state::midi_uart_w)).umask32(0xff000000);
 	map(0x7d000330, 0x7d00033f).nopw(); // ?
 	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_bm3_state::sensor_r));
-	map(0x70001fc0, 0x70001fdf).rw(FUNC(firebeat_bm3_state::fdd_unk_r), FUNC(firebeat_bm3_state::fdd_unk_w));
+	map(0x70001000, 0x70001fff).rw(m_fdc, FUNC(fdc37c665gt_device::read), FUNC(fdc37c665gt_device::write)).umask32(0xff000000);
 	map(0x70008000, 0x7000807f).r(FUNC(firebeat_bm3_state::spectrum_analyzer_r));
 }
 
-uint32_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
+uint8_t firebeat_bm3_state::midi_uart_r(offs_t offset)
 {
-	// Visible in the sound test menu and most likely the spectral analyzer game skin
+	return m_duart_midi->read(offset >> 6);
+}
+
+void firebeat_bm3_state::midi_uart_w(offs_t offset, uint8_t data)
+{
+//  printf("%lf midi_uart_w %04x %02x\n", machine().time().as_double(), offset, data);
+
+	m_duart_midi->write(offset >> 6, data);
+}
+
+WRITE_LINE_MEMBER(firebeat_bm3_state::midi_uart_ch1_irq_callback)
+{
+	if (BIT(m_extend_board_irq_enable, 0) == 0 && state != CLEAR_LINE)
+	{
+		m_extend_board_irq_active |= 0x01;
+		m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE);
+	}
+	else
+		m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
+}
+
+uint8_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
+{
+	// Visible in the sound test menu and used for the spectral analyzer game skin
 	//
 	// Notes about where this could be coming from...
 	// - It's not the ST-224: Only sends audio in and out, with a MIDI in
@@ -1223,19 +1303,30 @@ uint32_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
 	// - The manual does not seem to make mention of this feature *at all* much less troubleshooting it, so no leads there
 
 	// 6 notch spectrum analyzer
-	// No idea what frequency range each notch corresponds but it does not affect core gameplay in any way.
-	// Notch 1: 0x0c
-	// Notch 2: 0x0a
-	// Notch 3: 0x08
-	// Notch 4: 0x06
-	// Notch 5: 0x04
-	// Notch 6: 0x02
+	// Notch 1 (90-240)
+	// Notch 2 (240-600)
+	// Notch 3 (600-1.5K)
+	// Notch 4 (1.5K-3.4K)
+	// Notch 5 (3.4K-9.2K)
+	// Notch 6 (9.2K-18K)
+	//
+	// Return values notes:
+	// - Anything lower than <= 8 will not display anything in-game
+	// - The way this register is read is weird. It reads the upper and lower half of the register separately as bytes,
+	// but it the upper byte doesn't seem like it's actually used
+	// - In-game the skin shows up to +9 dB but it actually caps out at +3 dB on the skin
 
-	// TODO: Fill in logic (reuse vgm_visualizer in some way?)
-	// auto ch = offset & 0xf0; // 0 = Left, 1 = Right
-	auto data = 0;
+	int ch = offset >= 0x40; // 0 = Left, 1 = Right
+	int notch = 6 - (((offset >> 2) & 0x0f) >> 1);
+	int is_upper = !!(offset & 4);
 
-	return data;
+	auto r = m_visualizer->get_bar_value(ch, notch);
+
+	if (is_upper) {
+		return (r >> 8) & 0xff;
+	}
+
+	return r & 0xff;
 }
 
 uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
@@ -1260,54 +1351,6 @@ uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
 	}
 
 	return 0;
-}
-
-uint32_t firebeat_bm3_state::fdd_unk_r(offs_t offset, uint32_t mem_mask)
-{
-	// printf("%s: fdd_unk_r: %08X, %08X\n", machine().describe_context().c_str(), offset, mem_mask);
-
-	return 0;
-}
-
-void firebeat_bm3_state::fdd_unk_w(offs_t offset, uint32_t data, uint32_t mem_mask)
-{
-	// printf("%s: fdd_unk_w: %08X, %08X, %08X\n", machine().describe_context().c_str(), data, offset, mem_mask);
-}
-
-WRITE_LINE_MEMBER(firebeat_bm3_state::bm3_vblank)
-{
-	// Patch out FDD errors since the game otherwise runs fine without it
-	// and the FDD might not be implemented for a while
-	if (strcmp(machine().system().name, "bm3") == 0)
-	{
-		if (m_work_ram[0x918C / 4] == 0x4809202D) m_work_ram[0x918C / 4] = 0x38600000;
-		if (m_work_ram[0x3380C / 4] == 0x4BFFFD99) m_work_ram[0x3380C / 4] = 0x38600000;
-		if (m_work_ram[0x33834 / 4] == 0x4BFFFD71) m_work_ram[0x33834 / 4] = 0x38600000;
-	}
-	else if (strcmp(machine().system().name, "bm3core") == 0)
-	{
-		if (m_work_ram[0x91E4 / 4] == 0x480A19F5) m_work_ram[0x91E4 / 4] = 0x38600000;
-		if (m_work_ram[0x37BB0 / 4] == 0x4BFFFD71) m_work_ram[0x37BB0 / 4] = 0x38600000;
-		if (m_work_ram[0x37BD8 / 4] == 0x4BFFFD49) m_work_ram[0x37BD8 / 4] = 0x38600000;
-	}
-	else if (strcmp(machine().system().name, "bm36th") == 0)
-	{
-		if (m_work_ram[0x91E4 / 4] == 0x480BC8BD) m_work_ram[0x91E4 / 4] = 0x38600000;
-		if (m_work_ram[0x451D8 / 4] == 0x4BFFFD75) m_work_ram[0x451D8 / 4] = 0x38600000;
-		if (m_work_ram[0x45200 / 4] == 0x4BFFFD4D) m_work_ram[0x45200 / 4] = 0x38600000;
-	}
-	else if (strcmp(machine().system().name, "bm37th") == 0)
-	{
-		if (m_work_ram[0x91E4 / 4] == 0x480CF62D) m_work_ram[0x91E4 / 4] = 0x38600000;
-		if (m_work_ram[0x46A58 / 4] == 0x4BFFFD45) m_work_ram[0x46A58 / 4] = 0x38600000;
-		if (m_work_ram[0x46AB8 / 4] == 0x4BFFFCE5) m_work_ram[0x46AB8 / 4] = 0x38600000;
-	}
-	else if (strcmp(machine().system().name, "bm3final") == 0)
-	{
-		if (m_work_ram[0x47F8 / 4] == 0x480CEF91) m_work_ram[0x47F8 / 4] = 0x38600000;
-		if (m_work_ram[0x3FAF4 / 4] == 0x4BFFFD59) m_work_ram[0x3FAF4 / 4] = 0x38600000;
-		if (m_work_ram[0x3FB54 / 4] == 0x4BFFFCF9) m_work_ram[0x3FB54 / 4] = 0x38600000;
-	}
 }
 
 /*****************************************************************************
