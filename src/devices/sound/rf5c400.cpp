@@ -211,7 +211,7 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 	int i, ch;
 	uint64_t start, end, loop;
 	uint64_t pos;
-	uint8_t vol, lvol, rvol, type;
+	uint8_t vol, lvol, rvol, effect_lvol, effect_rvol, type;
 	uint8_t env_phase;
 	double env_level, env_step, env_rstep;
 
@@ -231,6 +231,8 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 		vol = channel->volume & 0xFF;
 		lvol = channel->pan & 0xFF;
 		rvol = channel->pan >> 8;
+		effect_lvol = channel->effect & 0xFF;
+		effect_rvol = channel->effect >> 8;
 		type = (channel->volume >> 8) & TYPE_MASK;
 
 		env_phase = channel->env_phase;
@@ -314,8 +316,24 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 
 			sample *= volume_table[vol];
 			sample = (sample >> 9) * env_level;
-			buf0.add_int(i, sample * pan_table[lvol], 32768);
-			buf1.add_int(i, sample * pan_table[rvol], 32768);
+
+			// TODO: This is a hack for beatmania III's effects
+			// This should not be merged into upstream until real hardware testing is done.
+			// Effects are most likely sent externally and mixed somewhere, either in the chip
+			// or externally.
+			auto muxed_sample = 0;
+			if (lvol < 0x64)
+				muxed_sample += sample * pan_table[lvol];
+			if (effect_lvol < 0x64)
+				muxed_sample += sample * pan_table[effect_lvol];
+			buf0.add_int(i, muxed_sample, 32768);
+
+			muxed_sample = 0;
+			if (rvol < 0x64)
+				muxed_sample += sample * pan_table[rvol];
+			if (effect_rvol < 0x64)
+				muxed_sample += sample * pan_table[effect_rvol];
+			buf1.add_int(i, muxed_sample, 32768);
 
 			pos += channel->step;
 			if ((pos>>16) > end)
@@ -578,6 +596,22 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 			case 0x07:      // effect depth
 			{
 				// 0xCCRR: CC = chorus send depth, RR = reverb send depth
+
+				// Note: beatmania III uses this register differently?
+				//  When effects are off, it writes 0xe0e0 to this register:
+				//    Changed ch 30 reg 6 to volume 18176 -> l: 71, r: 0
+				//    Changed ch 30 reg 7 to volume 57568 -> 0xe0e0
+				//    Changed ch 31 reg 6 to volume 71    -> l: 0, r: 71
+				//    Changed ch 31 reg 7 to volume 57568 -> 0xe0e0
+				//  When effects are on, it writes reg 6 information here:
+				//		Changed ch 30 reg 6 to volume 57568 -> 0xe0e0
+				//    Changed ch 30 reg 7 to volume 18176 -> l: 71, r: 0
+				//    Changed ch 31 reg 6 to volume 57568 -> 0xe0e0
+				//    Changed ch 31 reg 7 to volume 71    -> l: 0, r: 71
+				// When effects are enabled the audio is redirected to an external
+				// PCB board for effect processing before returning to the sound PCB.
+				// The routing after it returns to the sound PCB is unknown so I am
+				// unsure if the RF5C400 can see the externally processed audio or not.
 				channel->effect = data;
 				break;
 			}
