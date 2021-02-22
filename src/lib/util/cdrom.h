@@ -34,6 +34,8 @@ const uint32_t CD_TRACK_PADDING = 4;
 
 #define CD_METADATA_WORDS       (1+(CD_MAX_TRACKS * 6))
 
+#define DVD_FRAME_SIZE          2048
+
 enum
 {
 	CD_TRACK_MODE1 = 0,         /* mode 1 2048 bytes/sector */

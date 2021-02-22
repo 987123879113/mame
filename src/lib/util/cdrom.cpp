@@ -429,9 +429,9 @@ cdrom_file *cdrom_open_raw(chd_file *chd)
 	file->cdtoc.numtrks = 1;
 	file->cdtoc.tracks[0].trktype = CD_TRACK_RAW_DVD;
 	file->cdtoc.tracks[0].subtype = CD_SUB_NONE;
-	file->cdtoc.tracks[0].datasize = chd->unit_bytes();
+	file->cdtoc.tracks[0].datasize = DVD_FRAME_SIZE;
 	file->cdtoc.tracks[0].subsize = 0;
-	file->cdtoc.tracks[0].frames = chd->logical_bytes() / chd->unit_bytes();
+	file->cdtoc.tracks[0].frames = chd->logical_bytes() / file->cdtoc.tracks[0].datasize;
 	file->cdtoc.tracks[0].extraframes = 0;
 	file->cdtoc.tracks[0].pregap = 0;
 	file->cdtoc.tracks[0].pgtype = 0;
@@ -529,7 +529,7 @@ chd_error read_partial_sector(cdrom_file *file, void *dest, uint32_t lbasector, 
 	if (file->chd != nullptr)
 	{
 		if (file->cdtoc.tracks[0].trktype == CD_TRACK_RAW_DVD) {
-			result = file->chd->read_bytes(uint64_t(chdsector) * file->chd->unit_bytes() + startoffs, dest, length);
+			result = file->chd->read_bytes(uint64_t(chdsector) * uint64_t(DVD_FRAME_SIZE) + startoffs, dest, length);
 		} else {
 			result = file->chd->read_bytes(uint64_t(chdsector) * uint64_t(CD_FRAME_SIZE) + startoffs, dest, length);
 		}
