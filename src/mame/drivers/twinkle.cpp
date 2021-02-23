@@ -889,8 +889,6 @@ void twinkle_state::twinkle(machine_config &config)
 
 	// SPU interrupt callback
 	KONAMI_FIREBEAT_SPU(config, m_spudev, 0);
-	m_spudev->firebeat_spu_base(config);
-
 	// spudev->irq_handler().set(FUNC(twinkle_state::spu_ata_irq));
 	ATA_INTERFACE(config, m_ata).options(ata_devices, "hdd", nullptr, true);
 	// m_ata->dmarq_handler().set(FUNC(twinkle_state::spu_ata_dmarq));
@@ -990,16 +988,6 @@ static INPUT_PORTS_START( twinkle )
 
 	PORT_START("OUTSEC")
 	PORT_START("INSEC")
-
-	PORT_START("SPU_DSW")
-	PORT_DIPUNKNOWN_DIPLOC( 0x01, IP_ACTIVE_LOW, "SPU DSW:1" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x02, IP_ACTIVE_LOW, "SPU DSW:2" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x04, IP_ACTIVE_LOW, "SPU DSW:3" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x08, IP_ACTIVE_LOW, "SPU DSW:4" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x10, IP_ACTIVE_LOW, "SPU DSW:5" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x20, IP_ACTIVE_LOW, "SPU DSW:6" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x40, IP_ACTIVE_LOW, "SPU DSW:7" )
-	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "SPU DSW:8" )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( twinklex )
@@ -1029,7 +1017,7 @@ INPUT_PORTS_END
 	ROM_REGION32_LE( 0x080000, "maincpu:rom", 0 )\
 	ROM_LOAD( "863a03.7b",    0x000000, 0x080000, CRC(81498f73) SHA1(3599b40a5872eab3a00d345287635355fcb25a71) )\
 \
-	ROM_REGION( 0x080000, "audiocpu", 0 )\
+	ROM_REGION( 0x080000, "spudev:audiocpu", 0 )\
 	ROM_LOAD16_WORD_SWAP( "863a05.2x",    0x000000, 0x080000, CRC(6f42a09e) SHA1(cab5209f90f47b9ee6e721479913ad74e3ba84b1) )
 
 ROM_START( gq863 )
