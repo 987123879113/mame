@@ -766,6 +766,7 @@ void twinkle_state::serial_w(uint16_t data)
 
 void twinkle_state::main_map(address_map &map)
 {
+	map(0x1f000000, 0x1f0007ff).m(m_spudev, FUNC(firebeat_spu_device::firebeat_spu_map)).umask32(0x00ff00ff);
 	map(0x1f200000, 0x1f20001f).rw(m_am53cf96, FUNC(am53cf96_device::read), FUNC(am53cf96_device::write)).umask32(0x00ff00ff);
 	map(0x1f20a01c, 0x1f20a01f).nopw(); /* scsi? */
 	map(0x1f210000, 0x1f2107ff).rw("fdc37c665gt", FUNC(fdc37c665gt_device::read), FUNC(fdc37c665gt_device::write)).umask32(0x00ff00ff);
@@ -887,12 +888,6 @@ void twinkle_state::twinkle(machine_config &config)
 	m_am53cf96->set_scsi_port("scsi");
 	m_am53cf96->irq_handler().set("maincpu:irq", FUNC(psxirq_device::intin10));
 
-	// SPU interrupt callback
-	KONAMI_FIREBEAT_SPU(config, m_spudev, 0);
-	// spudev->irq_handler().set(FUNC(twinkle_state::spu_ata_irq));
-	ATA_INTERFACE(config, m_ata).options(ata_devices, "hdd", nullptr, true);
-	// m_ata->dmarq_handler().set(FUNC(twinkle_state::spu_ata_dmarq));
-
 	RTC65271(config, "rtc", 0);
 
 	FDC37C665GT(config, "fdc37c665gt", XTAL(24'000'000));
@@ -926,6 +921,14 @@ void twinkle_state::twinkle(machine_config &config)
 	spu_device &spu(SPU(config, "spu", XTAL(67'737'600)/2, subdevice<psxcpu_device>("maincpu")));
 	spu.add_route(0, "speakerleft", 0.75);
 	spu.add_route(1, "speakerright", 0.75);
+
+	// SPU interrupt callback
+	KONAMI_FIREBEAT_SPU(config, m_spudev, 0);
+	m_spudev->add_route(0, "speakerleft", 0.5);
+	m_spudev->add_route(1, "speakerright", 0.5);
+	// spudev->irq_handler().set(FUNC(twinkle_state::spu_ata_irq));
+	ATA_INTERFACE(config, m_ata).options(ata_devices, "hdd", nullptr, true);
+	// m_ata->dmarq_handler().set(FUNC(twinkle_state::spu_ata_dmarq));
 }
 
 void twinkle_state::twinklex(machine_config &config)
