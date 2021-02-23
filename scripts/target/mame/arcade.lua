@@ -2469,6 +2469,8 @@ files {
 	MAME_DIR .. "src/mame/drivers/firebeat.cpp",
 	MAME_DIR .. "src/mame/machine/firebeat_visualizer.cpp",
 	MAME_DIR .. "src/mame/machine/firebeat_visualizer.h",
+	MAME_DIR .. "src/mame/machine/firebeat_spu.cpp",
+	MAME_DIR .. "src/mame/machine/firebeat_spu.h",
 	MAME_DIR .. "src/mame/machine/midikbd.cpp",
 	MAME_DIR .. "src/mame/machine/midikbd.h",
 	MAME_DIR .. "src/mame/drivers/flkatck.cpp",

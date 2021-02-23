@@ -244,6 +244,7 @@ Notes:
 #include "bus/rs232/xvd701.h"
 #include "machine/am53cf96.h"
 #include "machine/fdc37c665gt.h"
+#include "machine/firebeat_spu.h"
 #include "machine/i2cmem.h"
 #include "machine/mb8421.h"
 #include "machine/ram.h"
@@ -264,19 +265,13 @@ public:
 	twinkle_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
-		m_audiocpu(*this, "audiocpu"),
 		m_am53cf96(*this, "am53cf96"),
-		m_ata(*this, "ata"),
-		m_dpram(*this, "dpram"),
-		m_waveram(*this, "rfsnd"),
+		m_spudev(*this, "spudev"),
+		m_ata(*this, "spudev:spu_ata"),
 		m_led_displays(*this, "led%u", 0U),
 		m_spotlights(*this, "spotlight%u", 0U),
 		m_main_leds(*this, "main_led%u", 0U),
-		m_key_leds(*this, "key%u-%u", 1U, 1U),
-		m_spu_leds(*this, "spu_led%u", 0U),
-		m_spu_ata_dma(0),
-		m_spu_ata_dmarq(0),
-		m_wave_bank(0)
+		m_key_leds(*this, "key%u-%u", 1U, 1U)
 	{
 	}
 
@@ -293,39 +288,20 @@ private:
 	void led_w(uint16_t data);
 	void key_led_w(uint16_t data);
 	void serial_w(uint16_t data);
-	void twinkle_spu_ctrl_w(uint16_t data);
-	void spu_ata_dma_low_w(uint16_t data);
-	void spu_ata_dma_high_w(uint16_t data);
-	uint16_t twinkle_waveram_r(offs_t offset);
-	void twinkle_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
-	void spu_led_w(uint16_t data);
-	void spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
-	DECLARE_WRITE_LINE_MEMBER(spu_ata_irq);
-	DECLARE_WRITE_LINE_MEMBER(spu_ata_dmarq);
 	void scsi_dma_read( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size );
 	void scsi_dma_write( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size );
 
 	void main_map(address_map &map);
-	void rf5c400_map(address_map &map);
-	void sound_map(address_map &map);
 
 	required_device<cpu_device> m_maincpu;
-	required_device<cpu_device> m_audiocpu;
 	required_device<am53cf96_device> m_am53cf96;
+	required_device<firebeat_spu_device> m_spudev;
 	required_device<ata_interface_device> m_ata;
-	required_device<cy7c131_device> m_dpram;
-	required_shared_ptr<uint16_t> m_waveram;
 
 	output_finder<9> m_led_displays;
 	output_finder<8> m_spotlights;
 	output_finder<9> m_main_leds;
 	output_finder<2, 7> m_key_leds;
-	output_finder<8> m_spu_leds;
-
-	uint16_t m_spu_ctrl;      // SPU board control register
-	uint32_t m_spu_ata_dma;
-	int m_spu_ata_dmarq;
-	uint32_t m_wave_bank;
 
 	int m_io_offset;
 	int m_output_last[ 0x100 ];
@@ -514,12 +490,6 @@ void twinkle_state::machine_start()
 	m_spotlights.resolve();
 	m_main_leds.resolve();
 	m_key_leds.resolve();
-	m_spu_leds.resolve();
-
-	save_item(NAME(m_spu_ctrl));
-	save_item(NAME(m_spu_ata_dma));
-	save_item(NAME(m_spu_ata_dmarq));
-	save_item(NAME(m_wave_bank));
 
 	save_item(NAME(m_io_offset));
 	save_item(NAME(m_output_last));
@@ -796,7 +766,6 @@ void twinkle_state::serial_w(uint16_t data)
 
 void twinkle_state::main_map(address_map &map)
 {
-	map(0x1f000000, 0x1f0007ff).rw(m_dpram, FUNC(cy7c131_device::right_r), FUNC(cy7c131_device::right_w)).umask32(0x00ff00ff);
 	map(0x1f200000, 0x1f20001f).rw(m_am53cf96, FUNC(am53cf96_device::read), FUNC(am53cf96_device::write)).umask32(0x00ff00ff);
 	map(0x1f20a01c, 0x1f20a01f).nopw(); /* scsi? */
 	map(0x1f210000, 0x1f2107ff).rw("fdc37c665gt", FUNC(fdc37c665gt_device::read), FUNC(fdc37c665gt_device::write)).umask32(0x00ff00ff);
@@ -812,143 +781,6 @@ void twinkle_state::main_map(address_map &map)
 	map(0x1f290000, 0x1f29007f).rw("rtc", FUNC(rtc65271_device::rtc_r), FUNC(rtc65271_device::rtc_w)).umask32(0x00ff00ff);
 	map(0x1f2a0000, 0x1f2a007f).rw("rtc", FUNC(rtc65271_device::xram_r), FUNC(rtc65271_device::xram_w)).umask32(0x00ff00ff);
 	map(0x1f2b0000, 0x1f2b00ff).w(FUNC(twinkle_state::twinkle_output_w));
-}
-
-/* SPU board */
-
-WRITE_LINE_MEMBER(twinkle_state::spu_ata_irq)
-{
-	if ((state) && (m_spu_ctrl & 0x0400))
-	{
-		m_audiocpu->set_input_line(M68K_IRQ_6, ASSERT_LINE);
-	}
-}
-
-/*
-    System control register (Konami always has one)
-
-    bit 7  = write 0 to ack IRQ 1, write 1 to enable (IRQ 1 appears to be an RF5C400-related timer, or some free-running timing source)
-    bit 8  = write 0 to ack IRQ 2, write 1 to enable (IRQ 2 appears to be DMA completion)
-    bit 9  = write 0 to ack IRQ 4, write 1 to enable (IRQ 4 is "command available")
-    bit 10 = write 0 to ack IRQ 6, write 1 to enable (IRQ 6 is the ATA IRQ)
-    bit 11 = watchdog toggle
-
-    Other bits unknown.
-*/
-void twinkle_state::twinkle_spu_ctrl_w(uint16_t data)
-{
-	if ((!(data & 0x0080)) && (m_spu_ctrl & 0x0080))
-	{
-		m_audiocpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
-	}
-	else if ((!(data & 0x0100)) && (m_spu_ctrl & 0x0100))
-	{
-		m_audiocpu->set_input_line(M68K_IRQ_2, CLEAR_LINE);
-	}
-	else if ((!(data & 0x0200)) && (m_spu_ctrl & 0x0200))
-	{
-		m_audiocpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
-	}
-	else if ((!(data & 0x0400)) && (m_spu_ctrl & 0x0400))
-	{
-		m_audiocpu->set_input_line(M68K_IRQ_6, CLEAR_LINE);
-	}
-
-	m_spu_ctrl = data;
-}
-
-void twinkle_state::spu_ata_dma_low_w(uint16_t data)
-{
-	m_spu_ata_dma = (m_spu_ata_dma & ~0xffff) | data;
-}
-
-void twinkle_state::spu_ata_dma_high_w(uint16_t data)
-{
-	m_spu_ata_dma = (m_spu_ata_dma & 0xffff) | ((uint32_t)data << 16);
-	//printf("DMA now %x\n", m_spu_ata_dma);
-}
-
-WRITE_LINE_MEMBER(twinkle_state::spu_ata_dmarq)
-{
-	if (m_spu_ata_dmarq != state)
-	{
-		m_spu_ata_dmarq = state;
-
-		if (m_spu_ata_dmarq)
-		{
-			m_ata->write_dmack(ASSERT_LINE);
-
-			while (m_spu_ata_dmarq)
-			{
-				uint16_t data = m_ata->read_dma();
-				//printf("spu_ata_dmarq %08x %04x\n", m_spu_ata_dma * 2, data);
-				m_waveram[m_wave_bank+m_spu_ata_dma] = data; //(data >> 8) | (data << 8);
-				m_spu_ata_dma++;
-				// bp 4a0e ;bmiidx4 checksum
-				// bp 4d62 ;bmiidx4 dma
-			}
-
-			m_ata->write_dmack(CLEAR_LINE);
-		}
-	}
-}
-
-void twinkle_state::spu_wavebank_w(offs_t offset, uint16_t data, uint16_t mem_mask)
-{
-	//printf("%x to wavebank_w, mask %04x\n", data, mem_mask);
-
-	// banks are fairly clearly 8MB, so there's 3 of them in the 24 MB of RAM.
-	// the games load up the full 24MB of RAM 8 MB at a time, first to bank 1,
-	// then to bank 2, and finally to bank 3.
-	//
-	// neither the 68k nor DMA access wave RAM when the bank is 0.
-	m_wave_bank = data * (4*1024*1024);
-}
-
-uint16_t twinkle_state::twinkle_waveram_r(offs_t offset)
-{
-	return m_waveram[offset+m_wave_bank];
-}
-
-void twinkle_state::twinkle_waveram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
-{
-	COMBINE_DATA(&m_waveram[offset+m_wave_bank]);
-}
-
-void twinkle_state::spu_led_w(uint16_t data)
-{
-	// upper 8 bits are occasionally written as all zeros
-	m_spu_leds[0] = BIT(~data, 0);
-	m_spu_leds[1] = BIT(~data, 1);
-	m_spu_leds[2] = BIT(~data, 2);
-	m_spu_leds[3] = BIT(~data, 3);
-	m_spu_leds[4] = BIT(~data, 4);
-	m_spu_leds[5] = BIT(~data, 5);
-	m_spu_leds[6] = BIT(~data, 6);
-	m_spu_leds[7] = BIT(~data, 7);
-}
-
-void twinkle_state::sound_map(address_map &map)
-{
-	map(0x000000, 0x07ffff).rom();
-	map(0x100000, 0x13ffff).ram();
-	map(0x200000, 0x200001).portr("SPU_DSW");
-	map(0x220000, 0x220001).w(FUNC(twinkle_state::spu_led_w));
-	map(0x230000, 0x230003).w(FUNC(twinkle_state::twinkle_spu_ctrl_w));
-	map(0x240000, 0x240003).w(FUNC(twinkle_state::spu_ata_dma_low_w)).nopr();
-	map(0x250000, 0x250003).w(FUNC(twinkle_state::spu_ata_dma_high_w)).nopr();
-	map(0x260000, 0x260001).w(FUNC(twinkle_state::spu_wavebank_w)).nopr();
-	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
-	map(0x300000, 0x30000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
-	// 34000E = ???
-	map(0x34000e, 0x34000f).nopw();
-	map(0x400000, 0x400fff).rw("rfsnd", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
-	map(0x800000, 0xffffff).rw(FUNC(twinkle_state::twinkle_waveram_r), FUNC(twinkle_state::twinkle_waveram_w));
-}
-
-void twinkle_state::rf5c400_map(address_map &map)
-{
-	map(0x0000000, 0x1ffffff).ram().share("rfsnd");
 }
 
 /* SCSI */
@@ -1045,15 +877,7 @@ void twinkle_state::twinkle(machine_config &config)
 	m_maincpu->subdevice<psxdma_device>("dma")->install_write_handler(5, psxdma_device::write_delegate(&twinkle_state::scsi_dma_write, this));
 	m_maincpu->subdevice<ram_device>("ram")->set_default_size("4M");
 
-	M68000(config, m_audiocpu, 32000000/2);    /* 16.000 MHz */
-	m_audiocpu->set_addrmap(AS_PROGRAM, &twinkle_state::sound_map);
-	m_audiocpu->set_periodic_int(FUNC(twinkle_state::irq1_line_assert), attotime::from_hz(60));
-	m_audiocpu->set_periodic_int(FUNC(twinkle_state::irq2_line_assert), attotime::from_hz(60));
-
 	WATCHDOG_TIMER(config, "watchdog").set_time(attotime::from_msec(1200)); /* check TD pin on LTC1232 */
-
-	CY7C131(config, m_dpram); // or IDT7130 at some PCBs
-	m_dpram->intl_callback().set_inputline(m_audiocpu, M68K_IRQ_4);
 
 	scsi_port_device &scsi(SCSI_PORT(config, "scsi", 0));
 	scsi.set_slot_device(1, "cdrom", SCSICD, DEVICE_INPUT_DEFAULTS_NAME(SCSI_ID_4));
@@ -1063,9 +887,13 @@ void twinkle_state::twinkle(machine_config &config)
 	m_am53cf96->set_scsi_port("scsi");
 	m_am53cf96->irq_handler().set("maincpu:irq", FUNC(psxirq_device::intin10));
 
+	// SPU interrupt callback
+	KONAMI_FIREBEAT_SPU(config, m_spudev, 0);
+	m_spudev->firebeat_spu_base(config);
+
+	// spudev->irq_handler().set(FUNC(twinkle_state::spu_ata_irq));
 	ATA_INTERFACE(config, m_ata).options(ata_devices, "hdd", nullptr, true);
-	m_ata->irq_handler().set(FUNC(twinkle_state::spu_ata_irq));
-	m_ata->dmarq_handler().set(FUNC(twinkle_state::spu_ata_dmarq));
+	// m_ata->dmarq_handler().set(FUNC(twinkle_state::spu_ata_dmarq));
 
 	RTC65271(config, "rtc", 0);
 
@@ -1100,11 +928,6 @@ void twinkle_state::twinkle(machine_config &config)
 	spu_device &spu(SPU(config, "spu", XTAL(67'737'600)/2, subdevice<psxcpu_device>("maincpu")));
 	spu.add_route(0, "speakerleft", 0.75);
 	spu.add_route(1, "speakerright", 0.75);
-
-	rf5c400_device &rf5c400(RF5C400(config, "rfsnd", XTAL(33'868'800)/2));
-	rf5c400.set_addrmap(0, &twinkle_state::rf5c400_map);
-	rf5c400.add_route(0, "speakerleft", 1.0);
-	rf5c400.add_route(1, "speakerright", 1.0);
 }
 
 void twinkle_state::twinklex(machine_config &config)
@@ -1206,7 +1029,7 @@ INPUT_PORTS_END
 	ROM_REGION32_LE( 0x080000, "maincpu:rom", 0 )\
 	ROM_LOAD( "863a03.7b",    0x000000, 0x080000, CRC(81498f73) SHA1(3599b40a5872eab3a00d345287635355fcb25a71) )\
 \
-	ROM_REGION32_LE( 0x080000, "audiocpu", 0 )\
+	ROM_REGION( 0x080000, "audiocpu", 0 )\
 	ROM_LOAD16_WORD_SWAP( "863a05.2x",    0x000000, 0x080000, CRC(6f42a09e) SHA1(cab5209f90f47b9ee6e721479913ad74e3ba84b1) )
 
 ROM_START( gq863 )
