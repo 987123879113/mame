@@ -239,7 +239,7 @@ SOUNDS["CDDA"] = true
 SOUNDS["ICS2115"] = true
 SOUNDS["I5000_SND"] = true
 SOUNDS["ST0016"] = true
-SOUNDS["NILE"] = true
+SOUNDS["SETAPCM"] = true
 SOUNDS["X1_010"] = true
 SOUNDS["VRENDER0"] = true
 SOUNDS["VOTRAX"] = true
@@ -3824,7 +3824,6 @@ files {
 	MAME_DIR .. "src/mame/machine/st0016.cpp",
 	MAME_DIR .. "src/mame/machine/st0016.h",
 	MAME_DIR .. "src/mame/drivers/simple_st0016.cpp",
-	MAME_DIR .. "src/mame/includes/simple_st0016.h",
 	MAME_DIR .. "src/mame/video/seta001.cpp",
 	MAME_DIR .. "src/mame/video/seta001.h",
 	MAME_DIR .. "src/mame/video/x1_012.cpp",
