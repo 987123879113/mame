@@ -298,7 +298,7 @@ uint32_t psxsio_device::read(offs_t offset, uint32_t mem_mask)
 		verboselog( *this, 1, "psx_sio_r %s data %02x (%08x)\n", tag(), data, mem_mask );
 		break;
 	case 1:
-		data = m_status;
+		data = m_status | SIO_STATUS_CTS; // THIS IS A HACK DO NOT UPSTREAM! bmiidx expects CTS Input to be set for DVD init check
 		if( ACCESSING_BITS_0_15 )
 		{
 			verboselog( *this, 1, "psx_sio_r %s status %04x\n", tag(), data & 0xffff );

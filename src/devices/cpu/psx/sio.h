@@ -23,6 +23,7 @@ DECLARE_DEVICE_TYPE(PSX_SIO1, psxsio1_device)
 #define SIO_STATUS_TX_EMPTY ( 1 << 2 )
 #define SIO_STATUS_OVERRUN ( 1 << 4 )
 #define SIO_STATUS_DSR ( 1 << 7 )
+#define SIO_STATUS_CTS ( 1 << 8 )
 #define SIO_STATUS_IRQ ( 1 << 9 )
 
 #define SIO_CONTROL_TX_ENA ( 1 << 0 )
