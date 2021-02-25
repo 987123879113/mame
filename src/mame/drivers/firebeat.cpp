@@ -156,7 +156,7 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 #include "sound/ymz280b.h"
 #include "video/k057714.h"
 
-#include "machine/firebeat_visualizer.h"
+#include "machine/firebeat_extend.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -467,7 +467,7 @@ private:
 	required_device<pc16552_device> m_duart_midi;
 	required_device<fdc37c665gt_device> m_fdc;
 	required_device<floppy_connector> m_floppy;
-	required_device<firebeat_bm3visualizer_device> m_visualizer;
+	required_device<firebeat_extend_spectrum_analyzer_device> m_visualizer;
 
 	required_ioport_array<4> m_io;
 	required_ioport_array<2> m_io_turntables;
@@ -1249,7 +1249,7 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 	m_rf5c400->add_route(2, "lspeaker", 0.5);
 	m_rf5c400->add_route(3, "rspeaker", 0.5);
 
-	KONAMI_FIREBEAT_AUDIO_VISUALIZER(config, m_visualizer, 0);
+	KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER(config, m_visualizer, 0);
 	m_rf5c400->add_route(0, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
 	m_rf5c400->add_route(1, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
 	m_rf5c400->add_route(2, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);

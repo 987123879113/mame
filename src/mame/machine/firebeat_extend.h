@@ -1,20 +1,20 @@
 // license:BSD-3-Clause
 // copyright-holders:windyfairy
 /*
- * Firebeat Audio Visualizer (for beatmania III)
+ * Firebeat Extend Board (Spectrum Analyzer for beatmania III)
  *
  */
-#ifndef MAME_MACHINE_FIREBEATVIZ_H
-#define MAME_MACHINE_FIREBEATVIZ_H
+#ifndef MAME_MACHINE_FIREBEATEXTEND_H
+#define MAME_MACHINE_FIREBEATEXTEND_H
 
 #pragma once
 
-DECLARE_DEVICE_TYPE(KONAMI_FIREBEAT_AUDIO_VISUALIZER, firebeat_bm3visualizer_device)
+DECLARE_DEVICE_TYPE(KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, firebeat_extend_spectrum_analyzer_device)
 
-class firebeat_bm3visualizer_device : public device_t, public device_mixer_interface
+class firebeat_extend_spectrum_analyzer_device : public device_t, public device_mixer_interface
 {
 public:
-	firebeat_bm3visualizer_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	firebeat_extend_spectrum_analyzer_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
     int get_bar_value(int channel, int bar);
 
@@ -46,4 +46,4 @@ private:
     int m_bars[TOTAL_CHANNELS][TOTAL_BARS];
 };
 
-#endif // MAME_MACHINE_FIREBEATVIZ_H
+#endif // MAME_MACHINE_FIREBEATEXTEND_H

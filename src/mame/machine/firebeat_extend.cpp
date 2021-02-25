@@ -1,30 +1,30 @@
 // license:BSD-3-Clause
 // copyright-holders:windyfairy
 /*
- * Firebeat Audio Visualizer (for beatmania III)
+ * Firebeat Extend Board (Spectrum Analyzer for beatmania III)
  * ref: https://forum.cockos.com/showthread.php?t=231070
  */
 
 #include "emu.h"
 
-#include "machine/firebeat_visualizer.h"
+#include "machine/firebeat_extend.h"
 
 #include "wdlfft/fft.h"
 
 #include <cmath>
 
-firebeat_bm3visualizer_device::firebeat_bm3visualizer_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	device_t(mconfig, KONAMI_FIREBEAT_AUDIO_VISUALIZER, tag, owner, clock),
+firebeat_extend_spectrum_analyzer_device::firebeat_extend_spectrum_analyzer_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	device_t(mconfig, KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, tag, owner, clock),
     device_mixer_interface(mconfig, *this, 2)
 {
 }
 
-void firebeat_bm3visualizer_device::device_start()
+void firebeat_extend_spectrum_analyzer_device::device_start()
 {
 	WDL_fft_init();
 }
 
-void firebeat_bm3visualizer_device::device_reset()
+void firebeat_extend_spectrum_analyzer_device::device_reset()
 {
 	for (int ch = 0; ch < TOTAL_CHANNELS; ch++)
 	{
@@ -45,7 +45,7 @@ void firebeat_bm3visualizer_device::device_reset()
 	m_audio_fill_index = 0;
 }
 
-void firebeat_bm3visualizer_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
+void firebeat_extend_spectrum_analyzer_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
 	// call the normal interface to actually mix
 	device_mixer_interface::sound_stream_update(stream, inputs, outputs);
@@ -117,7 +117,7 @@ void firebeat_bm3visualizer_device::sound_stream_update(sound_stream &stream, st
     }
 }
 
-void firebeat_bm3visualizer_device::apply_fft(uint32_t buf_index)
+void firebeat_extend_spectrum_analyzer_device::apply_fft(uint32_t buf_index)
 {
 	float *audio_l = m_audio_buf[buf_index][0];
 	float *audio_r = m_audio_buf[buf_index][1];
@@ -139,7 +139,7 @@ void firebeat_bm3visualizer_device::apply_fft(uint32_t buf_index)
 	}
 }
 
-void firebeat_bm3visualizer_device::update_fft()
+void firebeat_extend_spectrum_analyzer_device::update_fft()
 {
 	m_audio_count[m_audio_fill_index]++;
 	if (m_audio_count[m_audio_fill_index] >= FFT_LENGTH)
@@ -151,7 +151,7 @@ void firebeat_bm3visualizer_device::update_fft()
 	}
 }
 
-int firebeat_bm3visualizer_device::get_bar_value(int channel, int bar) {
+int firebeat_extend_spectrum_analyzer_device::get_bar_value(int channel, int bar) {
     if (channel > TOTAL_CHANNELS || bar > TOTAL_BARS) {
         return 0;
     }
@@ -159,4 +159,4 @@ int firebeat_bm3visualizer_device::get_bar_value(int channel, int bar) {
     return m_bars[channel][bar];
 }
 
-DEFINE_DEVICE_TYPE(KONAMI_FIREBEAT_AUDIO_VISUALIZER, firebeat_bm3visualizer_device, "firebeat_analyzer", "Firebeat Audio Visualizer (for beatmania III)")
+DEFINE_DEVICE_TYPE(KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, firebeat_extend_spectrum_analyzer_device, "firebeat_analyzer", "Firebeat Audio Visualizer (for beatmania III)")
