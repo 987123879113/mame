@@ -15,6 +15,9 @@
  *
  *
  * Spectrum Analyzer (CN2)
+ * Consists of 2x2 NJU7507 (band pass filter audio spectrum analyzer display) chips.
+ * beatmania III uses two cascaded NJU7507s to provide 14 bands for each channel of audio.
+ *
  * ref: https://forum.cockos.com/showthread.php?t=231070
  *
  *
@@ -111,10 +114,8 @@ void firebeat_extend_spectrum_analyzer_device::device_reset()
 
 void firebeat_extend_spectrum_analyzer_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
-	// call the normal interface to actually mix
 	device_mixer_interface::sound_stream_update(stream, inputs, outputs);
 
-	// now consume the outputs
 	for (int pos = 0; pos < outputs[0].samples(); pos++)
 	{
 		for (int ch = 0; ch < outputs.size(); ch++)
@@ -126,8 +127,9 @@ void firebeat_extend_spectrum_analyzer_device::sound_stream_update(sound_stream 
         update_fft();
 	}
 
-    double notches[] = { 95, 240, 600, 1500, 3400, 9200, 18000 };
-    auto last_notch = std::end(notches) - std::begin(notches);
+    // Bandpass filter + find peak
+    double notches[] = { 95, 240, 600, 1500, 3400, 8200, 18000 };
+    int last_notch = std::end(notches) - std::begin(notches);
 
     auto srate = stream.sample_rate();
     auto order = WDL_fft_permute_tab(FFT_LENGTH / 2);
@@ -136,37 +138,26 @@ void firebeat_extend_spectrum_analyzer_device::sound_stream_update(sound_stream 
     	int cur_notch = 0;
 
         for (int i = 0; i <= FFT_LENGTH / 2; i++) {
-            WDL_FFT_COMPLEX* bin = (WDL_FFT_COMPLEX*)m_fft_buf[ch] + order[i];
-
-            double re = 0, im = 0;
-            if (i == 0)
-            {
-                // DC (0 Hz)
-                re = bin->re;
-                im = 0.0;
-            }
-            else if (i == FFT_LENGTH / 2)
-            {
-                // Nyquist frequency
-                re = m_fft_buf[ch][1]; // i.e. DC bin->im
-                im = 0.0;
-            }
-            else
-            {
-                re = bin->re;
-                im = bin->im;
-            }
-
             const double freq = (double)i / FFT_LENGTH * srate;
-            const double mag = sqrt(re*re + im*im);
 
-            if (freq >= notches[cur_notch+1]) {
+            if (freq < notches[cur_notch]) {
+                continue;
+            }
+
+            if (freq > notches[cur_notch+1]) {
                 cur_notch++;
             }
 
-            if (cur_notch + 1 > last_notch) {
+            if (cur_notch >= last_notch) {
+                // Don't need to calculate anything above this frequency
                 break;
             }
+
+            WDL_FFT_COMPLEX* bin = (WDL_FFT_COMPLEX*)m_fft_buf[ch] + order[i];
+
+            const double re = bin->re;
+            const double im = bin->im;
+            const double mag = sqrt(re*re + im*im);
 
             if (notch_max[cur_notch] == -1 && freq >= notches[cur_notch] && freq < notches[cur_notch+1]) {
                 notch_max[cur_notch] = mag;
@@ -230,14 +221,6 @@ uint8_t firebeat_extend_spectrum_analyzer_device::read(offs_t offset)
 	//   potentially interesting chips at a glance of PCB pics
 	// - The manual does not seem to make mention of this feature *at all* much less troubleshooting it, so no leads there
 
-	// 6 notch spectrum analyzer
-	// Notch 1 (90-240)
-	// Notch 2 (240-600)
-	// Notch 3 (600-1.5K)
-	// Notch 4 (1.5K-3.4K)
-	// Notch 5 (3.4K-9.2K)
-	// Notch 6 (9.2K-18K)
-	//
 	// Return values notes:
 	// - Anything lower than <= 8 will not display anything in-game
 	// - The way this register is read is weird. It reads the upper and lower half of the register separately as bytes,
