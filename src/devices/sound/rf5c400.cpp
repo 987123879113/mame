@@ -13,21 +13,21 @@
 namespace {
 
 int volume_table[256];
-double pan_table[0x64];
+double pan_table[255];
 
 void init_static_tables()
 {
+	std::fill(std::begin(pan_table), std::end(pan_table), 0.0);
+
 	// init volume/pan tables
 	double max = 255.0;
 	for (int i = 0; i < 256; i++) {
 		volume_table[i] = uint16_t(max);
 		max /= pow(10.0, double((4.5 / (256.0 / 16.0)) / 20));
 	}
+
 	for (int i = 0; i < 0x48; i++) {
 		pan_table[i] = sqrt(double(0x47 - i)) / sqrt(double(0x47));
-	}
-	for (int i = 0x48; i < 0x64; i++) {
-		pan_table[i] = 0.0;
 	}
 }
 
@@ -188,7 +188,7 @@ void rf5c400_device::device_start()
 	save_item(STRUCT_MEMBER(m_channels, env_step));
 	save_item(STRUCT_MEMBER(m_channels, env_scale));
 
-	m_stream = stream_alloc(0, 2, clock() / 384);
+	m_stream = stream_alloc(0, 4, clock() / 384);
 }
 
 //-------------------------------------------------
@@ -217,12 +217,16 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 
 	outputs[0].fill(0);
 	outputs[1].fill(0);
+	outputs[2].fill(0);
+	outputs[3].fill(0);
 
 	for (ch=0; ch < 32; ch++)
 	{
 		rf5c400_channel *channel = &m_channels[ch];
 		auto &buf0 = outputs[0];
 		auto &buf1 = outputs[1];
+		auto &buf2 = outputs[2];
+		auto &buf3 = outputs[3];
 
 		start = ((uint32_t)(channel->startH & 0xFF00) << 8) | channel->startL;
 		end = ((uint32_t)(channel->endHloopH & 0xFF) << 16) | channel->endL;
@@ -317,23 +321,10 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 			sample *= volume_table[vol];
 			sample = (sample >> 9) * env_level;
 
-			// TODO: This is a hack for beatmania III's effects
-			// This should not be merged into upstream until real hardware testing is done.
-			// Effects are most likely sent externally and mixed somewhere, either in the chip
-			// or externally.
-			auto muxed_sample = 0;
-			if (lvol < 0x64)
-				muxed_sample += sample * pan_table[lvol];
-			if (effect_lvol < 0x64)
-				muxed_sample += sample * pan_table[effect_lvol];
-			buf0.add_int(i, muxed_sample, 32768);
-
-			muxed_sample = 0;
-			if (rvol < 0x64)
-				muxed_sample += sample * pan_table[rvol];
-			if (effect_rvol < 0x64)
-				muxed_sample += sample * pan_table[effect_rvol];
-			buf1.add_int(i, muxed_sample, 32768);
+			buf0.add_int(i, sample * pan_table[lvol], 32768);
+			buf1.add_int(i, sample * pan_table[rvol], 32768);
+			buf2.add_int(i, sample * pan_table[effect_lvol], 32768);
+			buf3.add_int(i, sample * pan_table[effect_rvol], 32768);
 
 			pos += channel->step;
 			if ((pos>>16) > end)
@@ -604,14 +595,12 @@ void rf5c400_device::rf5c400_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 				//    Changed ch 31 reg 6 to volume 71    -> l: 0, r: 71
 				//    Changed ch 31 reg 7 to volume 57568 -> 0xe0e0
 				//  When effects are on, it writes reg 6 information here:
-				//		Changed ch 30 reg 6 to volume 57568 -> 0xe0e0
+				//    Changed ch 30 reg 6 to volume 57568 -> 0xe0e0
 				//    Changed ch 30 reg 7 to volume 18176 -> l: 71, r: 0
 				//    Changed ch 31 reg 6 to volume 57568 -> 0xe0e0
 				//    Changed ch 31 reg 7 to volume 71    -> l: 0, r: 71
 				// When effects are enabled the audio is redirected to an external
 				// PCB board for effect processing before returning to the sound PCB.
-				// The routing after it returns to the sound PCB is unknown so I am
-				// unsure if the RF5C400 can see the externally processed audio or not.
 				channel->effect = data;
 				break;
 			}

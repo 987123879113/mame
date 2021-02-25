@@ -289,9 +289,10 @@ public:
 	firebeat_spu_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_state(mconfig, type, tag),
 		m_spuata(*this, "spu_ata"),
+		m_rf5c400(*this, "rf5c400"),
 		m_audiocpu(*this, "audiocpu"),
 		m_dpram(*this, "spuram"),
-		m_waveram(*this, "rf5c400"),
+		m_waveram(*this, "rf5c400_ram"),
 		m_spu_status_leds(*this, "spu_status_led_%u", 0U)
 	{ }
 
@@ -311,6 +312,7 @@ protected:
 	TIMER_DEVICE_CALLBACK_MEMBER(spu_timer_callback);
 
 	required_device<ata_interface_device> m_spuata;
+	required_device<rf5c400_device> m_rf5c400;
 
 private:
 	void spu_status_led_w(uint16_t data);
@@ -994,10 +996,12 @@ void firebeat_spu_state::firebeat_spu_base(machine_config &config)
 	m_dpram->intl_callback().set_inputline(m_audiocpu, INPUT_LINE_IRQ4); // address 0x3fe triggers M68K interrupt
 	m_dpram->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ3); // address 0x3ff triggers PPC interrupt
 
-	rf5c400_device &rf5c400(RF5C400(config, "rf5c400", XTAL(16'934'400)));
-	rf5c400.set_addrmap(0, &firebeat_spu_state::rf5c400_map);
-	rf5c400.add_route(0, "lspeaker", 0.5);
-	rf5c400.add_route(1, "rspeaker", 0.5);
+	RF5C400(config, m_rf5c400, XTAL(16'934'400));
+	m_rf5c400->set_addrmap(0, &firebeat_spu_state::rf5c400_map);
+
+	// Clean channel audio
+	m_rf5c400->add_route(0, "lspeaker", 0.5);
+	m_rf5c400->add_route(1, "rspeaker", 0.5);
 }
 
 void firebeat_spu_state::firebeat_spu_map(address_map &map)
@@ -1019,13 +1023,13 @@ void firebeat_spu_state::spu_map(address_map &map)
 	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
 	map(0x300000, 0x30000f).rw(m_spuata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x340000, 0x34000f).rw(m_spuata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
-	map(0x400000, 0x400fff).rw("rf5c400", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
+	map(0x400000, 0x400fff).rw(m_rf5c400, FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
 	map(0x800000, 0xffffff).rw(FUNC(firebeat_spu_state::firebeat_waveram_r), FUNC(firebeat_spu_state::firebeat_waveram_w));
 }
 
 void firebeat_spu_state::rf5c400_map(address_map& map)
 {
-	map(0x0000000, 0x1ffffff).ram().share("rf5c400");
+	map(0x0000000, 0x1ffffff).ram().share("rf5c400_ram");
 }
 
 
@@ -1241,11 +1245,15 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 
 	FLOPPY_CONNECTOR(config, m_floppy, pc_hd_floppies, "35hd", firebeat_bm3_state::floppy_formats);
 
-	rf5c400_device *rf5c400 = subdevice<rf5c400_device>("rf5c400");
+	// Effects audio channel, routed to ST-224's audio input
+	m_rf5c400->add_route(2, "lspeaker", 0.5);
+	m_rf5c400->add_route(3, "rspeaker", 0.5);
 
 	KONAMI_FIREBEAT_AUDIO_VISUALIZER(config, m_visualizer, 0);
-	rf5c400->add_route(0, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
-	rf5c400->add_route(1, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
+	m_rf5c400->add_route(0, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
+	m_rf5c400->add_route(1, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
+	m_rf5c400->add_route(2, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
+	m_rf5c400->add_route(3, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
 
 	PC16552D(config, "duart_midi", 0);
 	NS16550(config, "duart_midi:chan0", XTAL(24'000'000));
@@ -1375,6 +1383,10 @@ void firebeat_popn_state::firebeat_popn(machine_config &config)
 	// Any lower and sometimes you'll hear buzzing from certain keysounds, or fades take too long.
 	// Any higher and keysounds get cut short.
 	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_popn_state::spu_timer_callback), attotime::from_hz(500));
+
+	// Effects audio channel, routed back to main (no external processing)
+	m_rf5c400->add_route(2, "lspeaker", 0.5);
+	m_rf5c400->add_route(3, "rspeaker", 0.5);
 }
 
 void firebeat_popn_state::init_popn()
