@@ -1,8 +1,27 @@
 // license:BSD-3-Clause
 // copyright-holders:windyfairy
 /*
- * Firebeat Extend Board (Spectrum Analyzer for beatmania III)
+ * Firebeat Extend Board
+ * Used by Keyboardmania and beatmania III
+ *
+ * There are two sides to the extend board, CN1 and CN2.
+ * These both connect to the backplane but seem to have different functionality.
+ * Keyboardmania does not have CN2 or the spectrum analyzer circuit populated.
+ *
+ *
+ * FDC and related IO connectors (CN1)
+ * - beatmania III has a 44 pin FDD connector (CN9), 1 MIDI OUT (CN3) populated.
+ * - Keyboardmania has 1 MIDI OUT (CN3), 2 MIDI INs (CN4 and CN5) populated.
+ *
+ *
+ * Spectrum Analyzer (CN2)
  * ref: https://forum.cockos.com/showthread.php?t=231070
+ *
+ *
+ * All(?) variations of the extend board have the following unused connectors:
+ * - An unpopulated CN6 labeled JC26-FSRH16 (Compact Flash adapter)
+ * - A populated CN7 XM3B-0922 (D-Sub connector)
+ * - A populated CN8 Omron XG4 2-tier MIL connector (exact connector unknown)
  */
 
 #include "emu.h"
@@ -12,6 +31,51 @@
 #include "wdlfft/fft.h"
 
 #include <cmath>
+
+firebeat_extend_device::firebeat_extend_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	device_t(mconfig, KONAMI_FIREBEAT_EXTEND, tag, owner, clock),
+    m_fdc(*this, "fdc"),
+    m_duart(*this, "duart_midi"),
+    m_spectrum_analyzer(*this, "spectrum_analyzer")
+{
+}
+
+void firebeat_extend_device::device_start()
+{
+}
+
+void firebeat_extend_device::device_add_mconfig(machine_config &config)
+{
+	FDC37C665GT(config, m_fdc, 24_MHz_XTAL, upd765_family_device::mode_t::PS2);
+	PC16552D(config, m_duart, 0);
+    KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER(config, m_spectrum_analyzer, 0);
+}
+
+void firebeat_extend_device::extend_map(address_map &map)
+{
+	map(0x00000000, 0x00000fff).rw(FUNC(firebeat_extend_device::midi_uart_r), FUNC(firebeat_extend_device::midi_uart_w)).umask32(0xff000000);
+    map(0x00001000, 0x00001fff).rw(m_fdc, FUNC(fdc37c665gt_device::read), FUNC(fdc37c665gt_device::write)).umask32(0xff000000);
+}
+
+void firebeat_extend_device::extend_map_bm3(address_map &map)
+{
+    extend_map(map);
+	map(0x00008000, 0x0000807f).r(m_spectrum_analyzer, FUNC(firebeat_extend_spectrum_analyzer_device::read));
+}
+
+uint8_t firebeat_extend_device::midi_uart_r(offs_t offset)
+{
+	return m_duart->read(offset >> 6);
+}
+
+void firebeat_extend_device::midi_uart_w(offs_t offset, uint8_t data)
+{
+	m_duart->write(offset >> 6, data);
+}
+
+DEFINE_DEVICE_TYPE(KONAMI_FIREBEAT_EXTEND, firebeat_extend_device, "firebeat_extend", "Firebeat Extend Board")
+
+/*****************************************************************************/
 
 firebeat_extend_spectrum_analyzer_device::firebeat_extend_spectrum_analyzer_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, tag, owner, clock),
@@ -151,12 +215,46 @@ void firebeat_extend_spectrum_analyzer_device::update_fft()
 	}
 }
 
-int firebeat_extend_spectrum_analyzer_device::get_bar_value(int channel, int bar) {
-    if (channel > TOTAL_CHANNELS || bar > TOTAL_BARS) {
-        return 0;
-    }
+uint8_t firebeat_extend_spectrum_analyzer_device::read(offs_t offset)
+{
+	// Visible in the sound test menu and used for the spectral analyzer game skin
+	//
+	// Notes about where this could be coming from...
+	// - It's not the ST-224: Only sends audio in and out, with a MIDI in
+	// - It's not the RF5C400: There are no unimplemented registers or anything of that sort that could give this info
+	// - The memory address mapping is the same as Keyboardmania's wheel, which plugs into a connector on extend board
+	//   but there's nothing actually plugged into that spot on a beatmania III configuration, so it's not external
+	// - Any place where the audio is directed somewhere (amps, etc) does not have a way to get back to the PCBs
+	//   from what I can tell based on looking at the schematics in the beatmania III manual
+	// - I think it's probably calculated somewhere within one of the main boards (main/extend/SPU) but couldn't find any
+	//   potentially interesting chips at a glance of PCB pics
+	// - The manual does not seem to make mention of this feature *at all* much less troubleshooting it, so no leads there
 
-    return m_bars[channel][bar];
+	// 6 notch spectrum analyzer
+	// Notch 1 (90-240)
+	// Notch 2 (240-600)
+	// Notch 3 (600-1.5K)
+	// Notch 4 (1.5K-3.4K)
+	// Notch 5 (3.4K-9.2K)
+	// Notch 6 (9.2K-18K)
+	//
+	// Return values notes:
+	// - Anything lower than <= 8 will not display anything in-game
+	// - The way this register is read is weird. It reads the upper and lower half of the register separately as bytes,
+	// but it the upper byte doesn't seem like it's actually used
+	// - In-game the skin shows up to +9 dB but it actually caps out at +3 dB on the skin
+
+	int ch = offset >= 0x40; // 0 = Left, 1 = Right
+	int notch = 6 - (((offset >> 2) & 0x0f) >> 1);
+	int is_upper = !!(offset & 4);
+
+	auto r = (ch < TOTAL_CHANNELS && notch < TOTAL_BARS) ? m_bars[ch][notch] : 0;
+
+	if (is_upper) {
+		return (r >> 8) & 0xff;
+	}
+
+	return r & 0xff;
 }
 
-DEFINE_DEVICE_TYPE(KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, firebeat_extend_spectrum_analyzer_device, "firebeat_analyzer", "Firebeat Audio Visualizer (for beatmania III)")
+DEFINE_DEVICE_TYPE(KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, firebeat_extend_spectrum_analyzer_device, "firebeat_extend_spectrum_analyzer", "Firebeat Extend Specetrum Analyzer")
