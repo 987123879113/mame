@@ -144,7 +144,6 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 #include "bus/ata/idehd.h"
 #include "cpu/m68000/m68000.h"
 #include "cpu/powerpc/ppc.h"
-#include "machine/fdc37c665gt.h"
 #include "machine/ins8250.h"
 #include "machine/intelfsh.h"
 #include "machine/mb8421.h"
@@ -156,7 +155,7 @@ Keyboard Mania 2nd Mix - dongle, program CD, audio CD
 #include "sound/ymz280b.h"
 #include "video/k057714.h"
 
-#include "machine/firebeat_visualizer.h"
+#include "machine/firebeat_extend.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -387,7 +386,7 @@ class firebeat_kbm_state : public firebeat_state
 public:
 	firebeat_kbm_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_state(mconfig, type, tag),
-		m_duart_midi(*this, "duart_midi"),
+		m_extend(*this, "extend"),
 		m_kbd(*this, "kbd%u", 0),
 		m_gcu_sub(*this, "gcu_sub"),
 		m_lamps(*this, "lamp_%u", 1U),
@@ -411,19 +410,17 @@ private:
 	void init_keyboard();
 
 	uint8_t keyboard_wheel_r(offs_t offset);
-	uint8_t midi_uart_r(offs_t offset);
-	void midi_uart_w(offs_t offset, uint8_t data);
 
 	void lamp_output_kbm_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
 //  TIMER_CALLBACK_MEMBER(keyboard_timer_callback);
-	DECLARE_WRITE_LINE_MEMBER(midi_uart_ch0_irq_callback);
-	DECLARE_WRITE_LINE_MEMBER(midi_uart_ch1_irq_callback);
+	DECLARE_WRITE_LINE_MEMBER(midi_keyboard_right_irq_callback);
+	DECLARE_WRITE_LINE_MEMBER(midi_keyboard_left_irq_callback);
 
 //  emu_timer *m_keyboard_timer;
 //  int m_keyboard_state[2];
 
-	required_device<pc16552_device> m_duart_midi;
+	required_device<firebeat_extend_device> m_extend;
 	required_device_array<midi_keyboard_device, 2> m_kbd;
 	required_device<k057714_device> m_gcu_sub;
 
@@ -441,10 +438,8 @@ class firebeat_bm3_state : public firebeat_spu_state
 public:
 	firebeat_bm3_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_spu_state(mconfig, type, tag),
-		m_duart_midi(*this, "duart_midi"),
-		m_fdc(*this, "fdc"),
-		m_floppy(*this, "fdc:fdc:0"),
-		m_visualizer(*this, "visualizer"),
+		m_extend(*this, "extend"),
+		m_floppy(*this, "extend:fdc:fdc:0"),
 		m_io(*this, "IO%u", 1U),
 		m_io_turntables(*this, "TURNTABLE_P%u", 1U),
 		m_io_effects(*this, "EFFECT%u", 1U)
@@ -456,18 +451,13 @@ public:
 private:
 	void firebeat_bm3_map(address_map &map);
 
-	uint8_t midi_uart_r(offs_t offset);
-	void midi_uart_w(offs_t offset, uint8_t data);
-
 	uint8_t spectrum_analyzer_r(offs_t offset);
 	uint16_t sensor_r(offs_t offset);
 
-	DECLARE_WRITE_LINE_MEMBER(midi_uart_ch1_irq_callback);
+	DECLARE_WRITE_LINE_MEMBER(midi_st244_irq_callback);
 
-	required_device<pc16552_device> m_duart_midi;
-	required_device<fdc37c665gt_device> m_fdc;
+	required_device<firebeat_extend_device> m_extend;
 	required_device<floppy_connector> m_floppy;
-	required_device<firebeat_bm3visualizer_device> m_visualizer;
 
 	required_ioport_array<4> m_io;
 	required_ioport_array<2> m_io_turntables;
@@ -761,8 +751,6 @@ void firebeat_state::security_w(uint8_t data)
 	if (r >= 0)
 		m_maincpu->ppc4xx_spu_receive_byte(r);
 }
-
-/*****************************************************************************/
 
 // Extend board IRQs
 // 0x01: MIDI UART channel 2
@@ -1221,6 +1209,8 @@ WRITE_LINE_MEMBER(firebeat_bm3_state::floppy_irq_callback)
 
 void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 {
+	KONAMI_FIREBEAT_EXTEND(config, m_extend, 0);
+
 	firebeat_spu_base(config);
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_bm3_state::firebeat_bm3_map);
@@ -1240,24 +1230,22 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 	// Lower doesn't have that huge of an effect compared to pop'n? (limited tested).
 	TIMER(config, "spu_timer").configure_periodic(FUNC(firebeat_bm3_state::spu_timer_callback), attotime::from_hz(500));
 
-	FDC37C665GT(config, m_fdc, 24_MHz_XTAL, upd765_family_device::mode_t::PS2);
-	m_fdc->fintr().set(FUNC(firebeat_bm3_state::floppy_irq_callback));
+	m_extend->subdevice<fdc37c665gt_device>("fdc")->fintr().set(FUNC(firebeat_bm3_state::floppy_irq_callback));
 
 	FLOPPY_CONNECTOR(config, m_floppy, pc_hd_floppies, "35hd", firebeat_bm3_state::floppy_formats);
+
+	NS16550(config, "extend:duart_midi:chan0", XTAL(24'000'000));
+	NS16550(config, "extend:duart_midi:chan1", XTAL(24'000'000)).out_int_callback().set(FUNC(firebeat_bm3_state::midi_st244_irq_callback));
 
 	// Effects audio channel, routed to ST-224's audio input
 	m_rf5c400->add_route(2, "lspeaker", 0.5);
 	m_rf5c400->add_route(3, "rspeaker", 0.5);
 
-	KONAMI_FIREBEAT_AUDIO_VISUALIZER(config, m_visualizer, 0);
-	m_rf5c400->add_route(0, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
-	m_rf5c400->add_route(1, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
-	m_rf5c400->add_route(2, m_visualizer, 1, AUTO_ALLOC_INPUT, 0);
-	m_rf5c400->add_route(3, m_visualizer, 1, AUTO_ALLOC_INPUT, 1);
-
-	PC16552D(config, "duart_midi", 0);
-	NS16550(config, "duart_midi:chan0", XTAL(24'000'000));
-	NS16550(config, "duart_midi:chan1", XTAL(24'000'000)).out_int_callback().set(FUNC(firebeat_bm3_state::midi_uart_ch1_irq_callback));
+	auto spectrum_analyzer = m_extend->subdevice<firebeat_extend_spectrum_analyzer_device>("spectrum_analyzer");
+	m_rf5c400->add_route(0, *spectrum_analyzer, 1, AUTO_ALLOC_INPUT, 0);
+	m_rf5c400->add_route(1, *spectrum_analyzer, 1, AUTO_ALLOC_INPUT, 1);
+	m_rf5c400->add_route(2, *spectrum_analyzer, 1, AUTO_ALLOC_INPUT, 0);
+	m_rf5c400->add_route(3, *spectrum_analyzer, 1, AUTO_ALLOC_INPUT, 1);
 }
 
 void firebeat_bm3_state::init_bm3()
@@ -1269,77 +1257,9 @@ void firebeat_bm3_state::init_bm3()
 void firebeat_bm3_state::firebeat_bm3_map(address_map &map)
 {
 	firebeat_spu_map(map);
-
-	map(0x70000000, 0x70000fff).rw(FUNC(firebeat_bm3_state::midi_uart_r), FUNC(firebeat_bm3_state::midi_uart_w)).umask32(0xff000000);
+	map(0x70000000, 0x7000ffff).m(m_extend, FUNC(firebeat_extend_device::extend_map_bm3));
 	map(0x7d000330, 0x7d00033f).nopw(); // ?
 	map(0x7d000340, 0x7d00035f).r(FUNC(firebeat_bm3_state::sensor_r));
-	map(0x70001000, 0x70001fff).rw(m_fdc, FUNC(fdc37c665gt_device::read), FUNC(fdc37c665gt_device::write)).umask32(0xff000000);
-	map(0x70008000, 0x7000807f).r(FUNC(firebeat_bm3_state::spectrum_analyzer_r));
-}
-
-uint8_t firebeat_bm3_state::midi_uart_r(offs_t offset)
-{
-	return m_duart_midi->read(offset >> 6);
-}
-
-void firebeat_bm3_state::midi_uart_w(offs_t offset, uint8_t data)
-{
-//  printf("%lf midi_uart_w %04x %02x\n", machine().time().as_double(), offset, data);
-
-	m_duart_midi->write(offset >> 6, data);
-}
-
-WRITE_LINE_MEMBER(firebeat_bm3_state::midi_uart_ch1_irq_callback)
-{
-	if (BIT(m_extend_board_irq_enable, 0) == 0 && state != CLEAR_LINE)
-	{
-		m_extend_board_irq_active |= 0x01;
-		m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE);
-	}
-	else
-		m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
-}
-
-uint8_t firebeat_bm3_state::spectrum_analyzer_r(offs_t offset)
-{
-	// Visible in the sound test menu and used for the spectral analyzer game skin
-	//
-	// Notes about where this could be coming from...
-	// - It's not the ST-224: Only sends audio in and out, with a MIDI in
-	// - It's not the RF5C400: There are no unimplemented registers or anything of that sort that could give this info
-	// - The memory address mapping is the same as Keyboardmania's wheel, which plugs into a connector on extend board
-	//   but there's nothing actually plugged into that spot on a beatmania III configuration, so it's not external
-	// - Any place where the audio is directed somewhere (amps, etc) does not have a way to get back to the PCBs
-	//   from what I can tell based on looking at the schematics in the beatmania III manual
-	// - I think it's probably calculated somewhere within one of the main boards (main/extend/SPU) but couldn't find any
-	//   potentially interesting chips at a glance of PCB pics
-	// - The manual does not seem to make mention of this feature *at all* much less troubleshooting it, so no leads there
-
-	// 6 notch spectrum analyzer
-	// Notch 1 (90-240)
-	// Notch 2 (240-600)
-	// Notch 3 (600-1.5K)
-	// Notch 4 (1.5K-3.4K)
-	// Notch 5 (3.4K-9.2K)
-	// Notch 6 (9.2K-18K)
-	//
-	// Return values notes:
-	// - Anything lower than <= 8 will not display anything in-game
-	// - The way this register is read is weird. It reads the upper and lower half of the register separately as bytes,
-	// but it the upper byte doesn't seem like it's actually used
-	// - In-game the skin shows up to +9 dB but it actually caps out at +3 dB on the skin
-
-	int ch = offset >= 0x40; // 0 = Left, 1 = Right
-	int notch = 6 - (((offset >> 2) & 0x0f) >> 1);
-	int is_upper = !!(offset & 4);
-
-	auto r = m_visualizer->get_bar_value(ch, notch);
-
-	if (is_upper) {
-		return (r >> 8) & 0xff;
-	}
-
-	return r & 0xff;
 }
 
 uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
@@ -1364,6 +1284,19 @@ uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
 	}
 
 	return 0;
+}
+
+WRITE_LINE_MEMBER(firebeat_bm3_state::midi_st244_irq_callback)
+{
+	if (BIT(m_extend_board_irq_enable, 0) == 0 && state != CLEAR_LINE)
+	{
+		m_extend_board_irq_active |= 0x01;
+		m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE);
+	}
+	else
+    {
+		m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
+    }
 }
 
 /*****************************************************************************
@@ -1576,6 +1509,8 @@ void firebeat_kbm_state::init_keyboard()
 
 void firebeat_kbm_state::firebeat_kbm(machine_config &config)
 {
+	KONAMI_FIREBEAT_EXTEND(config, m_extend, 0);
+
 	/* basic machine hardware */
 	PPC403GCX(config, m_maincpu, XTAL(66'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_kbm_state::firebeat_kbm_map);
@@ -1627,24 +1562,24 @@ void firebeat_kbm_state::firebeat_kbm(machine_config &config)
 	ymz.add_route(1, "lspeaker", 1.0);
 	ymz.add_route(0, "rspeaker", 1.0);
 
+	// On the main PCB
 	PC16552D(config, "duart_com", 0);
 	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
 	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
 
-	PC16552D(config, "duart_midi", 0);
-	ns16550_device &midi_chan0(NS16550(config, "duart_midi:chan0", XTAL(24'000'000)));
-	midi_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::midi_uart_ch0_irq_callback));
-	ns16550_device &midi_chan1(NS16550(config, "duart_midi:chan1", XTAL(24'000'000)));
-	midi_chan1.out_int_callback().set(FUNC(firebeat_kbm_state::midi_uart_ch1_irq_callback));
-
+	auto &midi_chan1(NS16550(config, "extend:duart_midi:chan1", XTAL(24'000'000)));
 	MIDI_KBD(config, m_kbd[0], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
+	midi_chan1.out_int_callback().set(FUNC(firebeat_kbm_state::midi_keyboard_left_irq_callback));
+
+	auto &midi_chan0(NS16550(config, "extend:duart_midi:chan0", XTAL(24'000'000)));
 	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
+	midi_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::midi_keyboard_right_irq_callback));
 }
 
 void firebeat_kbm_state::firebeat_kbm_map(address_map &map)
 {
 	firebeat_map(map);
-	map(0x70000000, 0x70000fff).rw(FUNC(firebeat_kbm_state::midi_uart_r), FUNC(firebeat_kbm_state::midi_uart_w)).umask32(0xff000000);
+	map(0x70000000, 0x7000ffff).m(m_extend, FUNC(firebeat_extend_device::extend_map));
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_kbm_state::keyboard_wheel_r));
 	map(0x7e800100, 0x7e8001ff).rw(m_gcu_sub, FUNC(k057714_device::read), FUNC(k057714_device::write));
 }
@@ -1660,17 +1595,7 @@ uint8_t firebeat_kbm_state::keyboard_wheel_r(offs_t offset)
 	return 0;
 }
 
-uint8_t firebeat_kbm_state::midi_uart_r(offs_t offset)
-{
-	return m_duart_midi->read(offset >> 6);
-}
-
-void firebeat_kbm_state::midi_uart_w(offs_t offset, uint8_t data)
-{
-	m_duart_midi->write(offset >> 6, data);
-}
-
-WRITE_LINE_MEMBER(firebeat_kbm_state::midi_uart_ch0_irq_callback)
+WRITE_LINE_MEMBER(firebeat_kbm_state::midi_keyboard_right_irq_callback)
 {
 	if (BIT(m_extend_board_irq_enable, 1) == 0 && state != CLEAR_LINE)
 	{
@@ -1678,10 +1603,12 @@ WRITE_LINE_MEMBER(firebeat_kbm_state::midi_uart_ch0_irq_callback)
 		m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE);
 	}
 	else
+    {
 		m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
+    }
 }
 
-WRITE_LINE_MEMBER(firebeat_kbm_state::midi_uart_ch1_irq_callback)
+WRITE_LINE_MEMBER(firebeat_kbm_state::midi_keyboard_left_irq_callback)
 {
 	if (BIT(m_extend_board_irq_enable, 0) == 0 && state != CLEAR_LINE)
 	{
@@ -1689,7 +1616,9 @@ WRITE_LINE_MEMBER(firebeat_kbm_state::midi_uart_ch1_irq_callback)
 		m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE);
 	}
 	else
+    {
 		m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
+    }
 }
 
 /*
