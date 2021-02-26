@@ -2296,27 +2296,34 @@ ROM_END
 
 /*****************************************************************************/
 
-GAME( 2000, ppp,    0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise", MACHINE_NOT_WORKING )
-GAME( 2000, ppd,    0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppd, ROT0, "Konami", "ParaParaDancing", MACHINE_NOT_WORKING )
-GAME( 2000, ppp11,  0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise v1.1", MACHINE_NOT_WORKING )
-GAME( 2000, ppp1mp, ppp, firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise 1st Mix Plus", MACHINE_NOT_WORKING )
+// Audio (YMZ-based) mostly works but it feels like the audio isn't as smooth as it should be (transition times, etc)
+// The games also stutter during songs (CD-ROM loads causing blocking issues?)
+GAME( 2000, ppp,    0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, ppd,    0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppd, ROT0, "Konami", "ParaParaDancing", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, ppp11,  0,   firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise v1.1", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, ppp1mp, ppp, firebeat_ppp, ppp, firebeat_ppp_state, init_ppp, ROT0, "Konami", "ParaParaParadise 1st Mix Plus", MACHINE_IMPERFECT_SOUND )
 
-GAMEL( 2000, kbm,    0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania", MACHINE_NOT_WORKING, layout_firebeat )
-GAMEL( 2000, kbm2nd, 0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania 2nd Mix", MACHINE_NOT_WORKING, layout_firebeat )
-GAMEL( 2001, kbm3rd, 0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania 3rd Mix", MACHINE_NOT_WORKING, layout_firebeat )
+// Same issues as ppp above + keyboard MIDI sounds aren't emulated
+GAMEL( 2000, kbm,    0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania", MACHINE_IMPERFECT_SOUND, layout_firebeat )
+GAMEL( 2000, kbm2nd, 0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania 2nd Mix", MACHINE_IMPERFECT_SOUND, layout_firebeat )
+GAMEL( 2001, kbm3rd, 0, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm, ROT270, "Konami", "Keyboardmania 3rd Mix", MACHINE_IMPERFECT_SOUND, layout_firebeat )
 
-GAME( 2000, popn4,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 4", MACHINE_NOT_WORKING )
-GAME( 2000, popn5,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 5", MACHINE_NOT_WORKING )
-GAME( 2001, popn6,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 6", MACHINE_NOT_WORKING )
-GAME( 2001, popn7,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 7", MACHINE_NOT_WORKING )
-GAME( 2002, popn8,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 8", MACHINE_NOT_WORKING )
-GAME( 2000, popnmt,   0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Mickey Tunes", MACHINE_NOT_WORKING )
-GAME( 2000, popnmt2,  popnmt, firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Mickey Tunes!", MACHINE_NOT_WORKING )
-GAME( 2000, popnanm,  0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Animelo", MACHINE_NOT_WORKING )
-GAME( 2001, popnanm2, 0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Animelo 2", MACHINE_NOT_WORKING )
+// None of these will boot without DVD CHD emulation
+// Audio (RF5C400-based) volume and frequency animations (based on audio CPU IRQ 2) is not emulated accurately
+GAME( 2000, popn4,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 4", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popn5,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 5", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2001, popn6,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 6", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2001, popn7,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 7", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2002, popn8,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music 8", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popnmt,   0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Mickey Tunes", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popnmt2,  popnmt, firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Mickey Tunes!", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popnanm,  0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Animelo", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2001, popnanm2, 0,      firebeat_popn, popn, firebeat_popn_state, init_popn, ROT0, "Konami", "Pop'n Music Animelo 2", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
 
-GAME( 2000, bm3,      0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III", MACHINE_NOT_WORKING )
-GAME( 2000, bm3core,  0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III Append Core Remix", MACHINE_NOT_WORKING )
-GAME( 2001, bm36th,   0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III Append 6th Mix", MACHINE_NOT_WORKING )
-GAME( 2002, bm37th,   0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III Append 7th Mix", MACHINE_NOT_WORKING )
-GAME( 2003, bm3final, 0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III The Final", MACHINE_NOT_WORKING )
+// Audio (RF5C400-based) volume and frequency animations (based on audio CPU IRQ 2) is not emulated accurately
+// Zoom ST-224 effects board is not emulated so external effects do not work
+GAME( 2000, bm3,      0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, bm3core,  0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III Append Core Remix", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, bm36th,   0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III Append 6th Mix", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, bm37th,   0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III Append 7th Mix", MACHINE_IMPERFECT_SOUND )
+GAME( 2003, bm3final, 0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III The Final", MACHINE_IMPERFECT_SOUND )
