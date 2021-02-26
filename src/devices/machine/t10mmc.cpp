@@ -12,17 +12,6 @@ static int to_msf(int frame)
 	return (m << 16) | (s << 8) | f;
 }
 
-static uint32_t get_lba_zero(cdrom_file *m_cdrom)
-{
-	// A request for LBA 0 will return something different depending on the type of media being played.
-	// For data and mixed media, LBA 0 is assigned to MSF 00:02:00 (= LBA 150).
-	// For audio media, LBA 0 is assigned to the actual starting address of track 1.
-	if (cdrom_get_media_type(m_cdrom) == CD_MEDIA_AUDIO)
-		return cdrom_get_track_start(m_cdrom, 0);
-
-	return 150;
-}
-
 void t10mmc::t10_start(device_t &device)
 {
 	m_device = &device;
@@ -235,9 +224,16 @@ void t10mmc::ExecCommand()
 		m_lba = command[2]<<24 | command[3]<<16 | command[4]<<8 | command[5];
 		m_blocks = SCSILengthFromUINT16( &command[7] );
 
-		if (m_lba == 0)
+		if (m_lba == 0 && cdrom_get_track_type(m_cdrom, 0) == CD_TRACK_AUDIO)
 		{
-			m_lba = get_lba_zero(m_cdrom);
+			// A request for LBA 0 will return something different depending on the type of media being played.
+			// For data and mixed media, LBA 0 is assigned to MSF 00:02:00 (= LBA 150).
+			// For audio media, LBA 0 is assigned to the actual starting address of track 1.
+			m_lba = cdrom_get_track_start(m_cdrom, 0);
+		}
+		else if (m_lba == 0)
+		{
+			m_lba = 150;
 		}
 		else if (m_lba == 0xffffffff)
 		{
@@ -268,9 +264,13 @@ void t10mmc::ExecCommand()
 		m_lba = (command[5] % 75) + ((command[4] * 75) % (60*75)) + (command[3] * (75*60));
 		m_blocks = (command[8] % 75) + ((command[7] * 75) % (60*75)) + (command[6] * (75*60)) - m_lba;
 
-		if (m_lba == 0)
+		if (m_lba == 0 && cdrom_get_track_type(m_cdrom, 0) == CD_TRACK_AUDIO)
 		{
-			m_lba = get_lba_zero(m_cdrom);
+			m_lba = cdrom_get_track_start(m_cdrom, 0);
+		}
+		else if (m_lba == 0)
+		{
+			m_lba = 150;
 		}
 		else if (m_lba == 0xffffffff)
 		{
@@ -382,9 +382,13 @@ void t10mmc::ExecCommand()
 		m_lba = command[2]<<24 | command[3]<<16 | command[4]<<8 | command[5];
 		m_blocks = command[6]<<24 | command[7]<<16 | command[8]<<8 | command[9];
 
-		if (m_lba == 0)
+		if (m_lba == 0 && cdrom_get_track_type(m_cdrom, 0) == CD_TRACK_AUDIO)
 		{
-			m_lba = get_lba_zero(m_cdrom);
+			m_lba = cdrom_get_track_start(m_cdrom, 0);
+		}
+		else if (m_lba == 0)
+		{
+			m_lba = 150;
 		}
 		else if (m_lba == 0xffffffff)
 		{
