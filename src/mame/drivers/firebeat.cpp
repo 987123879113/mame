@@ -1954,6 +1954,10 @@ void firebeat_kbm_state::lamp_output_kbm_w(offs_t offset, uint32_t data, uint32_
 
 static INPUT_PORTS_START( firebeat )
 	PORT_START("IN3")
+	// popn4/animelo:
+	//   DIPSW 1 = Auto play mode
+	// popn5:
+	//   DIPSW 5? = Network communication debug messages
 	// popn6/popn7/popn8/others?: Requires debug type dongle (not included in ROMs)
 	//   DIPSW 8 = Auto play mode
 	//   DIPSW 6 = Mute song BGM
