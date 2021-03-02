@@ -320,7 +320,6 @@ void rf5c400_device::sound_stream_update(sound_stream &stream, std::vector<read_
 
 			sample *= volume_table[vol];
 			sample = (sample >> 9) * env_level;
-
 			buf0.add_int(i, sample * pan_table[lvol], 32768);
 			buf1.add_int(i, sample * pan_table[rvol], 32768);
 			buf2.add_int(i, sample * pan_table[effect_lvol], 32768);

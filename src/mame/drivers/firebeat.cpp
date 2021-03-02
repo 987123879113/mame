@@ -253,6 +253,10 @@ void firebeat_extend_spectrum_analyzer_device::sound_stream_update(sound_stream 
 	}
 
     // Bandpass filter + find peak
+	// The results aren't accurate to the real circuit used on the PCB but the feature is very minor
+	// and does not affect gameplay in any way.
+
+	// Band values taken directly from NJU7507 data sheet.
     double notches[] = { 95, 240, 600, 1500, 3400, 8200, 18000 };
     int last_notch = std::end(notches) - std::begin(notches);
 
@@ -334,29 +338,26 @@ void firebeat_extend_spectrum_analyzer_device::update_fft()
 uint8_t firebeat_extend_spectrum_analyzer_device::read(offs_t offset)
 {
 	// Visible in the sound test menu and used for the spectral analyzer game skin
-	//
-	// Notes about where this could be coming from...
-	// - It's not the ST-224: Only sends audio in and out, with a MIDI in
-	// - It's not the RF5C400: There are no unimplemented registers or anything of that sort that could give this info
-	// - The memory address mapping is the same as Keyboardmania's wheel, which plugs into a connector on extend board
-	//   but there's nothing actually plugged into that spot on a beatmania III configuration, so it's not external
-	// - Any place where the audio is directed somewhere (amps, etc) does not have a way to get back to the PCBs
-	//   from what I can tell based on looking at the schematics in the beatmania III manual
-	// - I think it's probably calculated somewhere within one of the main boards (main/extend/SPU) but couldn't find any
-	//   potentially interesting chips at a glance of PCB pics
-	// - The manual does not seem to make mention of this feature *at all* much less troubleshooting it, so no leads there
+	// The actual data is coming from a circuit built on the extend board made up of NJU7507 x2 for each channel of audio.
+	// The spectrum analyzer circuit is only populated on the extend board used by beatmania III but the footprints and
+	// labels are still on the PCB for other games that use the extend board.
 
 	// Return values notes:
+	// - The values are based on the results of a chained NJU7507 which should give 14 bands worth of frequency data.
+	// However, only 6 bands are used in-game.
+	//
 	// - Anything lower than <= 8 will not display anything in-game
+	//
 	// - The way this register is read is weird. It reads the upper and lower half of the register separately as bytes,
-	// but it the upper byte doesn't seem like it's actually used
+	// but it the upper byte doesn't seem like it's actually used.
+	//
 	// - In-game the skin shows up to +9 dB but it actually caps out at +3 dB on the skin
 
 	int ch = offset >= 0x40; // 0 = Left, 1 = Right
 	int notch = 6 - (((offset >> 2) & 0x0f) >> 1);
-	int is_upper = !!(offset & 4);
+	int is_upper = BIT(offset, 2);
 
-	auto r = (ch < TOTAL_CHANNELS && notch < TOTAL_BARS) ? m_bars[ch][notch] : 0;
+	auto r = (ch < TOTAL_CHANNELS && notch >= 0 && notch < TOTAL_BARS) ? m_bars[ch][notch] : 0;
 
 	if (is_upper) {
 		return (r >> 8) & 0xff;
@@ -365,7 +366,7 @@ uint8_t firebeat_extend_spectrum_analyzer_device::read(offs_t offset)
 	return r & 0xff;
 }
 
-DEFINE_DEVICE_TYPE(KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, firebeat_extend_spectrum_analyzer_device, "firebeat_extend_spectrum_analyzer", "Firebeat Extend Specetrum Analyzer")
+DEFINE_DEVICE_TYPE(KONAMI_FIREBEAT_EXTEND_SPECTRUM_ANALYZER, firebeat_extend_spectrum_analyzer_device, "firebeat_extend_spectrum_analyzer", "Firebeat Extend Board Spectrum Analyzer Circuit")
 
 /*****************************************************************************/
 namespace {
@@ -591,7 +592,7 @@ class firebeat_kbm_state : public firebeat_state
 public:
 	firebeat_kbm_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_state(mconfig, type, tag),
-    	m_duart_midi(*this, "duart_midi"),
+		m_duart_midi(*this, "duart_midi"),
 		m_kbd(*this, "kbd%u", 0),
 		m_gcu_sub(*this, "gcu_sub"),
 		m_lamps(*this, "lamp_%u", 1U),
@@ -648,10 +649,10 @@ class firebeat_bm3_state : public firebeat_spu_state
 public:
 	firebeat_bm3_state(const machine_config &mconfig, device_type type, const char *tag) :
 		firebeat_spu_state(mconfig, type, tag),
-    	m_fdc(*this, "fdc"),
+		m_fdc(*this, "fdc"),
 		m_floppy(*this, "fdc:fdc:0"),
-    	m_spectrum_analyzer(*this, "spectrum_analyzer"),
-    	m_duart_midi(*this, "duart_midi"),
+		m_spectrum_analyzer(*this, "spectrum_analyzer"),
+		m_duart_midi(*this, "duart_midi"),
 		m_io(*this, "IO%u", 1U),
 		m_io_turntables(*this, "TURNTABLE_P%u", 1U),
 		m_io_effects(*this, "EFFECT%u", 1U)
@@ -669,7 +670,7 @@ private:
 	uint8_t midi_uart_r(offs_t offset);
 	void midi_uart_w(offs_t offset, uint8_t data);
 
-	DECLARE_WRITE_LINE_MEMBER(midi_st244_irq_callback);
+	DECLARE_WRITE_LINE_MEMBER(midi_st224_irq_callback);
 
 	required_device<fdc37c665gt_device> m_fdc;
 	required_device<floppy_connector> m_floppy;
@@ -1477,7 +1478,7 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 
 	PC16552D(config, m_duart_midi, 0);
 	NS16550(config, "duart_midi:chan0", XTAL(24'000'000));
-	NS16550(config, "duart_midi:chan1", XTAL(24'000'000)).out_int_callback().set(FUNC(firebeat_bm3_state::midi_st244_irq_callback));
+	NS16550(config, "duart_midi:chan1", XTAL(24'000'000)).out_int_callback().set(FUNC(firebeat_bm3_state::midi_st224_irq_callback));
 
 	// Effects audio channel, routed to ST-224's audio input
 	m_rf5c400->add_route(2, "lspeaker", 0.5);
@@ -1536,7 +1537,7 @@ uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
 	return 0;
 }
 
-WRITE_LINE_MEMBER(firebeat_bm3_state::midi_st244_irq_callback)
+WRITE_LINE_MEMBER(firebeat_bm3_state::midi_st224_irq_callback)
 {
 	if (BIT(m_extend_board_irq_enable, 0) == 0 && state != CLEAR_LINE)
 	{
