@@ -893,7 +893,7 @@ debug_gdbstub::cmd_reply debug_gdbstub::handle_p(const char *buf)
 }
 
 //-------------------------------------------------------------------------
-// Write register n… with value r….
+// Write register n... with value r...
 debug_gdbstub::cmd_reply debug_gdbstub::handle_P(const char *buf)
 {
 	if ( !m_target_xml_sent )
@@ -1174,7 +1174,7 @@ void debug_gdbstub::send_stop_packet()
 void debug_gdbstub::handle_packet()
 {
 	// For any command not supported by the stub, an empty response
-	// (‘$#00’) should be returned. That way it is possible to extend
+	// ('$#00') should be returned. That way it is possible to extend
 	// the protocol. A newer GDB can tell if a packet is supported
 	// based on that response.
 	cmd_reply reply = REPLY_UNSUPPORTED;

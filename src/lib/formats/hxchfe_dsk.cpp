@@ -26,7 +26,7 @@
        uint16_t track_list_offset;        // 18: Offset of the track list LUT in block of 512 bytes
                                         // (Ex: 1=0x200)
        uint8_t write_allowed;             // 20: The Floppy image is write protected ?
-       uint8_t single_step;               // 21: 0xFF : Single Step – 0x00 Double Step mode
+       uint8_t single_step;               // 21: 0xFF : Single Step - 0x00 Double Step mode
        uint8_t track0s0_altencoding;      // 22: 0x00 : Use an alternate track_encoding for track 0 Side 0
        uint8_t track0s0_encoding;         // 23: alternate track_encoding for track 0 Side 0
        uint8_t track0s1_altencoding;      // 24: 0x00 : Use an alternate track_encoding for track 0 Side 1

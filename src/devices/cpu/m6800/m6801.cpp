@@ -223,10 +223,10 @@ void m6801_cpu_device::m6801_io(address_map &map)
 	map(0x0001, 0x0001).rw(FUNC(m6801_cpu_device::ff_r), FUNC(m6801_cpu_device::p2_ddr_w));
 	map(0x0002, 0x0002).rw(FUNC(m6801_cpu_device::p1_data_r), FUNC(m6801_cpu_device::p1_data_w));
 	map(0x0003, 0x0003).rw(FUNC(m6801_cpu_device::p2_data_r), FUNC(m6801_cpu_device::p2_data_w));
-	map(0x0004, 0x0004).rw(FUNC(m6801_cpu_device::ff_r), FUNC(m6801_cpu_device::p3_ddr_w)); // TODO: external in 6801 modes 0–3 & 6
-	map(0x0005, 0x0005).rw(FUNC(m6801_cpu_device::ff_r), FUNC(m6801_cpu_device::p4_ddr_w)); // TODO: external in 6801 modes 0–3
-	map(0x0006, 0x0006).rw(FUNC(m6801_cpu_device::p3_data_r), FUNC(m6801_cpu_device::p3_data_w)); // TODO: external in 6801 modes 0–3 & 6
-	map(0x0007, 0x0007).rw(FUNC(m6801_cpu_device::p4_data_r), FUNC(m6801_cpu_device::p4_data_w)); // TODO: external in 6801 modes 0–3
+	map(0x0004, 0x0004).rw(FUNC(m6801_cpu_device::ff_r), FUNC(m6801_cpu_device::p3_ddr_w)); // TODO: external in 6801 modes 0-3 & 6
+	map(0x0005, 0x0005).rw(FUNC(m6801_cpu_device::ff_r), FUNC(m6801_cpu_device::p4_ddr_w)); // TODO: external in 6801 modes 0-3
+	map(0x0006, 0x0006).rw(FUNC(m6801_cpu_device::p3_data_r), FUNC(m6801_cpu_device::p3_data_w)); // TODO: external in 6801 modes 0-3 & 6
+	map(0x0007, 0x0007).rw(FUNC(m6801_cpu_device::p4_data_r), FUNC(m6801_cpu_device::p4_data_w)); // TODO: external in 6801 modes 0-3
 	map(0x0008, 0x0008).rw(FUNC(m6801_cpu_device::tcsr_r), FUNC(m6801_cpu_device::tcsr_w));
 	map(0x0009, 0x0009).rw(FUNC(m6801_cpu_device::ch_r), FUNC(m6801_cpu_device::ch_w));
 	map(0x000a, 0x000a).rw(FUNC(m6801_cpu_device::cl_r), FUNC(m6801_cpu_device::cl_w));
@@ -234,7 +234,7 @@ void m6801_cpu_device::m6801_io(address_map &map)
 	map(0x000c, 0x000c).rw(FUNC(m6801_cpu_device::ocrl_r), FUNC(m6801_cpu_device::ocrl_w));
 	map(0x000d, 0x000d).r(FUNC(m6801_cpu_device::icrh_r));
 	map(0x000e, 0x000e).r(FUNC(m6801_cpu_device::icrl_r));
-	map(0x000f, 0x000f).rw(FUNC(m6801_cpu_device::p3_csr_r), FUNC(m6801_cpu_device::p3_csr_w)); // TODO: external in 6801 modes 0–3, 5 & 6
+	map(0x000f, 0x000f).rw(FUNC(m6801_cpu_device::p3_csr_r), FUNC(m6801_cpu_device::p3_csr_w)); // TODO: external in 6801 modes 0-3, 5 & 6
 	map(0x0010, 0x0010).rw(FUNC(m6801_cpu_device::sci_rmcr_r), FUNC(m6801_cpu_device::sci_rmcr_w));
 	map(0x0011, 0x0011).rw(FUNC(m6801_cpu_device::sci_trcsr_r), FUNC(m6801_cpu_device::sci_trcsr_w));
 	map(0x0012, 0x0012).r(FUNC(m6801_cpu_device::sci_rdr_r));
