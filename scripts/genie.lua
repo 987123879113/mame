@@ -1325,6 +1325,7 @@ configuration { "vs20*" }
 			"/wd4804", -- warning C4804: '>>': unsafe use of type 'bool' in operation
 			"/wd4805", -- warning C4805: 'x' : unsafe mix of type 'xxx' and type 'xxx' in operation
 			"/wd4996", -- warning C4996: 'function': was declared deprecated
+			"/utf-8",  -- Set Source and Executable character sets to UTF-8
 		}
 
 if _OPTIONS["vs"]=="intel-15" then
