@@ -179,7 +179,7 @@ bool load_ico_image(util::random_read &fp, unsigned count, unsigned index, bitma
 {
 	// read the directory entry
 	std::error_condition err;
-	size_t actual;
+	size_t actual = 0;
 	icon_dir_entry_t dir;
 	err = fp.seek(sizeof(icon_dir_t) + (sizeof(icon_dir_entry_t) * index), SEEK_SET);
 	if (!err)
@@ -212,8 +212,8 @@ int images_in_ico(util::random_read &fp)
 {
 	// read and check the icon file header
 	std::error_condition err;
-	size_t actual;
-	icon_dir_t header;
+	size_t actual = 0;
+	icon_dir_t header = {};
 	err = fp.seek(0, SEEK_SET);
 	if (!err)
 		std::tie(err, actual) = read(fp, &header, sizeof(header));
