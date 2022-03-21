@@ -25,12 +25,14 @@ class k573npu_device : public device_t
 public:
 	k573npu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	void amap(address_map& map);
+
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
 	virtual void device_add_mconfig(machine_config& config) override;
 
-	void amap(address_map& map);
+	void npu_amap(address_map& map);
 
 	virtual const tiny_rom_entry* device_rom_region() const override;
 
@@ -38,6 +40,9 @@ private:
 	required_device<ds2401_device> digital_id;
 	required_device<tx3927_device> m_maincpu;
 	required_device<ram_device> m_ram;
+
+	uint16_t fpganet_read(offs_t offset, uint16_t mem_mask);
+	void fpganet_write(offs_t offset, uint16_t data, uint16_t mem_mask);
 
 	uint16_t fpgasoft_read(offs_t offset, uint16_t mem_mask);
 	void fpgasoft_write(offs_t offset, uint16_t data, uint16_t mem_mask);

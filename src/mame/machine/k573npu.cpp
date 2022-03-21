@@ -8,12 +8,14 @@
 #include <iostream>
 
 #include "emu.h"
+#include "machine/pccard.h"
 #include "k573npu.h"
 
 #define LOG_GENERAL    (1 << 0)
 #define LOG_FPGA       (1 << 1)
+#define LOG_FPGA_NET   (1 << 2)
 
-#define VERBOSE        (LOG_GENERAL)
+#define VERBOSE        (LOG_GENERAL|LOG_FPGA_NET)
 #define LOG_OUTPUT_STREAM std::cout
 
 #include "logmacro.h"
@@ -92,12 +94,20 @@ k573npu_device::k573npu_device(const machine_config &mconfig, const char *tag, d
 {
 }
 
+void k573npu_device::amap(address_map& map)
+{
+	map(0x0000, 0xffff).rw(FUNC(k573npu_device::fpganet_read), FUNC(k573npu_device::fpganet_write));
+}
+
+uint16_t m_fixed_resp[] = { 0x00, 0x0c, 0x03, 0x00, 0x0a, 0x05, 0x00, 0x08 };
+int fr = 0;
 void k573npu_device::device_start()
 {
 }
 
 void k573npu_device::device_reset()
 {
+	fr = 0;
 }
 
 void k573npu_device::device_add_mconfig(machine_config& config)
@@ -105,7 +115,7 @@ void k573npu_device::device_add_mconfig(machine_config& config)
 	RAM(config, m_ram).set_default_size("32M").set_default_value(0);
 
 	TX3927(config, m_maincpu, 20_MHz_XTAL);
-	m_maincpu->set_addrmap(AS_PROGRAM, &k573npu_device::amap);
+	m_maincpu->set_addrmap(AS_PROGRAM, &k573npu_device::npu_amap);
 	m_maincpu->in_brcond<0>().set([]() { return 1; }); // writeback complete
 	m_maincpu->in_brcond<1>().set([]() { return 1; }); // writeback complete
 	m_maincpu->in_brcond<2>().set([]() { return 1; }); // writeback complete
@@ -114,6 +124,50 @@ void k573npu_device::device_add_mconfig(machine_config& config)
 	DS2401(config, digital_id);
 
 	//pci_bus_legacy_device& pcibus(PCI_BUS_LEGACY(config, "pcibus", 0, 0));
+}
+
+uint16_t k573npu_device::fpganet_read(offs_t offset, uint16_t mem_mask)
+{
+	uint16_t r = 0;
+
+	// This seems to hook into an FPGA on the NPU possibly?
+	switch (offset * 2) {
+	case 0x02:
+		// Seems to transfer commands?
+		// Expects to be 00 at first
+		// Then 0c 03 00 0a 05?
+		// Then 0f???
+		r = m_fixed_resp[fr];
+		fr = (fr + 1) % 8;
+		break;
+
+	case 0x06:
+		r = 5;
+		break;
+
+	case 0x34:
+		// Number of bytes in FIFO buffer?
+		r = 0;
+		break;
+
+	case 0x36:
+		// Something to do with buffer sizes?
+		r = 0;
+		break;
+
+	case 0x3a:
+		r = 0x5963;
+		break;
+	}
+
+	LOGMASKED(LOG_FPGA_NET, "%s: fpganet_read %08x %04x\n", machine().describe_context().c_str(), offset * 2, r);
+
+	return r;
+}
+
+void k573npu_device::fpganet_write(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	LOGMASKED(LOG_FPGA_NET, "%s: fpganet_write %08x %04x\n", machine().describe_context().c_str(), offset * 2, data);
 }
 
 uint16_t k573npu_device::fpgasoft_read(offs_t offset, uint16_t mem_mask)
@@ -169,7 +223,7 @@ void k573npu_device::fpga_write(offs_t offset, uint16_t data, uint16_t mem_mask)
 }
 
 
-void k573npu_device::amap(address_map& map)
+void k573npu_device::npu_amap(address_map& map)
 {
 	map(0x00000000, 0x0fffffff).ram().share("ram");
 	map(0x80000000, 0x8fffffff).ram().share("ram");

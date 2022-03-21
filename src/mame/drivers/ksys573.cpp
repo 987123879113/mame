@@ -444,6 +444,7 @@ Notes: (all ICs shown)
 
 #define ATAPI_CYCLES_PER_SECTOR ( 30000 )  // plenty of time to allow DMA setup etc.  BIOS requires this be at least 2000, individual games may vary.
 
+
 /*
  * Class declaration for sys573_jvs_host
  */
@@ -630,6 +631,7 @@ public:
 	void pccard1_32mb(machine_config &config);
 	void pccard2_32mb(machine_config &config);
 	void pccard2_64mb(machine_config &config);
+	void pccard2_npu(machine_config &config);
 	void cassx(machine_config &config);
 	void cassxi(machine_config &config);
 	void cassy(machine_config &config);
@@ -747,6 +749,7 @@ private:
 	static void cr589_config(device_t *device);
 	void fbaitbc_map(address_map &map);
 	void flashbank_map(address_map &map);
+	void flashbank_npu_map(address_map &map);
 	void gunmania_map(address_map &map);
 	void gbbchmp_map(address_map &map);
 	void konami573_map(address_map &map);
@@ -875,6 +878,14 @@ void ksys573_state::flashbank_map(address_map &map)
 	map(0x0c00000, 0x0ffffff).rw("29f016a.27h", FUNC(intelfsh8_device::read), FUNC(intelfsh8_device::write)).umask16(0xff00);
 	map(0x4000000, 0x7ffffff).rw("pccard1", FUNC(pccard_slot_device::read_memory), FUNC(pccard_slot_device::write_memory));
 	map(0x8000000, 0xbffffff).rw("pccard2", FUNC(pccard_slot_device::read_memory), FUNC(pccard_slot_device::write_memory));
+}
+
+
+void ksys573_state::flashbank_npu_map(address_map& map)
+{
+	// The NPU has a passthrough PCCARD device that connects the Sys573 to the NPU
+	flashbank_map(map);
+	map(0x8000000, 0xbffffff).m("k573npu", FUNC(k573npu_device::amap));
 }
 
 void ksys573_state::konami573d_map(address_map &map)
@@ -2673,6 +2684,13 @@ void ksys573_state::pccard2_64mb(machine_config &config)
 	m_pccard2->set_default_option("64mb");
 }
 
+void ksys573_state::pccard2_npu(machine_config& config)
+{
+	KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+
+	m_flashbank->set_map(&ksys573_state::flashbank_npu_map).set_options(ENDIANNESS_LITTLE, 16, 32, 0x400000);
+}
+
 // Security eeprom variants
 //
 // Suffixes are used to select them
@@ -3043,13 +3061,13 @@ void ksys573_state::gtfrk10m(machine_config &config)
 	casszi(config);
 	pccard1_32mb(config);
 	msu_remote(config);
+	pccard2_npu(config);
 }
 
 void ksys573_state::gtfrk10mb(machine_config &config)
 {
 	gtrfrk7m(config);
-
-	KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+	pccard2_npu(config);
 }
 
 void ksys573_state::gtfrk11m(machine_config &config)
