@@ -99,15 +99,19 @@ void k573npu_device::amap(address_map& map)
 	map(0x0000, 0xffff).rw(FUNC(k573npu_device::fpganet_read), FUNC(k573npu_device::fpganet_write));
 }
 
-uint16_t m_fixed_resp[] = { 0x00, 0x0c, 0x03, 0x00, 0x0a, 0x05, 0x00, 0x08 };
-int fr = 0;
+uint16_t m_fixed_req[] = { 0x03, 0x0c, 0x0f, 0x05, 0x0a };
+uint16_t m_fixed_resp[] = { 0x0c, 0x03, 0x00, 0x0a, 0x05 };
+int m_fixed_idx;
+uint16_t m_net_unk;
+
 void k573npu_device::device_start()
 {
 }
 
 void k573npu_device::device_reset()
 {
-	fr = 0;
+	m_fixed_idx = -1;
+	m_net_unk = 0;
 }
 
 void k573npu_device::device_add_mconfig(machine_config& config)
@@ -133,12 +137,8 @@ uint16_t k573npu_device::fpganet_read(offs_t offset, uint16_t mem_mask)
 	// This seems to hook into an FPGA on the NPU possibly?
 	switch (offset * 2) {
 	case 0x02:
-		// Seems to transfer commands?
-		// Expects to be 00 at first
-		// Then 0c 03 00 0a 05?
-		// Then 0f???
-		r = m_fixed_resp[fr];
-		fr = (fr + 1) % 8;
+		if (m_fixed_idx > -1)
+			r = m_fixed_resp[m_fixed_idx];
 		break;
 
 	case 0x06:
@@ -158,6 +158,11 @@ uint16_t k573npu_device::fpganet_read(offs_t offset, uint16_t mem_mask)
 	case 0x3a:
 		r = 0x5963;
 		break;
+
+	case 0x3c:
+		// Expects to be able to read in exactly the same data it wrote into this offset
+		r = m_net_unk;
+		break;
 	}
 
 	LOGMASKED(LOG_FPGA_NET, "%s: fpganet_read %08x %04x\n", machine().describe_context().c_str(), offset * 2, r);
@@ -168,6 +173,21 @@ uint16_t k573npu_device::fpganet_read(offs_t offset, uint16_t mem_mask)
 void k573npu_device::fpganet_write(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	LOGMASKED(LOG_FPGA_NET, "%s: fpganet_write %08x %04x\n", machine().describe_context().c_str(), offset * 2, data);
+
+	switch (offset * 2) {
+	case 0x00:
+		if (m_fixed_idx + 1 < 5 && data == m_fixed_req[m_fixed_idx + 1]) {
+			m_fixed_idx = (m_fixed_idx + 1) % 5;
+		}
+		else {
+			m_fixed_idx = -1;
+		}
+		break;
+
+	case 0x3c:
+		m_net_unk = data;
+		break;
+	}
 }
 
 uint16_t k573npu_device::fpgasoft_read(offs_t offset, uint16_t mem_mask)
