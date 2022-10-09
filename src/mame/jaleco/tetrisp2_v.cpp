@@ -642,15 +642,21 @@ u32 rocknms_state::screen_update_rocknms_right(screen_device &screen, bitmap_rgb
 // of code_hi, one of the CPUs probably reads them and writes the actual tile codes somewhere.
 TILE_GET_INFO_MEMBER(stepstag_state::stepstag_get_tile_info_fg)
 {
-	u16 const code_hi = m_vram_fg[ 2 * tile_index ] >> 8;
-	u16 const code_lo = m_vram_fg[ 2 * tile_index ] & 0xf;
-	//logerror("tile_idx[$%2x]=$%3x, palette=$%2x\n", tile_index, code_hi, code_lo);////
-	if (m_vram_fg[2 * tile_index + 1] != 0)
-		logerror("VRAM ASCII Haut-Mot Non-Zero!!!\n");/////////
-	tileinfo.set(2,
-			code_hi,
-			code_lo,
-			0);
+	if (m_vram_fg[2 * tile_index + 1] != 0) {
+		u16 const code_hi = m_vram_fg[ 2 * tile_index + 0];
+		u16 const code_lo = m_vram_fg[ 2 * tile_index + 1];
+		tileinfo.set(2,
+				code_hi,
+				code_lo & 0xf,
+				0);
+	} else {
+		u16 const code_hi = m_vram_fg[ 2 * tile_index ] >> 8;
+		u16 const code_lo = m_vram_fg[ 2 * tile_index ] & 0xf;
+		tileinfo.set(2,
+				code_hi,
+				code_lo,
+				0);
+	}
 }
 
 VIDEO_START_MEMBER(stepstag_state,stepstag)
@@ -686,10 +692,6 @@ u32 stepstag_state::screen_update_stepstag_mid(screen_device &screen, bitmap_rgb
 	tetrisp2_draw_sprites(
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram2, m_spriteram2.bytes(), m_vj_sprite_m);
-
-//  m_tilemap_rot->draw(screen, bitmap, cliprect, 0, 1 << 1);
-//  m_tilemap_bg->draw(screen, bitmap, cliprect, 0, 1 << 0);
-	m_tilemap_fg->draw(screen, bitmap, cliprect, 0, 1 << 2);
 
 	return 0;
 }

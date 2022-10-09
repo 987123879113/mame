@@ -1998,7 +1998,7 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	setup_non_sysctrl_screen(config, &rscreen, subxtal);
 	rscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_right));
 
-	MCFG_VIDEO_START_OVERRIDE(stepstag_state, stepstag )
+	MCFG_VIDEO_START_OVERRIDE(stepstag_state, stepstag)
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_tetrisp2);
 	PALETTE(config, m_palette).set_entries(0x8000);
 
@@ -2006,17 +2006,13 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	PALETTE(config, m_vj_palette_m).set_entries(0x8000);
 	PALETTE(config, m_vj_palette_r).set_entries(0x8000);
 
-	JALECO_MEGASYSTEM32_SPRITE(config, m_sprite, main_pixel_clock); // unknown
-	m_sprite->set_palette(m_palette);
-	m_sprite->set_color_base(0);
-	m_sprite->set_color_entries(16);
-
 	// (left screen, vertical in stepping stage)
 	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_l, sub_pixel_clock); // unknown
 	m_vj_sprite_l->set_palette(m_vj_palette_l);
 	m_vj_sprite_l->set_color_base(0);
 	m_vj_sprite_l->set_color_entries(0x80);
 	m_vj_sprite_l->set_zoom(false);
+	m_vj_sprite_l->set_yuv(true);
 
 	// (mid screen, horizontal)
 	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_m, sub_pixel_clock); // unknown
@@ -2024,6 +2020,7 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	m_vj_sprite_m->set_color_base(0);
 	m_vj_sprite_m->set_color_entries(0x80);
 	m_vj_sprite_m->set_zoom(false);
+	m_vj_sprite_m->set_yuv(true);
 
 	// (right screens, vertical in stepping stage)
 	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_r, sub_pixel_clock); // unknown
@@ -2031,7 +2028,9 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	m_vj_sprite_r->set_color_base(0);
 	m_vj_sprite_r->set_color_entries(0x80);
 	m_vj_sprite_r->set_zoom(false);
+	m_vj_sprite_r->set_yuv(true);
 
+	setup_main_sprite(config, sub_pixel_clock);
 	setup_main_sysctrl(config, XTAL(48'000'000)); // unknown
 
 	config.set_default_layout(layout_vjdash);
@@ -2753,8 +2752,70 @@ ROM_END
 
  VJ Visual & Music Slap
 
- dump is incomplete, music and sub-cpu roms are missing at least
+ vjdash dump is incomplete, sub-cpu roms are missing at least
 ***************************************************************************/
+
+ROM_START( vjslap )
+	ROM_REGION( 0x100000, "maincpu", 0 ) // 68000
+	ROM_LOAD16_BYTE( "vjdash4_ver1.1.ic59", 0x00000, 0x80000, CRC(b6e16738) SHA1(53d12effd176b48b60c193530537b0b726c547b9) )
+	ROM_LOAD16_BYTE( "vjdash1_ver1.1.ic65", 0x00001, 0x80000, CRC(1db8b380) SHA1(249c5ca0296258c9fbb82237995dabe51bd98a09) )
+
+	ROM_REGION( 0x100000, "sub", 0 ) // 68000
+	ROM_LOAD16_BYTE( "vjdash4_ver1.1.11", 0x00000, 0x80000, CRC(141e9969) SHA1(5148708312faa63669d3e86ece22ff14d0938455) )
+	ROM_LOAD16_BYTE( "vjdash4_ver1.1.14", 0x00001, 0x80000, CRC(d32e862b) SHA1(1430008beb65f201937c22c9c4c9d811c89247cc) )
+
+	ROM_REGION( 0x2000000, "sprite_l", 0 ) // left screen sprites
+	ROM_LOAD( "mr98053-05.ic2", 0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3", 0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4", 0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5", 0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6", 0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7", 0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-11.ic8", 0x1800000, 0x400000, CRC(911b64ab) SHA1(2fb67d623402efa6ea23c9a945525a1cb5644eb9) )
+	ROM_LOAD( "mr98053-14.ic9", 0x1c00000, 0x400000, CRC(a79228fc) SHA1(4e3993e73ce4f2400a6e571a7be874db124c273e) )
+
+	ROM_REGION( 0x2000000, "sprite_m", 0 ) // middle screen sprites
+	ROM_LOAD( "mr98053-05.ic2",  0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3",  0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4",  0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5",  0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6",  0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7",  0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-c0.ic23", 0x1800000, 0x400000, CRC(0d4148b3) SHA1(ac515c53ce91e24dd4dc46191281926a3bc9f74a) )
+	ROM_LOAD( "mr98053-c1.ic24", 0x1c00000, 0x400000, CRC(510374ae) SHA1(ba48b69874dfde6329b8206f87b833bacbfdd7b5) )
+
+	ROM_REGION( 0x2000000, "sprite_r", 0 ) // right screen sprites
+	ROM_LOAD( "mr98053-05.ic2",  0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3",  0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4",  0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5",  0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6",  0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7",  0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-13.ic11", 0x1800000, 0x400000, CRC(a38af3a1) SHA1(ce7b2d7518f9de050293f3b9a073a1cedbc444fa) )
+	ROM_LOAD( "mr98053-16.ic10", 0x1c00000, 0x400000, CRC(9c7f5964) SHA1(4e8d0a14c2459774204a8b24ea23a65520d3fc29) )
+
+	ROM_REGION( 0x080000, "gfx4", 0 )   /* 8x8x8 (Foreground) */
+	ROM_LOAD( "vjdash_ver1.0.ic27", 0x000000, 0x080000, CRC(c143b7e4) SHA1(055699a18aa3529bb252dca391cf3f1e19f9ebe8) )
+
+	ROM_REGION( 0x800000, "sprite", 0 )   /* 8x8x8 (Sprites) */
+	ROM_LOAD32_WORD( "obj-o.ic40", 0x000002, 0x400000, CRC(eaa927f1) SHA1(84742aecc1f9e40c289c87319255001cb701949f)  )
+	ROM_LOAD32_WORD( "obj-e.ic41", 0x000000, 0x400000, CRC(a6c1e41b) SHA1(157af81a70604bee194c9b24f5b74774b3e7eff3)  )
+
+	ROM_REGION( 0x400000, "gfx2", 0 )   /* 16x16x8 (Background) */
+	ROM_LOAD16_WORD( "mr98053-03.ic14", 0x000000, 0x200000, CRC(45f045ed) SHA1(196a41c71f3e579ff5c43ca75f5473a0597333b3) )
+
+	ROM_REGION( 0x400000, "gfx3", 0 )   /* 16x16x8 (Rotation) */
+	ROM_LOAD( "mr98053-04.ic36", 0x000000, 0x200000, CRC(4c69de30) SHA1(5f758498abb87f86f428193413c8e06bb4024725) )
+
+	ROM_REGION( 0x001000, "gal", ROMREGION_ERASE )  // ICT GAL
+	ROM_LOAD( "98053-09.ic58", 0x000000, 3553, CRC(10a443a6) SHA1(fa0950d2b089a34d4b6a039e4a9e8c458dd8e157) )
+
+	ROM_REGION( 0x010000, "xilinx", ROMREGION_ERASE )  // XILINX CPLD
+	ROM_LOAD( "15c.ic49", 0x000000, 38807, CRC(60d50907) SHA1(c5a837b3105ba15fcec103154c8c4d00924974e1) )
+
+	DISK_REGION( "disks" )
+	DISK_IMAGE( "vjslap", 0, SHA1(bf5c70fba13186854ff0b7eafab07dd527aac663) ) // MacOS infected the HDD with a ".Spotlight-V100" folder, but is otherwise intact
+ROM_END
 
 ROM_START( vjdash )
 	ROM_REGION( 0x100000, "maincpu", 0 ) // 68000
@@ -2797,9 +2858,6 @@ ROM_START( vjdash )
 	ROM_REGION( 0x010000, "xilinx", 0 )  // XILINX CPLD
 	ROM_LOAD( "15c.ic49", 0x000000, 38807, CRC(60d50907) SHA1(c5a837b3105ba15fcec103154c8c4d00924974e1) )
 
-	ROM_REGION( 0x400000, "ymz", ROMREGION_ERASE )  // Samples
-	ROM_LOAD( "vjdash-sound", 0x000000, 0x400000, NO_DUMP )
-
 	DISK_REGION( "disks" )
 	DISK_IMAGE("vjdash", 0, NO_DUMP)
 ROM_END
@@ -2809,7 +2867,6 @@ ROM_END
  Stepping Stage Special
 
  dump is incomplete, these are leftovers from an upgrade
- music roms are missing at least
 ***************************************************************************/
 
 ROM_START( stepstag )
@@ -2851,9 +2908,6 @@ ROM_START( stepstag )
 	ROM_REGION( 0x400000, "gfx3", ROMREGION_ERASE )   /* 16x16x8 (Rotation) */
 	ROM_LOAD( "stepstag_rott", 0x000000, 0x400000, NO_DUMP )
 
-	ROM_REGION( 0x400000, "ymz", ROMREGION_ERASE )  // Samples
-	ROM_LOAD( "stepstag-sound", 0x000000, 0x400000, NO_DUMP )
-
 	DISK_REGION( "disks" )
 	DISK_IMAGE("stepstag", 0, NO_DUMP)
 ROM_END
@@ -2863,7 +2917,6 @@ ROM_END
  Stepping 3 Superior
 
  dump is incomplete, these are leftovers from an upgrade
- music roms are missing at least
 ***************************************************************************/
 
 ROM_START( step3 )
@@ -2905,9 +2958,6 @@ ROM_START( step3 )
 
 	ROM_REGION( 0x400000, "gfx3", ROMREGION_ERASE )   /* 16x16x8 (Rotation) */
 
-	ROM_REGION( 0x400000, "ymz", ROMREGION_ERASE )  /* Samples */
-	ROM_LOAD( "step3-sound", 0x000000, 0x400000, NO_DUMP )
-
 	DISK_REGION( "disks" )
 	DISK_IMAGE("step3", 0, NO_DUMP)
 ROM_END
@@ -2943,6 +2993,7 @@ GAME( 2000, rockn4,    0,        rockn2,   rockn,     tetrisp2_state, init_rockn
 // - Stepping Stage <- the original Game
 // - Stepping Stage 2 Supreme
 // Dumped (partially):
-GAME( 1999, vjdash,    0,        vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Visual & Music Slap",          MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
-GAME( 1999, stepstag,  0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping Stage Special",          MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
-GAME( 1999, step3,     0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping 3 Superior",             MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, vjslap,    0,        vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Visual & Music Slap (Ver 1.1)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, vjdash,    0,        vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Visual & Music Slap (Ver 1.2)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING) // Is this really Dash?
+GAME( 1999, stepstag,  0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping Stage Special",           MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, step3,     0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping 3 Superior",              MACHINE_NO_SOUND | MACHINE_NOT_WORKING)

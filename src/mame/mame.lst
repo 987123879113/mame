@@ -41870,6 +41870,7 @@ tetrisp2a                       // (c) 1997 Jaleco (World v2.7)
 tetrisp2j                       // (c) 1997 Jaleco (Japan v2.2)
 tetrisp2ja                      // (c) 1997 Jaleco (Japan v2.1)
 vjdash                          // (c) 1999 Jaleco
+vjslap                          // (c) 1999 Jaleco
 
 @source:skeleton/textelcomp.cpp
 a1010                           //
