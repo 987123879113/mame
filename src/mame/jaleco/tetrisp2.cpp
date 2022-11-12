@@ -50,6 +50,8 @@ stepstag:
 
 #include "emu.h"
 #include "tetrisp2.h"
+#include "jaleco_vj_sound.h"
+#include "jaleco_vj_qtaro.h"
 
 #include "cpu/m68000/m68000.h"
 #include "machine/nvram.h"
@@ -139,7 +141,6 @@ void tetrisp2_state::rockn_soundvolume_w(u16 data)
 	m_rockn_soundvolume = data;
 	// TODO: unemulated
 }
-
 
 void tetrisp2_state::nndmseal_sound_bank_w(offs_t offset, u16 data, u16 mem_mask)
 {
@@ -494,6 +495,13 @@ void rocknms_state::rocknms_sub_map(address_map &map)
 
 ***************************************************************************/
 
+u16 stepstag_state::stepstag_soundvolume_r()
+{
+	uint8_t vr1 = (64 - m_soundvr[0]->read()) << 2;
+	uint8_t vr2 = m_soundvr[1] ? (64 - m_soundvr[1]->read()) << 2 : 0; // Doesn't exist on Stepping Stage
+	return (vr2 << 8) | vr1;
+}
+
 u16 stepstag_state::stepstag_coins_r()
 {
 	// bits 8 & 9?
@@ -516,11 +524,6 @@ void stepstag_state::stepstag_b00000_w(u16 data)
 	vj_upload_fini = false;
 }
 
-void  stepstag_state::stepstag_main2pc_w(u16 data)
-{
-	popmessage("cmd @ pc: 0x%x\n", data);
-}
-
 u16 stepstag_state::unknown_read_0xc00000()
 {
 	return machine().rand();    // 3
@@ -530,11 +533,6 @@ u16 stepstag_state::unknown_read_0xffff00()
 {
 	return machine().rand();
 }
-
-u16 stepstag_state::stepstag_pc2main_r()
- {
-	return ioport("DEBUG_DSW")->read();
- }
 
 void stepstag_state::stepstag_soundlatch_word_w(u16 data)
 {
@@ -604,7 +602,6 @@ void stepstag_state::stepstag_button_leds_w(offs_t offset, u16 data, u16 mem_mas
 	}
 }
 
-
 // Main CPU
 void stepstag_state::stepstag_map(address_map &map)
 {
@@ -623,13 +620,14 @@ void stepstag_state::stepstag_map(address_map &map)
 	map(0xa00000, 0xa00001).nopr().w(FUNC(stepstag_state::stepstag_neon_w));  // Neon??
 	map(0xa10000, 0xa10001).portr("RHYTHM").w(FUNC(stepstag_state::stepstag_step_leds_w));          // I/O
 	map(0xa20000, 0xa20001).nopr().w(FUNC(stepstag_state::stepstag_button_leds_w));                    // I/O
-	map(0xa30000, 0xa30001).rw(FUNC(stepstag_state::rockn_soundvolume_r), FUNC(stepstag_state::rockn_soundvolume_w));         // Sound Volume
-	map(0xa42000, 0xa42001).r(FUNC(stepstag_state::stepstag_pc2main_r));
+	map(0xa30000, 0xa30001).r(FUNC(stepstag_state::stepstag_soundvolume_r)).nopw();         // Sound Volume
+	map(0xa42000, 0xa42001).r(":jaleco_vj_pc:isa1:jaleco_vj_sound", FUNC(jaleco_vj_isa16_sound_device::response_r));
 	map(0xa44000, 0xa44001).nopr();     // watchdog
-	map(0xa48000, 0xa48001).w(FUNC(stepstag_state::stepstag_main2pc_w));                                   // PC Comm
-//  map(0xa4c000, 0xa4c001).nopw();    // PC?
+	map(0xa48000, 0xa48001).w(":jaleco_vj_pc:isa1:jaleco_vj_sound", FUNC(jaleco_vj_isa16_sound_device::comm_w));
+	// map(0xa4c000, 0xa4c001).noprw(); // Related to 0xa60000
 	map(0xa50000, 0xa50001).r(m_soundlatch, FUNC(generic_latch_16_device::read)).w(FUNC(stepstag_state::stepstag_soundlatch_word_w));
-	map(0xa60000, 0xa60003).w("ymz", FUNC(ymz280b_device::write)).umask16(0x00ff);             // Sound
+	map(0xa60000, 0xa60003).w(":jaleco_vj_pc:isa1:jaleco_vj_sound:ymz1", FUNC(ymz280b_device::write)).umask16(0x00ff);             // Sound
+	map(0xa60000, 0xa60003).w(":jaleco_vj_pc:isa1:jaleco_vj_sound:ymz2", FUNC(ymz280b_device::write)).umask16(0xff00);             // Sound
 
 	map(0xb00000, 0xb00001).w(FUNC(stepstag_state::stepstag_b00000_w));                                    // init xilinx uploading??
 	map(0xb20000, 0xb20001).w(FUNC(stepstag_state::stepstag_b20000_w));                                    // 98343 interface board xilinx uploading?
@@ -642,7 +640,7 @@ void stepstag_state::stepstag_map(address_map &map)
 	map(0xbe0002, 0xbe0003).portr("BUTTONS");                                        // Inputs
 	map(0xbe0004, 0xbe0005).r(FUNC(stepstag_state::stepstag_coins_r));                                      // Inputs & protection
 	map(0xbe0008, 0xbe0009).portr("DSW");                                            // Inputs
-	map(0xbe000a, 0xbe000b).r("watchdog", FUNC(watchdog_timer_device::reset16_r));       // Watchdog
+	map(0xbe000a, 0xbe000b).r("watchdog", FUNC(watchdog_timer_device::reset16_r)).nopw();       // Watchdog
 }
 
 // Sub CPU (sprites)
@@ -658,11 +656,10 @@ void stepstag_state::stepstag_sub_map(address_map &map)
 
 	map(0x500000, 0x53ffff).ram().w(FUNC(stepstag_state::stepstag_palette_right_w)).share("paletteram3");
 
-	// rgb brightness?
-	map(0x700000, 0x700001).nopw(); // 0-f
-	map(0x700002, 0x700003).nopw(); // 0-f
-	map(0x700004, 0x700005).nopw(); // 0-f
-	map(0x700006, 0x700007).nopw(); // 0-3f (high bits?)
+	map(0x700000, 0x700001).w(":jaleco_vj_pc:pci:08.0:qtaro1", FUNC(jaleco_vj_qtaro_device::mix_w));
+	map(0x700002, 0x700003).w(":jaleco_vj_pc:pci:08.0:qtaro2", FUNC(jaleco_vj_qtaro_device::mix_w));
+	map(0x700004, 0x700005).w(":jaleco_vj_pc:pci:08.0:qtaro3", FUNC(jaleco_vj_qtaro_device::mix_w));
+	map(0x700006, 0x700007).w(":jaleco_vj_pc:pci:08.0", FUNC(jaleco_vj_king_qtaro_device::video_control_w));
 
 	// left screen sprites
 	map(0x800000, 0x803fff).ram().share("spriteram1");      // Object RAM
@@ -682,6 +679,11 @@ void stepstag_state::stepstag_sub_map(address_map &map)
 	map(0xa80000, 0xa80001).nopw(); // cleared after writing this sprite list
 //  map(0xac0000, 0xac0001).nopw(); // cleared at boot
 
+	// The code for PC comms fully exists but it doesn't appear to ever be called
+	// map(0xa42000, 0xa42001).r(":jaleco_vj_pc:isa1:jaleco_vj_sound", FUNC(jaleco_vj_isa16_sound_device::response_r));
+	// map(0xa44000, 0xa44001).nopr();     // watchdog
+	// map(0xa48000, 0xa48001).w(":jaleco_vj_pc:isa1:jaleco_vj_sound", FUNC(jaleco_vj_isa16_sound_device::comm_w));
+
 	map(0xb00000, 0xb00001).rw(m_soundlatch, FUNC(generic_latch_16_device::read), FUNC(generic_latch_16_device::write));
 
 	map(0xc00000, 0xc00001).r(FUNC(stepstag_state::unknown_read_0xc00000)).nopw(); //??
@@ -689,7 +691,6 @@ void stepstag_state::stepstag_sub_map(address_map &map)
 	map(0xf00000, 0xf00001).nopw(); //??
 	map(0xffff00, 0xffff01).r(FUNC(stepstag_state::unknown_read_0xffff00));
 }
-
 
 void stepstag_state::vjdash_map(address_map &map)
 {
@@ -1234,56 +1235,8 @@ static INPUT_PORTS_START( stepstag )
 	PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
 
-	PORT_START("DEBUG_DSW")
-	PORT_DIPNAME( 0x0001, 0x0001, "DIPSW debug_2-0_DEBUG_A42000") // pour debug temperarement
-	PORT_DIPSETTING(      0x0001, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0002, 0x0002, "DIPSW debug_2-1")
-	PORT_DIPSETTING(      0x0002, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0004, 0x0004, "DIPSW debug_2-2")
-	PORT_DIPSETTING(      0x0004, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0008, 0x0008, "DIPSW debug_2-3")
-	PORT_DIPSETTING(      0x0008, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0010, 0x0010, "DIPSW debug_2-4")
-	PORT_DIPSETTING(      0x0010, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0020, 0x0020, "DIPSW debug_2-5")
-	PORT_DIPSETTING(      0x0020, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0040, 0x0040, "DIPSW debug_2-6")
-	PORT_DIPSETTING(      0x0040, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0080, 0x0080, "DIPSW debug_2-7")
-	PORT_DIPSETTING(      0x0080, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-
-	PORT_DIPNAME(0x0100, 0x0100, "DIPSW debug_2_8")
-	PORT_DIPSETTING(      0x0100, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(0x0200, 0x0200, "DIPSW debug_2_9")
-	PORT_DIPSETTING(      0x0200, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x0400, 0x0400, "DIPSW debug_2_a")
-	PORT_DIPSETTING(      0x0400, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x0800, 0x0800, "DIPSW debug_2_b")
-	PORT_DIPSETTING(      0x0800, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x1000, 0x1000, "DIPSW debug_2_c")
-	PORT_DIPSETTING(      0x1000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x2000, 0x2000, "DIPSW debug_2_d")
-	PORT_DIPSETTING(      0x2000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x4000, 0x4000, "DIPSW debug_2_e")
-	PORT_DIPSETTING(      0x4000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x8000, 0x8000, "DIPSW debug_2_f")
-	PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_START("SOUND_VR1")
+	PORT_ADJUSTER( 64, "Sound Volume" ) PORT_MINMAX( 1, 64 )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( vjdash )
@@ -1305,56 +1258,6 @@ static INPUT_PORTS_START( vjdash )
 	PORT_BIT( 0x4000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
-/*  PORT_DIPNAME( 0x0001, 0x0001, "DIPSW debug_2-0_INPUTS") // pour debug temperarement
-    PORT_DIPSETTING(      0x0001, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME( 0x0002, 0x0002, "DIPSW debug_2-1")
-    PORT_DIPSETTING(      0x0002, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME( 0x0004, 0x0004, "DIPSW debug_2-2")
-    PORT_DIPSETTING(      0x0004, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME( 0x0008, 0x0008, "DIPSW debug_2-3")
-    PORT_DIPSETTING(      0x0008, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME( 0x0010, 0x0010, "DIPSW debug_2-4")
-    PORT_DIPSETTING(      0x0010, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME( 0x0020, 0x0020, "DIPSW debug_2-5")
-    PORT_DIPSETTING(      0x0020, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME( 0x0040, 0x0040, "DIPSW debug_2-6")
-    PORT_DIPSETTING(      0x0040, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME( 0x0080, 0x0080, "DIPSW debug_2-7")
-    PORT_DIPSETTING(      0x0080, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-
-    PORT_DIPNAME(0x0100, 0x0100, "DIPSW debug_2_8")
-    PORT_DIPSETTING(      0x0100, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME(0x0200, 0x0200, "DIPSW debug_2_9")
-    PORT_DIPSETTING(      0x0200, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME(    0x0400, 0x0400, "DIPSW debug_2_a")
-    PORT_DIPSETTING(      0x0400, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME(    0x0800, 0x0800, "DIPSW debug_2_b")
-    PORT_DIPSETTING(      0x0800, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME(    0x1000, 0x1000, "DIPSW debug_2_c")
-    PORT_DIPSETTING(      0x1000, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME(    0x2000, 0x2000, "DIPSW debug_2_d")
-    PORT_DIPSETTING(      0x2000, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME(    0x4000, 0x4000, "DIPSW debug_2_e")
-    PORT_DIPSETTING(      0x4000, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-    PORT_DIPNAME(    0x8000, 0x8000, "DIPSW debug_2_f")
-    PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
-    PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-*/
 	PORT_START("COINS") // $be0004.w
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_UNKNOWN  )
 	PORT_BIT( 0x0002, IP_ACTIVE_HIGH, IPT_UNKNOWN )
@@ -1392,106 +1295,78 @@ static INPUT_PORTS_START( vjdash )
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("DSW") // $be0008.w
-	PORT_DIPNAME( 0x0001, 0x0001, "DIPSW 1-1: 1 - 6 COIN CREDITS")
-	PORT_DIPSETTING(      0x0001, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0002, 0x0002, "DIPSW 1-2")
-	PORT_DIPSETTING(      0x0002, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0004, 0x0004, "DIPSW 1-3")
-	PORT_DIPSETTING(      0x0004, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0008, 0x0008, "DIPSW 1-4")
-	PORT_DIPSETTING(      0x0008, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0010, 0x0010, "DIPSW 1-5")
-	PORT_DIPSETTING(      0x0010, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0020, 0x0020, "DIPSW 1-6")
+	PORT_DIPNAME( 0x001f, 0x0000, DEF_STR( Coinage ) ) PORT_DIPLOCATION("SW1:1,2,3,4,5")
+	PORT_DIPSETTING(      0x001f, "P1 2 coins, P2 4 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x001e, "P1/P2 1 coin, 1 coin continue" )
+	PORT_DIPSETTING(      0x001d, "P1 1 coins, P2 2 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x001c, "P1 2 coins, P2 3 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x001b, "P1 2 coins, P2 4 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x001a, "P1/P2 2 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x0019, "P1/P2 2 coins, 2 coins continue" )
+	PORT_DIPSETTING(      0x0018, "P1 2 coins, P2 3 coins, 2 coins continue" )
+	PORT_DIPSETTING(      0x0017, "P1/P2 3 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x0016, "P1/P2 3 coins, 2 coins continue" )
+	PORT_DIPSETTING(      0x0015, "P1/P2 3 coins, 3 coins continue" )
+	PORT_DIPSETTING(      0x0014, "P1 3 coins, P2 4 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x0013, "P1 3 coins, P2 4 coins, 2 coins continue" )
+	PORT_DIPSETTING(      0x0012, "P1 3 coins, P2 4 coins, 3 coins continue" )
+	PORT_DIPSETTING(      0x0011, "P1 3 coins, P2 6 coins, 1 coin continue" )
+	PORT_DIPSETTING(      0x0010, "P1 3 coins, P2 6 coins, 2 coins continue" )
+	PORT_DIPSETTING(      0x000f, "P1 3 coins, P2 6 coins, 3 coins continue" )
+	PORT_DIPSETTING(      0x000e, "P1 4 coins, P2 8 coins, 2 coins continue" )
+	PORT_DIPSETTING(      0x000d, "P1 4 coins, P2 8 coins, 3 coins continue" )
+	PORT_DIPSETTING(      0x000c, "P1 4 coins, P2 8 coins, 4 coins continue" )
+	PORT_DIPSETTING(      0x000b, "P1 5 coins, P2 10 coins, 3 coins continue" )
+	PORT_DIPSETTING(      0x000a, "P1 5 coins, P2 10 coins, 4 coins continue" )
+	PORT_DIPSETTING(      0x0009, "P1 5 coins, P2 10 coins, 5 coins continue" )
+	PORT_DIPSETTING(      0x0008, "P1 6 coins, P2 12 coins, 4 coins continue" )
+	PORT_DIPSETTING(      0x0007, "P1 6 coins, P2 12 coins, 5 coins continue" )
+	PORT_DIPSETTING(      0x0006, "P1 6 coins, P2 12 coins, 6 coins continue" )
+	PORT_DIPSETTING(      0x0005, "P1 7 coins, P2 14 coins, 5 coins continue" )
+	PORT_DIPSETTING(      0x0004, "P1 7 coins, P2 14 coins, 6 coins continue" )
+	PORT_DIPSETTING(      0x0003, "P1 7 coins, P2 14 coins, 7 coins continue" )
+	PORT_DIPSETTING(      0x0002, "P1 8 coins, P2 16 coins, 6 coins continue" )
+	PORT_DIPSETTING(      0x0001, "P1 8 coins, P2 16 coins, 7 coins continue" )
+	PORT_DIPSETTING(      0x0000, "P1 8 coins, P2 16 coins, 8 coins continue" )
+	PORT_DIPNAME( 0x0020, 0x0020, "DIPSW 1-6") PORT_DIPLOCATION("SW1:6")
 	PORT_DIPSETTING(      0x0020, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0040, 0x0040, "DIPSW 1-7")
+	PORT_DIPNAME( 0x0040, 0x0040, "DIPSW 1-7") PORT_DIPLOCATION("SW1:7")
 	PORT_DIPSETTING(      0x0040, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0080, 0x0080, "DIPSW 1-8")      //Free Play
+	PORT_DIPNAME( 0x0080, 0x0080, "Free Play") PORT_DIPLOCATION("SW1:8")
 	PORT_DIPSETTING(      0x0080, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
 
-	PORT_DIPNAME( 0x0100, 0x0100, "DIPSW 2-1: LEVEL")
-	PORT_DIPSETTING(      0x0100, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0200, 0x0200, "DIPSW 2-2: >>4, &20")
-	PORT_DIPSETTING(      0x0200, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0400, 0x0400, "DIPSW 2-3")
-	PORT_DIPSETTING(      0x0400, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0800, 0x0800, "DIPSW 2-4")
+	PORT_DIPNAME( 0x0700, 0x0100, "Volume Level") PORT_DIPLOCATION("SW2:1,2,3")
+	PORT_DIPSETTING(      0x0600, "0" )
+	PORT_DIPSETTING(      0x0500, "1" )
+	PORT_DIPSETTING(      0x0700, "2" )
+	PORT_DIPSETTING(      0x0400, "3" )
+	PORT_DIPSETTING(      0x0300, "4" )
+	PORT_DIPSETTING(      0x0200, "5" )
+	PORT_DIPSETTING(      0x0100, "6" )
+	PORT_DIPSETTING(      0x0000, "7" )
+	PORT_DIPNAME( 0x0800, 0x0800, "DIPSW 2-4") PORT_DIPLOCATION("SW2:4") // Unused?
 	PORT_DIPSETTING(      0x0800, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x1000, 0x1000, "DIPSW 2-5")      //Volume
+	PORT_DIPNAME( 0x1000, 0x1000, "DIPSW 2-5") PORT_DIPLOCATION("SW2:5") // Unused?
 	PORT_DIPSETTING(      0x1000, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x2000, 0x2000, "DIPSW 2-6")      //Volume
-	PORT_DIPSETTING(      0x2000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x4000, 0x4000, "DIPSW 2-7")      //Volume
-	PORT_DIPSETTING(      0x4000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x8000, 0x8000, "DIPSW 2-8: ?")
+	PORT_DIPNAME( 0x6000, 0x4000, "Volume") PORT_DIPLOCATION("SW2:6,7")
+	PORT_DIPSETTING(      0x6000, "MAX" ) // 0
+	PORT_DIPSETTING(      0x4000, "MID" ) // 64
+	PORT_DIPSETTING(      0x2000, "MIN" ) // 128
+	PORT_DIPSETTING(      0x0000, "OFF" ) // 256
+	PORT_DIPNAME( 0x8000, 0x8000, "DIPSW 2-8") PORT_DIPLOCATION("SW2:8") // Unused?
 	PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
 
-	PORT_START("DEBUG_DSW")
-	PORT_DIPNAME( 0x0001, 0x0001, "DIPSW debug_2-0_DEBUG_A42000") // pour debug temperarement
-	PORT_DIPSETTING(      0x0001, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0002, 0x0002, "DIPSW debug_2-1")
-	PORT_DIPSETTING(      0x0002, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0004, 0x0004, "DIPSW debug_2-2")
-	PORT_DIPSETTING(      0x0004, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0008, 0x0008, "DIPSW debug_2-3")
-	PORT_DIPSETTING(      0x0008, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0010, 0x0010, "DIPSW debug_2-4")
-	PORT_DIPSETTING(      0x0010, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0020, 0x0020, "DIPSW debug_2-5")
-	PORT_DIPSETTING(      0x0020, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0040, 0x0040, "DIPSW debug_2-6")
-	PORT_DIPSETTING(      0x0040, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME( 0x0080, 0x0080, "DIPSW debug_2-7")
-	PORT_DIPSETTING(      0x0080, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_START("SOUND_VR1")
+	PORT_ADJUSTER( 64, "Sound VR.1" ) PORT_MINMAX( 1, 64 )
 
-	PORT_DIPNAME(0x0100, 0x0100, "DIPSW debug_2_8")
-	PORT_DIPSETTING(      0x0100, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(0x0200, 0x0200, "DIPSW debug_2_9")
-	PORT_DIPSETTING(      0x0200, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x0400, 0x0400, "DIPSW debug_2_a")
-	PORT_DIPSETTING(      0x0400, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x0800, 0x0800, "DIPSW debug_2_b")
-	PORT_DIPSETTING(      0x0800, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x1000, 0x1000, "DIPSW debug_2_c")
-	PORT_DIPSETTING(      0x1000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x2000, 0x2000, "DIPSW debug_2_d")
-	PORT_DIPSETTING(      0x2000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x4000, 0x4000, "DIPSW debug_2_e")
-	PORT_DIPSETTING(      0x4000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_DIPNAME(    0x8000, 0x8000, "DIPSW debug_2_f")
-	PORT_DIPSETTING(      0x8000, DEF_STR( Off ) )
-	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
+	PORT_START("SOUND_VR2")
+	PORT_ADJUSTER( 64, "Sound VR.2 (Woofer)" ) PORT_MINMAX( 1, 64 )
 INPUT_PORTS_END
 
 
@@ -1864,45 +1739,44 @@ TIMER_DEVICE_CALLBACK_MEMBER(stepstag_state::field_cb)
 
 void stepstag_state::setup_non_sysctrl_screen(machine_config &config, screen_device *screen, const XTAL xtal)
 {
-	// TODO: unknown clock and parameters
-	// assume there's a 42.954 MHz/6 like nndmseal to compensate the higher res
-	screen->set_raw(xtal/6, 455, 0, 352, 262, 0, 240);
+	// Seems to be 480i based on measurements:
+	// 13.5 mhz pixel clock (54mhz/4)
+	// 15.72 khz hfreq
+	// 720 h active
+	// 240-241 v active
+	// approx 59.95 hz vfreq
+	screen->set_raw(xtal/8, 429, 0, 352, 262, 0, 240);
 }
 
 void stepstag_state::stepstag(machine_config &config)
 {
+	// 3 screens come from RGB headers off subboard
+
 	M68000(config, m_maincpu, XTAL(12'000'000)); // unknown
 	m_maincpu->set_addrmap(AS_PROGRAM, &stepstag_state::stepstag_map);
 
-	constexpr XTAL subxtal = XTAL(42'954'545); // unknown
-	constexpr XTAL sub_pixel_clock = subxtal/6;
+	constexpr XTAL mainxtal = XTAL(48'000'000); // on main PCB, OSC1
+	constexpr XTAL subxtal = XTAL(54'000'000); // on sub PCB, OSC1
+	constexpr XTAL sub_pixel_clock = subxtal/8;
 
 	M68000(config, m_subcpu, subxtal/3);
 	m_subcpu->set_addrmap(AS_PROGRAM, &stepstag_state::stepstag_sub_map);
-	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(30));
+	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(30)); // controls gameplay note scrolling speed
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// video hardware
-
-	// this screen arrangement is weird:
-	// it writes a regular 320x224 screen setup to the CRTC but none of these matches a 352 width,
-	// we are either missing a bit from the config regs or those writes are null and
-	// these screens are driven by something else.
-	// Also note: main 68k tilemap/sprite/palette aren't even displayed with this arrangement,
-	// even tho usage is minimal (POST/test mode), maybe just a left-over ...
 	screen_device &lscreen(SCREEN(config, "lscreen", SCREEN_TYPE_RASTER));
 	lscreen.set_orientation(ROT270);
 	setup_non_sysctrl_screen(config, &lscreen, subxtal);
 	lscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_left));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-	m_screen->set_orientation(ROT0);
-	// TODO: connected to the non sysctrl CRTC anyway?
-	m_screen->set_raw(XTAL(48'000'000)/8, 384, 0, 320, 263, 0, 224);
-	m_screen->set_screen_update(FUNC(stepstag_state::screen_update_stepstag_mid));
+	screen_device &mscreen(SCREEN(config, "mscreen", SCREEN_TYPE_RASTER));
+	mscreen.set_orientation(ROT0);
+	setup_non_sysctrl_screen(config, &mscreen, subxtal);
+	mscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_mid));
 
 	screen_device &rscreen(SCREEN(config, "rscreen", SCREEN_TYPE_RASTER));
 	rscreen.set_orientation(ROT270);
@@ -1917,7 +1791,7 @@ void stepstag_state::stepstag(machine_config &config)
 	PALETTE(config, m_vj_palette_m).set_entries(0x8000);
 	PALETTE(config, m_vj_palette_r).set_entries(0x8000);
 
-	JALECO_MEGASYSTEM32_SPRITE(config, m_sprite, XTAL(48'000'000)/8); // unknown
+	JALECO_MEGASYSTEM32_SPRITE(config, m_sprite, mainxtal/8); // unknown
 	m_sprite->set_palette(m_palette);
 	m_sprite->set_color_base(0);
 	m_sprite->set_color_entries(16);
@@ -1939,7 +1813,7 @@ void stepstag_state::stepstag(machine_config &config)
 	m_vj_sprite_m->set_zoom(false);
 	m_vj_sprite_m->set_yuv(true);
 
-	// (right screens, vertical in stepping stage)
+	// (right screen, vertical in stepping stage)
 	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_r, sub_pixel_clock); // unknown
 	m_vj_sprite_r->set_palette(m_vj_palette_r);
 	m_vj_sprite_r->set_color_base(0);
@@ -1947,7 +1821,13 @@ void stepstag_state::stepstag(machine_config &config)
 	m_vj_sprite_r->set_zoom(false);
 	m_vj_sprite_r->set_yuv(true);
 
-	setup_main_sysctrl(config, XTAL(48'000'000));
+	// All video for Stepping Stage comes from subboard's 3 RGB headers so this screen isn't needed
+	// but jaleco_ms32_sysctrl is built such that it requires a screen to work.
+	// TODO: Refactor jaleco_ms32_sysctrl so that it doesn't need a dummy screen
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(mainxtal/8, 384, 0, 320, 263, 0, 224);
+	m_screen->set_screen_update(FUNC(stepstag_state::screen_update_nop));
+	setup_main_sysctrl(config, mainxtal);
 
 	config.set_default_layout(layout_stepstag);
 
@@ -1957,46 +1837,47 @@ void stepstag_state::stepstag(machine_config &config)
 
 	GENERIC_LATCH_16(config, m_soundlatch);
 
-	ymz280b_device &ymz(YMZ280B(config, "ymz", subxtal/3)); // unknown
-	ymz.add_route(0, "lspeaker", 1.0);
-	ymz.add_route(1, "rspeaker", 1.0);
+	JALECO_VJ_PC(config, m_jaleco_vj_pc, 0);
 }
 
 void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 {
-	M68000(config, m_maincpu, XTAL(12'000'000)); // 12MHz?
+	// Bottom screen comes directly off JAMMA harness
+	// 3 top screens come from RGB headers off subboard
+
+	M68000(config, m_maincpu, XTAL(12'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &stepstag_state::vjdash_map);
 
-	constexpr XTAL subxtal = XTAL(42'954'545); // unknown
-	constexpr XTAL main_pixel_clock = XTAL(48'000'000)/8;
-	constexpr XTAL sub_pixel_clock = subxtal/6;
+	constexpr XTAL mainxtal = XTAL(48'000'000); // on main PCB, OSC1
+	constexpr XTAL subxtal = XTAL(54'000'000); // on sub PCB, OSC1
+	constexpr XTAL main_pixel_clock = mainxtal/8;
+	constexpr XTAL sub_pixel_clock = subxtal/8;
 
-	M68000(config, m_subcpu, subxtal/3);
+	M68000(config, m_subcpu, subxtal/3); // divider unknown
 	m_subcpu->set_addrmap(AS_PROGRAM, &stepstag_state::stepstag_sub_map);
-	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(30));
+	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(30)); // memo: controls speed of animations on top screens
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// video hardware
-	// same as stepstag, we assume that this screen is effectively connected to the system CRTC
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
 	m_screen->set_raw(main_pixel_clock, 384, 0, 320, 263, 0, 224);
-	m_screen->set_screen_update(FUNC(stepstag_state::screen_update_stepstag_main));
+	m_screen->set_screen_update(FUNC(stepstag_state::screen_update_vjdash_main));
 	m_screen->set_palette(m_palette);
 
 	screen_device &lscreen(SCREEN(config, "lscreen", SCREEN_TYPE_RASTER));
 	setup_non_sysctrl_screen(config, &lscreen, subxtal);
-	lscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_left));
+	lscreen.set_screen_update(FUNC(stepstag_state::screen_update_vjdash_left));
 
 	screen_device &mscreen(SCREEN(config, "mscreen", SCREEN_TYPE_RASTER));
 	setup_non_sysctrl_screen(config, &mscreen, subxtal);
-	mscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_mid));
+	mscreen.set_screen_update(FUNC(stepstag_state::screen_update_vjdash_mid));
 
 	screen_device &rscreen(SCREEN(config, "rscreen", SCREEN_TYPE_RASTER));
 	setup_non_sysctrl_screen(config, &rscreen, subxtal);
-	rscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_right));
+	rscreen.set_screen_update(FUNC(stepstag_state::screen_update_vjdash_right));
 
 	MCFG_VIDEO_START_OVERRIDE(stepstag_state, stepstag)
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_tetrisp2);
@@ -2006,7 +1887,7 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	PALETTE(config, m_vj_palette_m).set_entries(0x8000);
 	PALETTE(config, m_vj_palette_r).set_entries(0x8000);
 
-	// (left screen, vertical in stepping stage)
+	// (left screen, horizontal)
 	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_l, sub_pixel_clock); // unknown
 	m_vj_sprite_l->set_palette(m_vj_palette_l);
 	m_vj_sprite_l->set_color_base(0);
@@ -2022,7 +1903,7 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	m_vj_sprite_m->set_zoom(false);
 	m_vj_sprite_m->set_yuv(true);
 
-	// (right screens, vertical in stepping stage)
+	// (right screen, horizontal)
 	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_r, sub_pixel_clock); // unknown
 	m_vj_sprite_r->set_palette(m_vj_palette_r);
 	m_vj_sprite_r->set_color_base(0);
@@ -2030,8 +1911,8 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	m_vj_sprite_r->set_zoom(false);
 	m_vj_sprite_r->set_yuv(true);
 
-	setup_main_sprite(config, sub_pixel_clock);
-	setup_main_sysctrl(config, XTAL(48'000'000)); // unknown
+	setup_main_sprite(config, main_pixel_clock);
+	setup_main_sysctrl(config, mainxtal); // unknown, controls game speed including sync of charts/keysounds to BGM
 
 	config.set_default_layout(layout_vjdash);
 
@@ -2041,9 +1922,12 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 
 	GENERIC_LATCH_16(config, m_soundlatch);
 
-	ymz280b_device &ymz(YMZ280B(config, "ymz", subxtal/3)); // unknown
-	ymz.add_route(0, "lspeaker", 1.0);
-	ymz.add_route(1, "rspeaker", 1.0);
+	JALECO_VJ_PC(config, m_jaleco_vj_pc, 0);
+
+}
+
+void stepstag_state::machine_reset()
+{
 }
 
 
@@ -2753,16 +2637,57 @@ ROM_END
  VJ Visual & Music Slap
 
  vjdash dump is incomplete, sub-cpu roms are missing at least
+
+    JALECO VJ-98342
+    98053 EB-00-20122-0
+    MADE IN JAPAN
+	---------------------
+ 	TODO: Document PCB
+
+
+	JALECO VJ-98346
+	98053 EB-00-20123-0
+	MADE IN JAPAN
+	4CH AMP (x2)
+	---------------------
+	------------------------------------------
+	|                    ?                   |
+	|                                        |
+	|    IC     IC     IC            FUSE    |
+	|                                        |
+	| P1 P2 P3 P4 CN1 CN2 CN3 CN4    CN5     |
+	------------------------------------------
+
+	P1, P2, P3, P4 - Small screwing potentiometers
+	CN1 - Audio signal input
+	CN2, CN3 - Unpopulated, 3 pads in a triangle formation.
+			   One of the PCBs is completely unused but the other uses resistors to bridge the pads.
+			   TODO: Verify if resistors are a quirk for this specific machine or not.
+	CN4 - Audio signal output
+	CN5 - Power input
+	ICs - SOIC8 (TODO: verify what chip this is)
+
+
+    JALECO VJ-98348
+    98053 EB-00-20126-0
+    MADE IN JAPAN
+	---------------------
+	TMP68HC000P-12
+	3x Analog Devices ADV7176AKS video encoder
+	6x 40-pin connectors for Qtaro device (2 cables per Qtaro board)
+	3x 5-pin headers (R, G, B, black, white wires connected to each header)
+
+  40-pin IDC ribbon cable connects main board to sub board and then sub board to PC (via the ISA card), chained using same cable
 ***************************************************************************/
 
 ROM_START( vjslap )
 	ROM_REGION( 0x100000, "maincpu", 0 ) // 68000
-	ROM_LOAD16_BYTE( "vjdash4_ver1.1.ic59", 0x00000, 0x80000, CRC(b6e16738) SHA1(53d12effd176b48b60c193530537b0b726c547b9) )
-	ROM_LOAD16_BYTE( "vjdash1_ver1.1.ic65", 0x00001, 0x80000, CRC(1db8b380) SHA1(249c5ca0296258c9fbb82237995dabe51bd98a09) )
+	ROM_LOAD16_BYTE( "rom4.ic59", 0x00000, 0x80000, CRC(b6e16738) SHA1(53d12effd176b48b60c193530537b0b726c547b9) )
+	ROM_LOAD16_BYTE( "rom1.ic65", 0x00001, 0x80000, CRC(1db8b380) SHA1(249c5ca0296258c9fbb82237995dabe51bd98a09) )
 
 	ROM_REGION( 0x100000, "sub", 0 ) // 68000
-	ROM_LOAD16_BYTE( "vjdash4_ver1.1.11", 0x00000, 0x80000, CRC(141e9969) SHA1(5148708312faa63669d3e86ece22ff14d0938455) )
-	ROM_LOAD16_BYTE( "vjdash4_ver1.1.14", 0x00001, 0x80000, CRC(d32e862b) SHA1(1430008beb65f201937c22c9c4c9d811c89247cc) )
+	ROM_LOAD16_BYTE( "vj11_ver1.1.11", 0x00000, 0x80000, CRC(141e9969) SHA1(5148708312faa63669d3e86ece22ff14d0938455) )
+	ROM_LOAD16_BYTE( "vj14_ver1.1.14", 0x00001, 0x80000, CRC(d32e862b) SHA1(1430008beb65f201937c22c9c4c9d811c89247cc) )
 
 	ROM_REGION( 0x2000000, "sprite_l", 0 ) // left screen sprites
 	ROM_LOAD( "mr98053-05.ic2", 0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
@@ -2795,14 +2720,14 @@ ROM_START( vjslap )
 	ROM_LOAD( "mr98053-16.ic10", 0x1c00000, 0x400000, CRC(9c7f5964) SHA1(4e8d0a14c2459774204a8b24ea23a65520d3fc29) )
 
 	ROM_REGION( 0x080000, "gfx4", 0 )   /* 8x8x8 (Foreground) */
-	ROM_LOAD( "vjdash_ver1.0.ic27", 0x000000, 0x080000, CRC(c143b7e4) SHA1(055699a18aa3529bb252dca391cf3f1e19f9ebe8) )
+	ROM_LOAD( "vj10_ver1.0.ic27", 0x000000, 0x080000, CRC(c143b7e4) SHA1(055699a18aa3529bb252dca391cf3f1e19f9ebe8) )
 
 	ROM_REGION( 0x800000, "sprite", 0 )   /* 8x8x8 (Sprites) */
 	ROM_LOAD32_WORD( "obj-o.ic40", 0x000002, 0x400000, CRC(eaa927f1) SHA1(84742aecc1f9e40c289c87319255001cb701949f)  )
 	ROM_LOAD32_WORD( "obj-e.ic41", 0x000000, 0x400000, CRC(a6c1e41b) SHA1(157af81a70604bee194c9b24f5b74774b3e7eff3)  )
 
 	ROM_REGION( 0x400000, "gfx2", 0 )   /* 16x16x8 (Background) */
-	ROM_LOAD16_WORD( "mr98053-03.ic14", 0x000000, 0x200000, CRC(45f045ed) SHA1(196a41c71f3e579ff5c43ca75f5473a0597333b3) )
+	ROM_LOAD16_WORD( "bg.ic14", 0x000000, 0x200000, CRC(45f045ed) SHA1(196a41c71f3e579ff5c43ca75f5473a0597333b3) )
 
 	ROM_REGION( 0x400000, "gfx3", 0 )   /* 16x16x8 (Rotation) */
 	ROM_LOAD( "mr98053-04.ic36", 0x000000, 0x200000, CRC(4c69de30) SHA1(5f758498abb87f86f428193413c8e06bb4024725) )
@@ -2813,11 +2738,75 @@ ROM_START( vjslap )
 	ROM_REGION( 0x010000, "xilinx", ROMREGION_ERASE )  // XILINX CPLD
 	ROM_LOAD( "15c.ic49", 0x000000, 38807, CRC(60d50907) SHA1(c5a837b3105ba15fcec103154c8c4d00924974e1) )
 
-	DISK_REGION( "disks" )
-	DISK_IMAGE( "vjslap", 0, SHA1(bf5c70fba13186854ff0b7eafab07dd527aac663) ) // MacOS infected the HDD with a ".Spotlight-V100" folder, but is otherwise intact
+	DISK_REGION( "jaleco_vj_pc:pci:07.1:ide1:0:hdd:image" )
+	DISK_IMAGE( "vj_ver1", 0, BAD_DUMP SHA1(bf5c70fba13186854ff0b7eafab07dd527aac663) ) // MacOS infected the HDD with a ".Spotlight-V100" folder, but is otherwise intact
 ROM_END
 
 ROM_START( vjdash )
+	ROM_REGION( 0x100000, "maincpu", ROMREGION_ERASE ) // 68000
+	ROM_LOAD16_BYTE( "vjdash_pro4_ver1.0.ic59", 0x00000, 0x80000, NO_DUMP )
+	ROM_LOAD16_BYTE( "vjdash_pro1_ver1.0.ic65", 0x00001, 0x80000, NO_DUMP )
+
+	ROM_REGION( 0x100000, "sub", ROMREGION_ERASE ) // 68000
+	ROM_LOAD16_BYTE( "vjdash_pro11_ver1.0.11", 0x00000, 0x80000, NO_DUMP )
+	ROM_LOAD16_BYTE( "vjdash_pro11_ver1.0.14", 0x00001, 0x80000, NO_DUMP )
+
+	ROM_REGION( 0x2000000, "sprite_l", 0 ) // left screen sprites
+	ROM_LOAD( "mr98053-05.ic2", 0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3", 0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4", 0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5", 0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6", 0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7", 0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-11.ic8", 0x1800000, 0x400000, CRC(911b64ab) SHA1(2fb67d623402efa6ea23c9a945525a1cb5644eb9) )
+	ROM_LOAD( "mr98053-14.ic9", 0x1c00000, 0x400000, CRC(a79228fc) SHA1(4e3993e73ce4f2400a6e571a7be874db124c273e) )
+
+	ROM_REGION( 0x2000000, "sprite_m", 0 ) // middle screen sprites
+	ROM_LOAD( "mr98053-05.ic2",  0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3",  0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4",  0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5",  0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6",  0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7",  0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-c0.ic23", 0x1800000, 0x400000, CRC(0d4148b3) SHA1(ac515c53ce91e24dd4dc46191281926a3bc9f74a) )
+	ROM_LOAD( "mr98053-c1.ic24", 0x1c00000, 0x400000, CRC(510374ae) SHA1(ba48b69874dfde6329b8206f87b833bacbfdd7b5) )
+
+	ROM_REGION( 0x2000000, "sprite_r", 0 ) // right screen sprites
+	ROM_LOAD( "mr98053-05.ic2",  0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3",  0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4",  0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5",  0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6",  0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7",  0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-13.ic11", 0x1800000, 0x400000, CRC(a38af3a1) SHA1(ce7b2d7518f9de050293f3b9a073a1cedbc444fa) )
+	ROM_LOAD( "mr98053-16.ic10", 0x1c00000, 0x400000, CRC(9c7f5964) SHA1(4e8d0a14c2459774204a8b24ea23a65520d3fc29) )
+
+	ROM_REGION( 0x080000, "gfx4", ROMREGION_ERASE )   /* 8x8x8 (Foreground) */
+	ROM_LOAD( "vjdash_ascii10_ver1.0.ic27", 0x000000, 0x080000, NO_DUMP )
+
+	ROM_REGION( 0x800000, "sprite", ROMREGION_ERASE )   /* 8x8x8 (Sprites) */
+	ROM_LOAD32_WORD( "vjdash_8.ic40", 0x000002, 0x400000, NO_DUMP )
+	ROM_LOAD32_WORD( "vjdash_9.ic41", 0x000000, 0x400000, NO_DUMP )
+
+	ROM_REGION( 0x400000, "gfx2", 0 )   /* 16x16x8 (Background) */
+	ROM_LOAD16_WORD( "mr98053-03.ic14", 0x000000, 0x200000, CRC(0bd32084) SHA1(2fcac3019ebedc54b83b08f527aa968ce6d48617) )
+
+	ROM_REGION( 0x400000, "gfx3", 0 )   /* 16x16x8 (Rotation) */
+	ROM_LOAD( "mr98053-04.ic36", 0x000000, 0x200000, CRC(4c69de30) SHA1(5f758498abb87f86f428193413c8e06bb4024725) )
+
+	ROM_REGION( 0x001000, "gal", 0 )  // ICT GAL
+	ROM_LOAD( "98053-09.ic58", 0x000000, 3553, CRC(10a443a6) SHA1(fa0950d2b089a34d4b6a039e4a9e8c458dd8e157) )
+
+	ROM_REGION( 0x010000, "xilinx", 0 )  // XILINX CPLD
+	ROM_LOAD( "15c.ic49", 0x000000, 38807, CRC(60d50907) SHA1(c5a837b3105ba15fcec103154c8c4d00924974e1) )
+
+	DISK_REGION( "jaleco_vj_pc:pci:07.1:ide1:0:hdd:image" )
+	DISK_IMAGE( "vj_ver1", 0, BAD_DUMP SHA1(bf5c70fba13186854ff0b7eafab07dd527aac663) ) // MacOS infected the HDD with a ".Spotlight-V100" folder, but is otherwise intact
+ROM_END
+
+// Supposedly Ver 1.2
+// TODO: What is different from Ver 1.0?
+ROM_START( vjdasha )
 	ROM_REGION( 0x100000, "maincpu", 0 ) // 68000
 	ROM_LOAD16_BYTE( "vjdash4_ver1.2.ic59", 0x00000, 0x80000, CRC(f7cf8d62) SHA1(8a1bf3a4eb431b71262d9dda47caa0ba0a0127f6) )
 	ROM_LOAD16_BYTE( "vjdash1_ver1.2.ic65", 0x00001, 0x80000, CRC(6d01bef5) SHA1(1f27a82cd583451b32f14967d8db00448543f948) )
@@ -2829,17 +2818,35 @@ ROM_START( vjdash )
 	ROM_FILL( 0x100, 1, 0x60 )
 	ROM_FILL( 0x101, 1, 0xfe )
 
-	ROM_REGION( 0x0c00000, "sprite_l", ROMREGION_ERASE )    // left screen sprites
-	ROM_LOAD( "vjdash-01", 0x000000, 0x400000, NO_DUMP )
-	ROM_LOAD( "vjdash-02", 0x400000, 0x400000, NO_DUMP )
+	ROM_REGION( 0x2000000, "sprite_l", 0 ) // left screen sprites
+	ROM_LOAD( "mr98053-05.ic2", 0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3", 0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4", 0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5", 0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6", 0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7", 0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-11.ic8", 0x1800000, 0x400000, CRC(911b64ab) SHA1(2fb67d623402efa6ea23c9a945525a1cb5644eb9) )
+	ROM_LOAD( "mr98053-14.ic9", 0x1c00000, 0x400000, CRC(a79228fc) SHA1(4e3993e73ce4f2400a6e571a7be874db124c273e) )
 
-	ROM_REGION( 0x1800000, "sprite_m", ROMREGION_ERASE )     // middle screen sprites
-	ROM_LOAD( "vjdash-03", 0x000000, 0x400000, NO_DUMP )
-	ROM_LOAD( "vjdash-04", 0x400000, 0x400000, NO_DUMP )
+	ROM_REGION( 0x2000000, "sprite_m", 0 ) // middle screen sprites
+	ROM_LOAD( "mr98053-05.ic2",  0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3",  0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4",  0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5",  0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6",  0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7",  0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-c0.ic23", 0x1800000, 0x400000, CRC(0d4148b3) SHA1(ac515c53ce91e24dd4dc46191281926a3bc9f74a) )
+	ROM_LOAD( "mr98053-c1.ic24", 0x1c00000, 0x400000, CRC(510374ae) SHA1(ba48b69874dfde6329b8206f87b833bacbfdd7b5) )
 
-	ROM_REGION( 0x0c00000, "sprite_r", ROMREGION_ERASE )   // right screen sprites
-	ROM_LOAD( "vjdash-01", 0x000000, 0x400000, NO_DUMP )
-	ROM_LOAD( "vjdash-02", 0x400000, 0x400000, NO_DUMP )
+	ROM_REGION( 0x2000000, "sprite_r", 0 ) // right screen sprites
+	ROM_LOAD( "mr98053-05.ic2",  0x000000, 0x400000, CRC(97da6668) SHA1(23b957184716776462eab235ce316e0f2a56f4bd) )
+	ROM_LOAD( "mr98053-06.ic3",  0x400000, 0x400000, CRC(8ef6be1b) SHA1(836e907c0c00dcc74a9a62f3f5d9f25cf46bea60) )
+	ROM_LOAD( "mr98053-07.ic4",  0x800000, 0x400000, CRC(801c7396) SHA1(51df041c982c5b8dcee7f593bb3be2a329b68399) )
+	ROM_LOAD( "mr98053-08.ic5",  0xc00000, 0x400000, CRC(09ca77e3) SHA1(b56c82d516069612f5eb452faff1eb68665436b8) )
+	ROM_LOAD( "mr98053-09.ic6",  0x1000000, 0x400000, CRC(80586e56) SHA1(7b60f87ccb9f2dd0b332d387b964706c93629536) )
+	ROM_LOAD( "mr98053-10.ic7",  0x1400000, 0x400000, CRC(077e922f) SHA1(8baac5250618494eb030b7cd1f3515710eb1842c) )
+	ROM_LOAD( "mr98053-13.ic11", 0x1800000, 0x400000, CRC(a38af3a1) SHA1(ce7b2d7518f9de050293f3b9a073a1cedbc444fa) )
+	ROM_LOAD( "mr98053-16.ic10", 0x1c00000, 0x400000, CRC(9c7f5964) SHA1(4e8d0a14c2459774204a8b24ea23a65520d3fc29) )
 
 	ROM_REGION( 0x080000, "gfx4", 0 )   /* 8x8x8 (Foreground) */
 	ROM_LOAD( "vjdash_ver1.0.ic27", 0x000000, 0x080000, CRC(f3cff858) SHA1(9277e5fb3494f7afb7f3911792d1c68b2b1b147e) )
@@ -2858,8 +2865,8 @@ ROM_START( vjdash )
 	ROM_REGION( 0x010000, "xilinx", 0 )  // XILINX CPLD
 	ROM_LOAD( "15c.ic49", 0x000000, 38807, CRC(60d50907) SHA1(c5a837b3105ba15fcec103154c8c4d00924974e1) )
 
-	DISK_REGION( "disks" )
-	DISK_IMAGE("vjdash", 0, NO_DUMP)
+	DISK_REGION( "jaleco_vj_pc:pci:07.1:ide1:0:hdd:image" )
+	DISK_IMAGE( "vj_ver1", 0, BAD_DUMP SHA1(bf5c70fba13186854ff0b7eafab07dd527aac663) ) // MacOS infected the HDD with a ".Spotlight-V100" folder, but is otherwise intact
 ROM_END
 
 /***************************************************************************
@@ -2908,8 +2915,8 @@ ROM_START( stepstag )
 	ROM_REGION( 0x400000, "gfx3", ROMREGION_ERASE )   /* 16x16x8 (Rotation) */
 	ROM_LOAD( "stepstag_rott", 0x000000, 0x400000, NO_DUMP )
 
-	DISK_REGION( "disks" )
-	DISK_IMAGE("stepstag", 0, NO_DUMP)
+	DISK_REGION( "jaleco_vj_pc:pci:07.1:ide1:0:hdd:image" )
+	DISK_IMAGE( "step3", 0, BAD_DUMP SHA1(926a32998c837f7ba45d07db243c43c1f9d46d6a) )
 ROM_END
 
 /***************************************************************************
@@ -2958,8 +2965,8 @@ ROM_START( step3 )
 
 	ROM_REGION( 0x400000, "gfx3", ROMREGION_ERASE )   /* 16x16x8 (Rotation) */
 
-	DISK_REGION( "disks" )
-	DISK_IMAGE("step3", 0, NO_DUMP)
+	DISK_REGION( "jaleco_vj_pc:pci:07.1:ide1:0:hdd:image" )
+	DISK_IMAGE( "step3", 0, BAD_DUMP SHA1(926a32998c837f7ba45d07db243c43c1f9d46d6a) )
 ROM_END
 
 
@@ -2993,7 +3000,8 @@ GAME( 2000, rockn4,    0,        rockn2,   rockn,     tetrisp2_state, init_rockn
 // - Stepping Stage <- the original Game
 // - Stepping Stage 2 Supreme
 // Dumped (partially):
-GAME( 1999, vjslap,    0,        vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Visual & Music Slap (Ver 1.1)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
-GAME( 1999, vjdash,    0,        vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Visual & Music Slap (Ver 1.2)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING) // Is this really Dash?
-GAME( 1999, stepstag,  0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping Stage Special",           MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
-GAME( 1999, step3,     0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping 3 Superior",              MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, vjslap,    0,        vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ: Visual & Music Slap", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, vjdash,    vjslap,   vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Dash",                 MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, vjdasha,   vjslap,   vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Dash (Ver 1.2)",       MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, stepstag,  0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping Stage Special",  MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, step3,     0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping 3 Superior",     MACHINE_NO_SOUND | MACHINE_NOT_WORKING)

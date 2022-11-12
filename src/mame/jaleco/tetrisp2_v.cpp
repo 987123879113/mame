@@ -36,6 +36,9 @@ To Do:
 #include "tetrisp2.h"
 #include "screen.h"
 
+#include "jaleco_vj_qtaro.h"
+#include "jaleco_vj_sound.h"
+
 
 WRITE_LINE_MEMBER(tetrisp2_state::flipscreen_w)
 {
@@ -156,7 +159,20 @@ TILE_GET_INFO_MEMBER(tetrisp2_state::get_tile_info_fg)
 
 void tetrisp2_state::tetrisp2_vram_fg_w(offs_t offset, u16 data, u16 mem_mask)
 {
-	COMBINE_DATA(&m_vram_fg[offset]);
+	// TODO: Check this with other games besides VJ and Stepping Stage before sending PR
+	// Assumption is that a write here will contain the full data for each tile and that
+	// no game is partially updating the tile field (assuming that the upper byte will be
+	// set already so it only writes the lower byte).
+	// This fixes ASCII text not displaying properly in VJ and Stepping Stage because
+	// the game is programmed to write the ASCII letters as a single 8-bit value, whereas
+	// other tiles used for gameplay elements are written as proper 16-bit values.
+	// Maybe it's possible that a write with mem_mask of 0x00ff should result in something like
+	// m_vram_fg[offset] = BIT(data, 0, 8) << 8 instead of handling it also like a
+	// normal 8-bit value.
+	if (mem_mask == 0xff00)
+		m_vram_fg[offset] = BIT(data, 8, 8);
+	else
+		m_vram_fg[offset] = data;
 	m_tilemap_fg->mark_tile_dirty(offset/2);
 }
 
@@ -638,31 +654,10 @@ u32 rocknms_state::screen_update_rocknms_right(screen_device &screen, bitmap_rgb
 
 ***************************************************************************/
 
-// Temporary hack for stpestag: unaltered ASCII bytes are written in the most significant byte
-// of code_hi, one of the CPUs probably reads them and writes the actual tile codes somewhere.
-TILE_GET_INFO_MEMBER(stepstag_state::stepstag_get_tile_info_fg)
-{
-	if (m_vram_fg[2 * tile_index + 1] != 0) {
-		u16 const code_hi = m_vram_fg[ 2 * tile_index + 0];
-		u16 const code_lo = m_vram_fg[ 2 * tile_index + 1];
-		tileinfo.set(2,
-				code_hi,
-				code_lo & 0xf,
-				0);
-	} else {
-		u16 const code_hi = m_vram_fg[ 2 * tile_index ] >> 8;
-		u16 const code_lo = m_vram_fg[ 2 * tile_index ] & 0xf;
-		tileinfo.set(2,
-				code_hi,
-				code_lo,
-				0);
-	}
-}
-
 VIDEO_START_MEMBER(stepstag_state,stepstag)
 {
 	m_tilemap_bg = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(stepstag_state::get_tile_info_bg)), TILEMAP_SCAN_ROWS, 16,16, NX_0,NY_0);
-	m_tilemap_fg = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(stepstag_state::stepstag_get_tile_info_fg)), TILEMAP_SCAN_ROWS, 8,8, NX_1,NY_1);
+	m_tilemap_fg = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(stepstag_state::get_tile_info_fg)), TILEMAP_SCAN_ROWS, 8,8, NX_1,NY_1);
 	m_tilemap_rot = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(stepstag_state::get_tile_info_rot)), TILEMAP_SCAN_ROWS, 16,16, NX_0*2,NY_0*2);
 	m_tilemap_bg->set_transparent_pen(0);
 	m_tilemap_fg->set_transparent_pen(0);
@@ -681,6 +676,10 @@ u32 stepstag_state::screen_update_stepstag_left(screen_device &screen, bitmap_rg
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram1, m_spriteram1.bytes(), m_vj_sprite_l);
 
+	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro1");
+	if (player != nullptr)
+		player->render_video_frame(bitmap);
+
 	return 0;
 }
 
@@ -692,6 +691,61 @@ u32 stepstag_state::screen_update_stepstag_mid(screen_device &screen, bitmap_rgb
 	tetrisp2_draw_sprites(
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram2, m_spriteram2.bytes(), m_vj_sprite_m);
+
+	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro2");
+	if (player != nullptr)
+		player->render_video_frame(bitmap);
+
+	m_tilemap_bg->set_scrollx(0, (((m_scroll_bg[ 0 ] + 0x0014) + m_scroll_bg[ 2 ] ) & 0xffff));
+	m_tilemap_bg->set_scrolly(0, (((m_scroll_bg[ 3 ] + 0x0000) + m_scroll_bg[ 5 ] ) & 0xffff));
+
+	m_tilemap_fg->set_scrollx(0, m_scroll_fg[ 2 ]);
+	m_tilemap_fg->set_scrolly(0, m_scroll_fg[ 5 ]);
+
+	m_tilemap_rot->set_scrollx(0, (m_rotregs[ 0 ] - m_rot_ofsx));
+	m_tilemap_rot->set_scrolly(0, (m_rotregs[ 2 ] - m_rot_ofsy));
+
+	int asc_pri = 0, scr_pri = 0, rot_pri = 0;
+
+	if ((m_priority[0x2b00 / 2] & 0x00ff) == 0x0034)
+		asc_pri++;
+	else
+		rot_pri++;
+
+	if ((m_priority[0x2e00 / 2] & 0x00ff) == 0x0034)
+		asc_pri++;
+	else
+		scr_pri++;
+
+	if ((m_priority[0x3a00 / 2] & 0x00ff) == 0x000c)
+		scr_pri++;
+	else
+		rot_pri++;
+
+	if (rot_pri == 0)
+		m_tilemap_rot->draw(screen, bitmap, cliprect, 0, 1 << 1);
+	else if (scr_pri == 0)
+		m_tilemap_bg->draw(screen, bitmap, cliprect, 0, 1 << 0);
+	else if (asc_pri == 0)
+		m_tilemap_fg->draw(screen, bitmap, cliprect, 0, 1 << 2);
+
+	if (rot_pri == 1)
+		m_tilemap_rot->draw(screen, bitmap, cliprect, 0, 1 << 1);
+	else if (scr_pri == 1)
+		m_tilemap_bg->draw(screen, bitmap, cliprect, 0, 1 << 0);
+	else if (asc_pri == 1)
+		m_tilemap_fg->draw(screen, bitmap, cliprect, 0, 1 << 2);
+
+	if (rot_pri == 2)
+		m_tilemap_rot->draw(screen, bitmap, cliprect, 0, 1 << 1);
+	else if (scr_pri == 2)
+		m_tilemap_bg->draw(screen, bitmap, cliprect, 0, 1 << 0);
+	else if (asc_pri == 2)
+		m_tilemap_fg->draw(screen, bitmap, cliprect, 0, 1 << 2);
+
+	tetrisp2_draw_sprites(
+			bitmap, screen.priority(), cliprect, m_priority.get(),
+			m_spriteram, m_spriteram.bytes(), m_sprite);
 
 	return 0;
 }
@@ -705,10 +759,58 @@ u32 stepstag_state::screen_update_stepstag_right(screen_device &screen, bitmap_r
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram3, m_spriteram3.bytes(), m_vj_sprite_r);
 
+	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro3");
+	if (player != nullptr)
+		player->render_video_frame(bitmap);
+
 	return 0;
 }
 
-u32 stepstag_state::screen_update_stepstag_main(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+// Stepping Stage encodes palette as YUV422.
+// Convert them on the fly
+void stepstag_state::convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram, u32 offset)
+{
+	u8 u = palram[offset/4*4+0] & 0xff;
+	u8 y = palram[offset/4*4+1] & 0xff;
+	u8 v = palram[offset/4*4+2] & 0xff;
+
+	double bf = y+1.772*(u - 128);
+	double gf = y-0.334*(u - 128) - 0.714 * (v - 128);
+	double rf = y+1.402*(v - 128);
+	// clamp to 0-255 range
+	rf = std::min(rf,255.0);
+	rf = std::max(rf,0.0);
+	gf = std::min(gf,255.0);
+	gf = std::max(gf,0.0);
+	bf = std::min(bf,255.0);
+	bf = std::max(bf,0.0);
+
+	u8 r = (u8)rf;
+	u8 g = (u8)gf;
+	u8 b = (u8)bf;
+
+	paldev->set_pen_color(offset/4, r, g, b);
+}
+
+void stepstag_state::stepstag_palette_left_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_vj_paletteram_l[offset]);
+	convert_yuv422_to_rgb888(m_vj_palette_l,m_vj_paletteram_l,offset);
+}
+
+void stepstag_state::stepstag_palette_mid_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_vj_paletteram_m[offset]);
+	convert_yuv422_to_rgb888(m_vj_palette_m,m_vj_paletteram_m,offset);
+}
+
+void stepstag_state::stepstag_palette_right_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_vj_paletteram_r[offset]);
+	convert_yuv422_to_rgb888(m_vj_palette_r,m_vj_paletteram_r,offset);
+}
+
+u32 stepstag_state::screen_update_vjdash_main(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	/* Black background color */
 	bitmap.fill(0, cliprect);
@@ -768,46 +870,58 @@ u32 stepstag_state::screen_update_stepstag_main(screen_device &screen, bitmap_in
 	return 0;
 }
 
-// Stepping Stage encodes palette as YUV422.
-// Convert them on the fly
-void stepstag_state::convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram, u32 offset)
+u32 stepstag_state::screen_update_vjdash_left(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	u8 u =  palram[offset/4*4+0] & 0xff;
-	u8 y1 = palram[offset/4*4+1] & 0xff;
-	u8 v =  palram[offset/4*4+2] & 0xff;
-	//u8 y2 = palram[offset/4*4+3] & 0xff;
-	double bf = y1+1.772*(u - 128);
-	double gf = y1-0.334*(u - 128) - 0.714 * (v - 128);
-	double rf = y1+1.772*(v - 128);
-	// clamp to 0-255 range
-	rf = std::min(rf,255.0);
-	rf = std::max(rf,0.0);
-	gf = std::min(gf,255.0);
-	gf = std::max(gf,0.0);
-	bf = std::min(bf,255.0);
-	bf = std::max(bf,0.0);
+	bitmap.fill(0, cliprect);
+	screen.priority().fill(0);
 
-	u8 r = (u8)rf;
-	u8 g = (u8)gf;
-	u8 b = (u8)bf;
+	tetrisp2_draw_sprites(
+			bitmap, screen.priority(), cliprect, m_priority.get(),
+			m_spriteram1, m_spriteram1.bytes(), m_vj_sprite_l);
 
-	paldev->set_pen_color(offset/4, r, g, b);
+	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro1");
+	if (player != nullptr)
+		player->render_video_frame(bitmap);
+
+	return 0;
 }
 
-void stepstag_state::stepstag_palette_left_w(offs_t offset, u16 data, u16 mem_mask)
+u32 stepstag_state::screen_update_vjdash_mid(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	COMBINE_DATA(&m_vj_paletteram_l[offset]);
-	convert_yuv422_to_rgb888(m_vj_palette_l,m_vj_paletteram_l,offset);
+	bitmap.fill(0, cliprect);
+	screen.priority().fill(0);
+
+	tetrisp2_draw_sprites(
+			bitmap, screen.priority(), cliprect, m_priority.get(),
+			m_spriteram2, m_spriteram2.bytes(), m_vj_sprite_m);
+
+	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro2");
+	if (player != nullptr)
+		player->render_video_frame(bitmap);
+
+	return 0;
 }
 
-void stepstag_state::stepstag_palette_mid_w(offs_t offset, u16 data, u16 mem_mask)
+u32 stepstag_state::screen_update_vjdash_right(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	COMBINE_DATA(&m_vj_paletteram_m[offset]);
-	convert_yuv422_to_rgb888(m_vj_palette_m,m_vj_paletteram_m,offset);
+	bitmap.fill(0, cliprect);
+	screen.priority().fill(0);
+
+	tetrisp2_draw_sprites(
+			bitmap, screen.priority(), cliprect, m_priority.get(),
+			m_spriteram3, m_spriteram3.bytes(), m_vj_sprite_r);
+
+	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro3");
+	if (player != nullptr)
+		player->render_video_frame(bitmap);
+
+	return 0;
 }
 
-void stepstag_state::stepstag_palette_right_w(offs_t offset, u16 data, u16 mem_mask)
+u32 stepstag_state::screen_update_nop(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	COMBINE_DATA(&m_vj_paletteram_r[offset]);
-	convert_yuv422_to_rgb888(m_vj_palette_r,m_vj_paletteram_r,offset);
+	bitmap.fill(0, cliprect);
+	screen.priority().fill(0);
+	subdevice<jaleco_vj_isa16_sound_device>(":jaleco_vj_pc:isa1:jaleco_vj_sound")->set_steppingstage_mode(true);
+	return 0;
 }

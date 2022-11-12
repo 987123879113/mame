@@ -109,8 +109,8 @@ void i82371sb_isa_device::device_add_mconfig(machine_config &config)
 	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	ISA16(config, m_isabus, 0);
-	m_isabus->set_memspace(":maincpu", AS_PROGRAM);
-	m_isabus->set_iospace(":maincpu", AS_IO);
+	m_isabus->set_memspace(m_maincpu, AS_PROGRAM);
+	m_isabus->set_iospace(m_maincpu, AS_IO);
 	m_isabus->irq3_callback().set(FUNC(i82371sb_isa_device::pc_irq3_w));
 	m_isabus->irq4_callback().set(FUNC(i82371sb_isa_device::pc_irq4_w));
 	m_isabus->irq5_callback().set(FUNC(i82371sb_isa_device::pc_irq5_w));
@@ -966,11 +966,11 @@ void i82371sb_ide_device::device_add_mconfig(machine_config &config)
 {
 	BUS_MASTER_IDE_CONTROLLER(config, m_ide1).options(ata_devices, "hdd", nullptr, false);
 	m_ide1->irq_handler().set(FUNC(i82371sb_ide_device::primary_int));
-	m_ide1->set_bus_master_space(":maincpu", AS_PROGRAM);
+	m_ide1->set_bus_master_space(m_maincpu, AS_PROGRAM);
 
 	BUS_MASTER_IDE_CONTROLLER(config, m_ide2).options(ata_devices, "cdrom", nullptr, false);
 	m_ide2->irq_handler().set(FUNC(i82371sb_ide_device::secondary_int));
-	m_ide2->set_bus_master_space(":maincpu", AS_PROGRAM);
+	m_ide2->set_bus_master_space(m_maincpu, AS_PROGRAM);
 }
 
 i82371sb_ide_device::i82371sb_ide_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
@@ -982,6 +982,7 @@ i82371sb_ide_device::i82371sb_ide_device(const machine_config &mconfig, const ch
 	, sidetim(0)
 	, m_irq_pri_callback(*this)
 	, m_irq_sec_callback(*this)
+	, m_maincpu(*this, ":maincpu")
 	, m_ide1(*this, "ide1")
 	, m_ide2(*this, "ide2")
 {

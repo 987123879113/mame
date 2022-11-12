@@ -6,6 +6,7 @@
 #include "ms32_sprite.h"
 #include "emupal.h"
 #include "tilemap.h"
+#include "jaleco_vj_pc.h"
 
 class tetrisp2_state : public driver_device
 {
@@ -214,7 +215,11 @@ public:
 		, m_vj_paletteram_m(*this, "paletteram2")
 		, m_vj_paletteram_r(*this, "paletteram3")
 		, m_soundlatch(*this, "soundlatch")
+		, m_jaleco_vj_pc(*this, "jaleco_vj_pc")
+		, m_soundvr(*this, "SOUND_VR%u", 1)
 	{ }
+
+	virtual void machine_reset() override;
 
 	void stepstag(machine_config &config);
 	void vjdash(machine_config &config);
@@ -229,10 +234,8 @@ private:
 	bool vj_upload_fini = false;
 	void stepstag_b00000_w(u16 data);
 	void stepstag_b20000_w(offs_t offset, u16 data, u16 mem_mask = ~0);
-	void stepstag_main2pc_w(u16 data);
 	u16 unknown_read_0xc00000();
 	u16 unknown_read_0xffff00();
-	u16 stepstag_pc2main_r();
 	void stepstag_soundlatch_word_w(u16 data);
 	void stepstag_neon_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	void stepstag_step_leds_w(offs_t offset, u16 data, u16 mem_mask = ~0);
@@ -241,12 +244,19 @@ private:
 	void stepstag_palette_mid_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	void stepstag_palette_right_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 
-	TILE_GET_INFO_MEMBER(stepstag_get_tile_info_fg);
+	u16 stepstag_soundvolume_r();
+
 	u32 screen_update_stepstag_left(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	u32 screen_update_stepstag_mid(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	u32 screen_update_stepstag_right(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
-	u32 screen_update_stepstag_main(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	u32 screen_update_vjdash_main(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 //  inline int mypal(int x);
+
+	u32 screen_update_vjdash_left(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	u32 screen_update_vjdash_mid(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	u32 screen_update_vjdash_right(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+
+	u32 screen_update_nop(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void stepstag_map(address_map &map);
 	void stepstag_sub_map(address_map &map);
@@ -268,5 +278,7 @@ private:
 	optional_shared_ptr<u16> m_vj_paletteram_m;
 	optional_shared_ptr<u16> m_vj_paletteram_r;
 	required_device<generic_latch_16_device> m_soundlatch;
+	required_device<jaleco_vj_pc_device> m_jaleco_vj_pc;
+	optional_ioport_array<2> m_soundvr;
 	void convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram,u32 offset);
 };
