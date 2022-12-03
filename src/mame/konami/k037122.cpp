@@ -36,12 +36,12 @@ Konami 037122
            fedcba9876543210 fedcba9876543210
     00     xxxxxxxxxxxxxxxx ---------------- Horizontal total pixels - 1
            ---------------- xxxxxxxxxxxxxxxx Horizontal sync width - 1
-    04     xxxxxxxxxxxxxxxx ---------------- Horizontal front porch - 5
-           ---------------- xxxxxxxxxxxxxxxx Horizontal back porch + 5
+    04     xxxxxxxxxxxxxxxx ---------------- Horizontal front porch + 1 (horizontal total pixels - horizontal back porch - horizontal sync width - horizontal width + 1)
+           ---------------- xxxxxxxxxxxxxxxx Horizontal back porch - 1
     08     xxxxxxxxxxxxxxxx ---------------- Vertical total pixels - 1
            ---------------- xxxxxxxxxxxxxxxx Vertical sync width - 1
-    0c     xxxxxxxxxxxxxxxx ---------------- Vertical front porch + 1
-           ---------------- xxxxxxxxxxxxxxxx Vertical back porch - 2
+    0c     xxxxxxxxxxxxxxxx ---------------- Vertical front porch (vertical total pixels - vertical back porch - vertical sync width - vertical width)
+           ---------------- xxxxxxxxxxxxxxxx Vertical back porch - 1
     20     sxxxxxxxxxxxxxxx ---------------- X counter starting value (12.4 fixed point)
            ---------------- sxxxxxxxxxxxxxxx Y counter starting value (12.4 fixed point)
     24     sxxxxxxxxxxxxxxx ---------------- amount to add to the X counter after each line (4.12 fixed point)
@@ -86,7 +86,10 @@ k037122_device::k037122_device(const machine_config &mconfig, const char *tag, d
 	m_tile_ram(nullptr),
 	m_char_ram(nullptr),
 	m_reg(nullptr),
-	m_gfx_index(0)
+	m_gfx_index(0),
+	m_vsync_start_timer(nullptr),
+	m_vblank_cb(*this),
+	m_irq_cleared_cb(*this)
 {
 }
 
@@ -98,6 +101,9 @@ void k037122_device::device_start()
 {
 	if (!palette().device().started())
 		throw device_missing_dependencies();
+
+	m_vblank_cb.resolve();
+	m_irq_cleared_cb.resolve();
 
 	static const gfx_layout k037122_char_layout =
 	{
@@ -127,6 +133,21 @@ void k037122_device::device_start()
 	save_pointer(NAME(m_tile_ram), 0x20000 / 4);
 	save_item(NAME(m_tilemap_base));
 	save_item(NAME(m_palette_base));
+
+	save_item(NAME(m_display_h_total));
+	save_item(NAME(m_display_h_visarea));
+	save_item(NAME(m_display_h_syncwidth));
+	save_item(NAME(m_display_h_frontporch));
+	save_item(NAME(m_display_h_backporch));
+	save_item(NAME(m_display_v_total));
+	save_item(NAME(m_display_v_visarea));
+	save_item(NAME(m_display_v_syncwidth));
+	save_item(NAME(m_display_v_frontporch));
+	save_item(NAME(m_display_v_backporch));
+	save_item(NAME(m_pixclock));
+
+	m_vsync_start_timer = timer_alloc(FUNC(k037122_device::vblank_start),this);
+	m_vsync_stop_timer = timer_alloc(FUNC(k037122_device::vblank_stop),this);
 }
 
 //-------------------------------------------------
@@ -141,6 +162,84 @@ void k037122_device::device_reset()
 
 	m_tilemap_base = 0;
 	m_palette_base = 0;
+
+	m_vblank_irq_cleared = true;
+
+	// Sane defaults used by Hornet games as the 24kHz 512x384 configuration
+	m_display_h_visarea = 512;
+	m_display_h_total = 644;
+	m_display_h_syncwidth = 40;
+	m_display_h_backporch = 48;
+	m_display_h_frontporch = m_display_h_total - m_display_h_backporch - m_display_h_syncwidth - m_display_h_visarea;
+	m_display_v_visarea = 384;
+	m_display_v_total = 428;
+	m_display_v_syncwidth = 6;
+	m_display_v_backporch = 26;
+	m_display_v_frontporch = m_display_v_total - m_display_v_backporch - m_display_v_syncwidth - m_display_v_visarea;
+	m_pixclock = XTAL(50'000'000).value() / 3;
+	recompute_video_timing();
+}
+
+inline void k037122_device::recompute_video_timing()
+{
+	m_display_h_visarea = m_display_h_total - m_display_h_syncwidth - m_display_h_backporch - m_display_h_frontporch;
+	m_display_v_visarea = m_display_v_total - m_display_v_syncwidth - m_display_v_backporch - m_display_v_frontporch;
+	m_vsyncstart = m_display_v_syncwidth - m_display_v_backporch;
+	m_vsyncstop = m_display_v_backporch;
+
+	logerror(
+		"%d %d %d %d %d | %d %d %d %d %d | %d\n",
+		m_display_h_visarea, m_display_h_total, m_display_h_syncwidth, m_display_h_backporch, m_display_h_frontporch,
+		m_display_v_visarea, m_display_v_total, m_display_v_syncwidth, m_display_v_backporch, m_display_v_frontporch,
+		m_pixclock
+	);
+
+	// Currently the k037122 is only used by Hornet which also has a Voodoo hooked up
+	// which sets the screen parameters again after this.
+	rectangle visarea(0, m_display_h_visarea - 1, 0, m_display_v_visarea - 1);
+	screen().configure(m_display_h_total, m_display_v_total, visarea, HZ_TO_ATTOSECONDS(m_pixclock) * m_display_h_total * m_display_v_total);
+
+	adjust_vblank_start_timer();
+}
+
+void k037122_device::set_pixclock(const XTAL &xtal)
+{
+	xtal.validate(std::string("Setting pixel clock for ") + tag());
+
+	auto new_pixclock = xtal.value();
+	if (new_pixclock != m_pixclock)
+	{
+		m_pixclock = new_pixclock;
+		recompute_video_timing();
+	}
+}
+
+void k037122_device::adjust_vblank_start_timer()
+{
+	attotime time_until_blank = screen().time_until_pos(m_vsyncstart);
+
+	// if zero, adjust to next frame, otherwise we may get stuck in an infinite loop
+	if (time_until_blank == attotime::zero)
+		time_until_blank = screen().frame_period();
+
+	m_vsync_start_timer->adjust(time_until_blank);
+}
+
+void k037122_device::vblank_start(s32 param)
+{
+	m_vsync_stop_timer->adjust(screen().time_until_pos(m_vsyncstop));
+
+	m_vblank_irq_cleared = false;
+	if (!m_vblank_cb.isnull())
+		m_vblank_cb(true);
+}
+
+void k037122_device::vblank_stop(s32 param)
+{
+	if (!m_vblank_cb.isnull())
+		m_vblank_cb(false);
+
+	adjust_vblank_start_timer();
 }
 
 /*****************************************************************************
@@ -257,31 +356,106 @@ uint32_t k037122_device::reg_r(offs_t offset)
 
 void k037122_device::reg_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-	if (offset == 0x34/4 && ACCESSING_BITS_0_15)
+	switch (offset)
 	{
-		uint32_t palette_base = (data & 0x4) ? 0x18000 : 0x00000;
-
-		// tilemap is at 0x00000 unless CLUT is there
-		uint32_t tilemap_base = (data & 0x4) ? 0x00000 : 0x08000;
-
-		if (palette_base != m_palette_base)
-		{
-			m_palette_base = palette_base;
-
-			// update all colors since palette moved
-			for (auto p = 0; p < 8192; p++)
+		case 0x00:
+			if (ACCESSING_BITS_16_31)
 			{
-				uint32_t color = m_tile_ram[(m_palette_base / 4) + p];
-				palette().set_pen_color(p, pal5bit(color >> 6), pal6bit(color >> 0), pal5bit(color >> 11));
+				m_display_h_total = ((data >> 16) & 0xffff) + 1;
 			}
-		}
+			if (ACCESSING_BITS_0_15)
+			{
+				m_display_h_syncwidth = (data & 0xffff) + 1;
+			}
+			recompute_video_timing();
+			break;
 
-		if (tilemap_base != m_tilemap_base)
-		{
-			m_tilemap_128->mark_all_dirty();
-			m_tilemap_256->mark_all_dirty();
-			m_tilemap_base = tilemap_base;
-		}
+		case 0x04/4:
+			if (ACCESSING_BITS_16_31)
+			{
+				m_display_h_frontporch = ((data >> 16) & 0xffff) - 1;
+			}
+			if (ACCESSING_BITS_0_15)
+			{
+				m_display_h_backporch = (data & 0xffff) + 1;
+			}
+			recompute_video_timing();
+			break;
+
+		case 0x08/4:
+			if (ACCESSING_BITS_16_31)
+			{
+				m_display_v_total = ((data >> 16) & 0xffff) + 1;
+			}
+			if (ACCESSING_BITS_0_15)
+			{
+				m_display_v_syncwidth = (data & 0xffff) + 1;
+			}
+			recompute_video_timing();
+			break;
+
+		case 0x0c/4:
+			if (ACCESSING_BITS_16_31)
+			{
+				m_display_v_frontporch = (data >> 16) & 0xffff;
+			}
+			if (ACCESSING_BITS_0_15)
+			{
+				m_display_v_backporch = (data & 0xffff) + 1;
+			}
+			recompute_video_timing();
+			break;
+
+		case 0x10/4:
+			if (ACCESSING_BITS_0_15)
+			{
+				// This is cleared when IRQ0 (main screen IRQ) is called in Hornet games
+				if (m_vblank_irq_cleared && !m_irq_cleared_cb.isnull()) {
+					m_vblank_irq_cleared = true;
+					m_irq_cleared_cb(0);
+				}
+			}
+			break;
+
+		case 0x14/4:
+			if (ACCESSING_BITS_16_31)
+			{
+				// This is cleared when IRQ1 (sub screen IRQ) is called in Hornet games
+				if (m_vblank_irq_cleared && !m_irq_cleared_cb.isnull()) {
+					m_vblank_irq_cleared = true;
+					m_irq_cleared_cb(1);
+				}
+			}
+			break;
+
+		case 0x34/4:
+			if (ACCESSING_BITS_0_15)
+			{
+				uint32_t palette_base = (data & 0x4) ? 0x18000 : 0x00000;
+
+				// tilemap is at 0x00000 unless CLUT is there
+				uint32_t tilemap_base = (data & 0x4) ? 0x00000 : 0x08000;
+
+				if (palette_base != m_palette_base)
+				{
+					m_palette_base = palette_base;
+
+					// update all colors since palette moved
+					for (auto p = 0; p < 8192; p++)
+					{
+						uint32_t color = m_tile_ram[(m_palette_base / 4) + p];
+						palette().set_pen_color(p, pal5bit(color >> 6), pal6bit(color >> 0), pal5bit(color >> 11));
+					}
+				}
+
+				if (tilemap_base != m_tilemap_base)
+				{
+					m_tilemap_128->mark_all_dirty();
+					m_tilemap_256->mark_all_dirty();
+					m_tilemap_base = tilemap_base;
+				}
+			}
+			break;
 	}
 
 	COMBINE_DATA(m_reg.get() + offset);

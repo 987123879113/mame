@@ -671,20 +671,30 @@ void hornet_state::sysreg_w(offs_t offset, uint8_t data)
 
 		case 7: // CG Control Register
 			/*
-			    0x80 = EXRES1
-			    0x40 = EXRES0
+			    0x80 = EXRES1?
+			    0x40 = EXRES0?
 			    0x20 = EXID1
 			    0x10 = EXID0
 			    0x0C = 0x00 = 24kHz, 0x04 = 31kHz, 0x0c = 15kHz
-			    0x01 = EXRGB
+			    0x01 = EXRGB?
 			*/
-			if (data & 0x80)
-				m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
-			if (data & 0x40)
-				m_maincpu->set_input_line(INPUT_LINE_IRQ0, CLEAR_LINE);
+			// if (data & 0x80)
+			// 		m_maincpu->set_input_line(INPUT_LINE_IRQ1, CLEAR_LINE);
+			// if (data & 0x40)
+			// 		m_maincpu->set_input_line(INPUT_LINE_IRQ0, CLEAR_LINE);
+
 
 			m_konppc->set_cgboard_id((data >> 4) & 3);
 			m_cg_view.select(m_konppc->get_cgboard_id() ? 1 : 0);
+
+			int pixclock_sel = BIT(data, 2, 2);
+			XTAL pixclock = XTAL(50'000'000) / 3; // 24kHz default
+			if (pixclock_sel == 1)
+				pixclock = XTAL(50'000'000) / 2; // 31kHz
+			else if (pixclock_sel == 2)
+				pixclock = XTAL(50'000'000) / 4; // 15kHz
+			m_k037122[m_konppc->get_cgboard_id()]->set_pixclock(pixclock);
+
 			break;
 	}
 }
@@ -1228,7 +1238,7 @@ void hornet_state::hornet(machine_config &config)
 	m_voodoo[0]->set_status_cycles(1000); // optimization to consume extra cycles when polling status
 	m_voodoo[0]->set_screen("screen");
 	m_voodoo[0]->set_cpu(m_dsp[0]);
-	m_voodoo[0]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	// m_voodoo[0]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 	m_voodoo[0]->stall_callback().set(m_dsp[0], FUNC(adsp21062_device::write_stall));
 
 	K033906(config, m_k033906[0], 0, m_voodoo[0]);
@@ -1244,6 +1254,8 @@ void hornet_state::hornet(machine_config &config)
 	K037122(config, m_k037122[0], 0);
 	m_k037122[0]->set_screen("screen");
 	m_k037122[0]->set_palette("palette");
+	m_k037122[0]->vblank_callback().set([this](bool c) { if (c) m_maincpu->set_input_line(INPUT_LINE_IRQ0, ASSERT_LINE); });//.set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	m_k037122[0]->irq_cleared_callback().set([this](int irq) { m_maincpu->set_input_line(INPUT_LINE_IRQ0 + irq, CLEAR_LINE); });
 
 	K056800(config, m_k056800, XTAL(16'934'400));
 	m_k056800->int_callback().set_inputline(m_audiocpu, M68K_IRQ_2);
@@ -1320,6 +1332,8 @@ void hornet_state::sscope(machine_config &config)
 	K037122(config, m_k037122[1], 0); // unknown input clock
 	m_k037122[1]->set_screen("rscreen");
 	m_k037122[1]->set_palette("palette");
+	m_k037122[1]->vblank_callback().set([this](bool c) { if (c) m_maincpu->set_input_line(INPUT_LINE_IRQ1, ASSERT_LINE); });//.set_inputline(m_maincpu, INPUT_LINE_IRQ1);
+	m_k037122[1]->irq_cleared_callback().set([this](int irq) { m_maincpu->set_input_line(INPUT_LINE_IRQ0 + irq, CLEAR_LINE); });
 
 	m_voodoo[0]->set_screen("lscreen");
 
@@ -1329,7 +1343,7 @@ void hornet_state::sscope(machine_config &config)
 	m_voodoo[1]->set_status_cycles(1000); // optimization to consume extra cycles when polling status
 	m_voodoo[1]->set_screen("rscreen");
 	m_voodoo[1]->set_cpu(m_dsp[1]);
-	m_voodoo[1]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ1);
+	// m_voodoo[1]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ1);
 	m_voodoo[1]->stall_callback().set(m_dsp[1], FUNC(adsp21062_device::write_stall));
 
 	K033906(config, m_k033906[1], 0, m_voodoo[1]);
@@ -1364,7 +1378,7 @@ void hornet_state::sscope_voodoo2(machine_config& config)
 	m_voodoo[0]->set_status_cycles(1000); // optimization to consume extra cycles when polling status
 	m_voodoo[0]->set_screen("lscreen");
 	m_voodoo[0]->set_cpu(m_dsp[0]);
-	m_voodoo[0]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	// m_voodoo[0]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 	m_voodoo[0]->stall_callback().set(m_dsp[0], FUNC(adsp21062_device::write_stall));
 
 	VOODOO_2(config.replace(), m_voodoo[1], voodoo_2_device::NOMINAL_CLOCK);
@@ -1373,7 +1387,7 @@ void hornet_state::sscope_voodoo2(machine_config& config)
 	m_voodoo[1]->set_status_cycles(1000); // optimization to consume extra cycles when polling status
 	m_voodoo[1]->set_screen("rscreen");
 	m_voodoo[1]->set_cpu(m_dsp[1]);
-	m_voodoo[1]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ1);
+	// m_voodoo[1]->vblank_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ1);
 	m_voodoo[1]->stall_callback().set(m_dsp[1], FUNC(adsp21062_device::write_stall));
 
 	m_k033906[0]->set_pciid(0x0002121a); // PCI Vendor ID (0x121a = 3dfx), Device ID (0x0002 = Voodoo 2)
