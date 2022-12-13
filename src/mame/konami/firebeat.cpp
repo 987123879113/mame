@@ -146,6 +146,7 @@
 #include "bus/midi/midiinport.h"
 #include "bus/midi/midioutport.h"
 #include "bus/rs232/rs232.h"
+#include "bus/rs232/sdb100.h"
 #include "cpu/m68000/m68000.h"
 #include "cpu/powerpc/ppc.h"
 #include "machine/fdc37c665gt.h"
@@ -155,6 +156,7 @@
 #include "midikbd.h"
 #include "machine/rtc65271.h"
 #include "machine/timer.h"
+#include "romload.h"
 #include "sound/cdda.h"
 #include "sound/xt446.h"
 #include "sound/rf5c400.h"
@@ -557,7 +559,10 @@ public:
 	void init_ppp_jp();
 	void init_ppp_overseas();
 
+	uint32_t screen_update_dvd(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+
 private:
+	virtual void machine_start() override;
 	virtual void device_resolve_objects() override;
 
 	void firebeat_ppp_map(address_map &map);
@@ -578,6 +583,10 @@ private:
 	output_finder<> m_cab_led_slim;
 
 	required_ioport_array<4> m_io_sensors;
+
+	bus::rs232::sdb100::toshiba_sdb100_device *sdb100_player;
+	attotime m_dvd_last_update;
+	bitmap_rgb32 m_video_bitmap;
 };
 
 class firebeat_kbm_state : public firebeat_state
@@ -1619,6 +1628,33 @@ void firebeat_popn_state::init_popn_rental()
 /*****************************************************************************
 * ParaParaParadise / ParaParaDancing
 ******************************************************************************/
+void firebeat_ppp_state::machine_start()
+{
+	firebeat_state::machine_start();
+
+	sdb100_player = subdevice<bus::rs232::sdb100::toshiba_sdb100_device>("rs232_dvd:sdb100");
+
+	if (sdb100_player != nullptr) {
+		m_video_bitmap = bitmap_rgb32(720, 480); // PPP video resolution
+		sdb100_player->set_video_surface(&m_video_bitmap);
+	}
+
+	bool found_dvdrom = false;
+	for (device_t const &device : device_enumerator(machine().root_device()))
+	{
+		for (const rom_entry *region = rom_first_region(device); region && !found_dvdrom; region = rom_next_region(region))
+		{
+			for (const rom_entry *rom = rom_first_file(region); rom && !found_dvdrom; rom = rom_next_file(rom))
+			{
+				if (region->name() == "dvdrom") {
+					found_dvdrom = true;
+					sdb100_player->set_data_folder(rom->name().c_str());
+				}
+			}
+		}
+	}
+}
+
 void firebeat_ppp_state::device_resolve_objects()
 {
 	firebeat_state::device_resolve_objects();
@@ -1632,10 +1668,57 @@ void firebeat_ppp_state::device_resolve_objects()
 	m_cab_led_slim.resolve();
 }
 
+uint32_t firebeat_ppp_state::screen_update_dvd(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+	bitmap.fill(0xff000000);
+
+	auto cur_update = machine().scheduler().time();
+	auto elapsed_time = cur_update - m_dvd_last_update;
+	m_dvd_last_update = cur_update;
+
+	if (sdb100_player != nullptr) {
+		sdb100_player->decode_next_frame(elapsed_time.as_double());
+	}
+
+	if (sdb100_player != nullptr)
+	{
+		copybitmap(
+			bitmap,
+			m_video_bitmap,
+			0, 0, 0, 0,
+			rectangle(0, bitmap.width(), 0, bitmap.height())
+		);
+	}
+
+	return 0;
+}
+
 void firebeat_ppp_state::firebeat_ppp(machine_config &config)
 {
 	firebeat(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_ppp_state::firebeat_ppp_map);
+
+	rs232_port_device &rs232_chan1(RS232_PORT(config, "rs232_dvd", 0));
+	rs232_chan1.option_add("sdb100", TOSHIBA_SDB100);
+	rs232_chan1.set_default_option("sdb100");
+
+	auto& duart_chan1(NS16550(config.replace(), "duart_com:chan1", XTAL(19'660'800)));
+	rs232_chan1.rxd_handler().set("duart_com:chan1", FUNC(ins8250_uart_device::rx_w));
+	rs232_chan1.dcd_handler().set("duart_com:chan1", FUNC(ins8250_uart_device::dcd_w));
+	rs232_chan1.dsr_handler().set("duart_com:chan1", FUNC(ins8250_uart_device::dsr_w));
+	rs232_chan1.ri_handler().set("duart_com:chan1", FUNC(ins8250_uart_device::ri_w));
+	rs232_chan1.cts_handler().set("duart_com:chan1", FUNC(ins8250_uart_device::cts_w));
+	duart_chan1.out_tx_callback().set(rs232_chan1, FUNC(rs232_port_device::write_txd));
+	duart_chan1.out_dtr_callback().set(rs232_chan1, FUNC(rs232_port_device::write_dtr));
+	duart_chan1.out_rts_callback().set(rs232_chan1, FUNC(rs232_port_device::write_rts));
+	duart_chan1.out_int_callback().set(FUNC(firebeat_ppp_state::comm_uart_interrupt));
+
+	screen_device &screen_dvd(SCREEN(config, "screen_dvd", SCREEN_TYPE_RASTER));
+	screen_dvd.set_screen_update(FUNC(firebeat_ppp_state::screen_update_dvd));
+	screen_dvd.set_refresh_hz(58.487507); // to match main monitor
+	screen_dvd.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	screen_dvd.set_size(720, 480);
+	screen_dvd.set_visarea(0, 720-1, 0, 480-1);
 }
 
 void firebeat_ppp_state::init_ppp_base()
@@ -2329,6 +2412,9 @@ ROM_START( ppp )
 
 	DISK_REGION( "ata:1:cdrom" ) // audio CD-ROM
 	DISK_IMAGE_READONLY( "977jaa02", 0, SHA1(bd07c25ee3e1edc962997f6a5bb1700897231fb2) )
+
+	DISK_REGION( "dvdrom" ) // video DVD-ROM
+	DISK_IMAGE_READONLY( "ppp_dvdrom", 0, NO_DUMP )
 ROM_END
 
 ROM_START( ppp1mp )
@@ -2343,6 +2429,9 @@ ROM_START( ppp1mp )
 
 	DISK_REGION( "ata:1:cdrom" ) // audio CD-ROM
 	DISK_IMAGE_READONLY( "a11jaa02", 0, SHA1(575069570cb4a2b58b199a1329d45b189a20fcc9) )
+
+	DISK_REGION( "dvdrom" ) // video DVD-ROM
+	DISK_IMAGE_READONLY( "ppp1mp_dvdrom", 0, NO_DUMP )
 ROM_END
 
 ROM_START( ppd )
@@ -2357,6 +2446,9 @@ ROM_START( ppd )
 
 	DISK_REGION( "ata:1:cdrom" ) // audio CD-ROM
 	DISK_IMAGE_READONLY( "977kaa02", 1, SHA1(0feb5ac56269ad4a8401fcfe3bb98b01a0169177) )
+
+	DISK_REGION( "dvdrom" ) // video DVD-ROM
+	DISK_IMAGE_READONLY( "ppd_dvdrom", 0, NO_DUMP )
 ROM_END
 
 ROM_START( ppp11 )
@@ -2371,6 +2463,9 @@ ROM_START( ppp11 )
 
 	DISK_REGION( "ata:1:cdrom" ) // audio CD-ROM
 	DISK_IMAGE_READONLY( "gc977jaa02", 1, SHA1(74ce8c90575fd562807def7d561392d0f91f2bc6) )
+
+	DISK_REGION( "dvdrom" ) // video DVD-ROM
+	DISK_IMAGE_READONLY( "ppp11_dvdrom", 0, NO_DUMP )
 ROM_END
 
 ROM_START( kbm )

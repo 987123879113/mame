@@ -1,37 +1,31 @@
 // license:BSD-3-Clause
-// copyright-holders:smf
-#ifndef MAME_BUS_RS232_XVD701_H
-#define MAME_BUS_RS232_XVD701_H
+// copyright-holders:windyfairy
+#ifndef MAME_BUS_RS232_SDB100_H
+#define MAME_BUS_RS232_SDB100_H
 
 #include "diserial.h"
 #include "rs232.h"
 #include "screen.h"
 
-namespace bus::rs232::xvd701
+namespace bus::rs232::sdb100
 {
 
 #undef PL_MPEG_H
 #include "pl_mpeg/pl_mpeg.h"
 
-class jvc_xvd701_device : public device_t,
+class toshiba_sdb100_device : public device_t,
 		public device_serial_interface,
 		public device_rs232_port_interface
 {
 public:
-	enum jvc_xvd701_media_type : uint32_t
-	{
-		JVC_MEDIA_VCD = 0,
-		JVC_MEDIA_DVD = 1,
-	};
-
-	enum jvc_xvd701_playback_status : uint32_t
+	enum toshiba_sdb100_playback_status : uint32_t
 	{
 		STATUS_STOP = 0,
 		STATUS_PLAYING = 1,
 		STATUS_PAUSE = 2,
 	};
 
-	jvc_xvd701_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	toshiba_sdb100_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
 	virtual WRITE_LINE_MEMBER( input_txd ) override { device_serial_interface::rx_w(state); }
 
@@ -43,11 +37,6 @@ public:
 	void set_data_folder(const char *data_folder)
 	{
 		m_data_folder = data_folder;
-	}
-
-	void set_media_type(const jvc_xvd701_media_type media_type)
-	{
-		m_media_type = media_type;
 	}
 
 	void decode_next_frame(double elapsed_time);
@@ -70,36 +59,25 @@ protected:
 private:
 	TIMER_CALLBACK_MEMBER(send_response);
 
-	unsigned char sum(unsigned char *buffer, int length);
-	void create_packet(unsigned char status, const unsigned char response[6]);
-
-	bool seek_chapter(int chapter);
-
-	jvc_xvd701_media_type m_media_type;
+	bool seek_chapter(int title, int chapter);
 
 	unsigned char m_command[11];
-	unsigned char m_response[11];
+	int m_command_len;
+
+	unsigned char m_response[2];
 	int m_response_index;
 	emu_timer *m_timer_response;
 
-	jvc_xvd701_playback_status m_playback_status;
+	toshiba_sdb100_playback_status m_playback_status;
 
-	unsigned char m_jlip_id;
 	bool m_is_powered;
 
-	int m_chapter;
+	int m_title, m_chapter;
 	double m_wait_timer;
-
-	enum : unsigned char {
-		STATUS_UNKNOWN_COMMAND = 1,
-		STATUS_OK = 3,
-		STATUS_ERROR = 5,
-	};
-	const unsigned char NO_RESPONSE[6] = { 0 };
 };
 
 }
 
-DECLARE_DEVICE_TYPE_NS(JVC_XVD701, bus::rs232::xvd701, jvc_xvd701_device)
+DECLARE_DEVICE_TYPE_NS(TOSHIBA_SDB100, bus::rs232::sdb100, toshiba_sdb100_device)
 
-#endif // MAME_BUS_RS232_XVD701_H
+#endif // MAME_BUS_RS232_SDB100_H

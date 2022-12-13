@@ -384,7 +384,7 @@ private:
 	double m_videomixer_hue;
 	attotime m_videomixer_last_update;
 
-	jvc_xvd701_device *xvd701_player;
+	bus::rs232::xvd701::jvc_xvd701_device *xvd701_player;
 	bool is_dvd_media;
 
 	static void cdrom_config(device_t *device);
@@ -590,10 +590,10 @@ void twinkle_state::machine_start()
 
 	m_dma_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(twinkle_state::spu_dma_callback), this));
 
-	xvd701_player = subdevice<jvc_xvd701_device>("rs232_dvd:xvd701");
+	xvd701_player = subdevice<bus::rs232::xvd701::jvc_xvd701_device>("rs232_dvd:xvd701");
 
 	xvd701_player->set_media_type(
-		is_dvd_media ? jvc_xvd701_device::JVC_MEDIA_DVD : jvc_xvd701_device::JVC_MEDIA_VCD
+		is_dvd_media ? bus::rs232::xvd701::jvc_xvd701_device::JVC_MEDIA_DVD : bus::rs232::xvd701::jvc_xvd701_device::JVC_MEDIA_VCD
 	);
 
 	if (xvd701_player != nullptr) {

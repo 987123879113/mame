@@ -4,7 +4,6 @@
 #include "emu.h"
 #include "rendutil.h"
 
-#define PL_MPEG_IMPLEMENTATION
 #include "xvd701.h"
 
 #define LOG_COMMAND    (1 << 1)
@@ -15,6 +14,12 @@
 
 #define LOGCMD(...)    LOGMASKED(LOG_COMMAND, __VA_ARGS__)
 
+
+namespace bus::rs232::xvd701
+{
+
+#define PL_MPEG_IMPLEMENTATION
+#include "pl_mpeg/pl_mpeg.h"
 
 void app_on_video(plm_t *mpeg, plm_frame_t *frame, void *user)
 {
@@ -383,4 +388,6 @@ void jvc_xvd701_device::rcv_complete()
 	}
 }
 
-DEFINE_DEVICE_TYPE(JVC_XVD701, jvc_xvd701_device, "xvd701", "JVC XV-D701")
+}
+
+DEFINE_DEVICE_TYPE(JVC_XVD701, bus::rs232::xvd701::jvc_xvd701_device, "xvd701", "JVC XV-D701")
