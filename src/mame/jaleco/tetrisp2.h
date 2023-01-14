@@ -221,6 +221,9 @@ public:
 		, m_soundvr(*this, "SOUND_VR%u", 1)
 		, m_qtaro(*this, ":jaleco_vj_pc:pci:08.0:qtaro%u", 1)
 		, m_soundisa(*this, ":jaleco_vj_pc:isa1:jaleco_vj_sound")
+		, m_spriteram1_data(nullptr)
+		, m_spriteram2_data(nullptr)
+		, m_spriteram3_data(nullptr)
 	{ }
 
 	virtual void machine_reset() override;
@@ -239,7 +242,7 @@ private:
 	bool vj_upload_fini = false;
 	void stepstag_b00000_w(u16 data);
 	void stepstag_b20000_w(offs_t offset, u16 data, u16 mem_mask = ~0);
-	u16 unknown_read_0xc00000();
+	u16 stepstag_sprite_status_status_r();
 	u16 unknown_read_0xffff00();
 	void stepstag_soundlatch_word_w(u16 data);
 	void stepstag_neon_w(offs_t offset, u16 data, u16 mem_mask = ~0);
@@ -249,14 +252,17 @@ private:
 	void stepstag_palette_mid_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	void stepstag_palette_right_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 
+	void stepstag_spriteram1_updated_w(u16 data);
+	void stepstag_spriteram2_updated_w(u16 data);
+	void stepstag_spriteram3_updated_w(u16 data);
+
 	u16 stepstag_soundvolume_r();
 
 	u32 screen_update_stepstag_left(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	u32 screen_update_stepstag_mid(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	u32 screen_update_stepstag_right(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
-	u32 screen_update_vjdash_main(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-//  inline int mypal(int x);
 
+	u32 screen_update_vjdash_main(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	u32 screen_update_vjdash_left(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	u32 screen_update_vjdash_mid(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	u32 screen_update_vjdash_right(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -287,5 +293,10 @@ private:
 	optional_ioport_array<2> m_soundvr;
 	required_device_array<jaleco_vj_qtaro_device, 3> m_qtaro;
 	required_device<jaleco_vj_isa16_sound_device> m_soundisa;
+
+	std::unique_ptr<uint16_t[]> m_spriteram1_data;
+	std::unique_ptr<uint16_t[]> m_spriteram2_data;
+	std::unique_ptr<uint16_t[]> m_spriteram3_data;
+
 	void convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram,u32 offset);
 };

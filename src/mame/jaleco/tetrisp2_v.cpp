@@ -169,10 +169,11 @@ void tetrisp2_state::tetrisp2_vram_fg_w(offs_t offset, u16 data, u16 mem_mask)
 	// Maybe it's possible that a write with mem_mask of 0x00ff should result in something like
 	// m_vram_fg[offset] = BIT(data, 0, 8) << 8 instead of handling it also like a
 	// normal 8-bit value.
-	if (mem_mask == 0xff00)
-		m_vram_fg[offset] = BIT(data, 8, 8);
-	else
+	if (ACCESSING_BITS_0_7)
 		m_vram_fg[offset] = data;
+	else
+		m_vram_fg[offset] = data >> 8;
+
 	m_tilemap_fg->mark_tile_dirty(offset/2);
 }
 
@@ -368,14 +369,18 @@ static void tetrisp2_draw_sprites(BitmapClass &bitmap, bitmap_ind8 &bitmap_pri, 
 
 		{
 			u32 primask = 0;
-			if (priority_ram[(pri | 0x0a00 | 0x1500) / 2] & 0x38) primask |= 1 << 0;
-			if (priority_ram[(pri | 0x0a00 | 0x1400) / 2] & 0x38) primask |= 1 << 1;
-			if (priority_ram[(pri | 0x0a00 | 0x1100) / 2] & 0x38) primask |= 1 << 2;
-			if (priority_ram[(pri | 0x0a00 | 0x1000) / 2] & 0x38) primask |= 1 << 3;
-			if (priority_ram[(pri | 0x0a00 | 0x0500) / 2] & 0x38) primask |= 1 << 4;
-			if (priority_ram[(pri | 0x0a00 | 0x0400) / 2] & 0x38) primask |= 1 << 5;
-			if (priority_ram[(pri | 0x0a00 | 0x0100) / 2] & 0x38) primask |= 1 << 6;
-			if (priority_ram[(pri | 0x0a00 | 0x0000) / 2] & 0x38) primask |= 1 << 7;
+
+			if (priority_ram)
+			{
+				if (priority_ram[(pri | 0x0a00 | 0x1500) / 2] & 0x38) primask |= 1 << 0;
+				if (priority_ram[(pri | 0x0a00 | 0x1400) / 2] & 0x38) primask |= 1 << 1;
+				if (priority_ram[(pri | 0x0a00 | 0x1100) / 2] & 0x38) primask |= 1 << 2;
+				if (priority_ram[(pri | 0x0a00 | 0x1000) / 2] & 0x38) primask |= 1 << 3;
+				if (priority_ram[(pri | 0x0a00 | 0x0500) / 2] & 0x38) primask |= 1 << 4;
+				if (priority_ram[(pri | 0x0a00 | 0x0400) / 2] & 0x38) primask |= 1 << 5;
+				if (priority_ram[(pri | 0x0a00 | 0x0100) / 2] & 0x38) primask |= 1 << 6;
+				if (priority_ram[(pri | 0x0a00 | 0x0000) / 2] & 0x38) primask |= 1 << 7;
+			}
 
 			chip->prio_zoom_transpen(bitmap,cliprect,
 					code,
@@ -673,8 +678,8 @@ u32 stepstag_state::screen_update_stepstag_left(screen_device &screen, bitmap_rg
 	screen.priority().fill(0);
 
 	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, m_priority.get(),
-			m_spriteram1, m_spriteram1.bytes(), m_vj_sprite_l);
+			bitmap, screen.priority(), cliprect, nullptr,
+			m_spriteram1_data.get(), 0x400, m_vj_sprite_l);
 
 	m_qtaro[0]->render_video_frame(bitmap);
 
@@ -687,8 +692,8 @@ u32 stepstag_state::screen_update_stepstag_mid(screen_device &screen, bitmap_rgb
 	screen.priority().fill(0);
 
 	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, m_priority.get(),
-			m_spriteram2, m_spriteram2.bytes(), m_vj_sprite_m);
+			bitmap, screen.priority(), cliprect, nullptr,
+			m_spriteram2_data.get(), 0x400, m_vj_sprite_m);
 
 	m_qtaro[1]->render_video_frame(bitmap);
 
@@ -752,8 +757,8 @@ u32 stepstag_state::screen_update_stepstag_right(screen_device &screen, bitmap_r
 	screen.priority().fill(0);
 
 	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, m_priority.get(),
-			m_spriteram3, m_spriteram3.bytes(), m_vj_sprite_r);
+			bitmap, screen.priority(), cliprect, nullptr,
+			m_spriteram3_data.get(), 0x400, m_vj_sprite_r);
 
 	m_qtaro[2]->render_video_frame(bitmap);
 
@@ -764,13 +769,14 @@ u32 stepstag_state::screen_update_stepstag_right(screen_device &screen, bitmap_r
 // Convert them on the fly
 void stepstag_state::convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram, u32 offset)
 {
-	u8 u = palram[offset/4*4+0] & 0xff;
-	u8 y = palram[offset/4*4+1] & 0xff;
-	u8 v = palram[offset/4*4+2] & 0xff;
+	u8 u =  palram[offset/4*4+0] & 0xff;
+	u8 y1 = palram[offset/4*4+1] & 0xff;
+	u8 v =  palram[offset/4*4+2] & 0xff;
+	//u8 y2 = palram[offset/4*4+3] & 0xff;
 
-	double bf = y+1.772*(u - 128);
-	double gf = y-0.334*(u - 128) - 0.714 * (v - 128);
-	double rf = y+1.402*(v - 128);
+	double bf = y1+1.772*(u - 128);
+	double gf = y1-0.334*(u - 128) - 0.714 * (v - 128);
+	double rf = y1+1.402*(v - 128);
 	// clamp to 0-255 range
 	rf = std::min(rf,255.0);
 	rf = std::max(rf,0.0);
@@ -870,8 +876,8 @@ u32 stepstag_state::screen_update_vjdash_left(screen_device &screen, bitmap_rgb3
 	screen.priority().fill(0);
 
 	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, m_priority.get(),
-			m_spriteram1, m_spriteram1.bytes(), m_vj_sprite_l);
+			bitmap, screen.priority(), cliprect, nullptr,
+			m_spriteram1_data.get(), 0x400, m_vj_sprite_l);
 
 	m_qtaro[0]->render_video_frame(bitmap);
 
@@ -884,8 +890,8 @@ u32 stepstag_state::screen_update_vjdash_mid(screen_device &screen, bitmap_rgb32
 	screen.priority().fill(0);
 
 	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, m_priority.get(),
-			m_spriteram2, m_spriteram2.bytes(), m_vj_sprite_m);
+			bitmap, screen.priority(), cliprect, nullptr,
+			m_spriteram2_data.get(), 0x400, m_vj_sprite_m);
 
 	m_qtaro[1]->render_video_frame(bitmap);
 
@@ -898,8 +904,8 @@ u32 stepstag_state::screen_update_vjdash_right(screen_device &screen, bitmap_rgb
 	screen.priority().fill(0);
 
 	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, m_priority.get(),
-			m_spriteram3, m_spriteram3.bytes(), m_vj_sprite_r);
+			bitmap, screen.priority(), cliprect, nullptr,
+			m_spriteram3_data.get(), 0x400, m_vj_sprite_r);
 
 	m_qtaro[2]->render_video_frame(bitmap);
 

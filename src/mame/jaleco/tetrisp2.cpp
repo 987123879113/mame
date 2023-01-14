@@ -524,9 +524,9 @@ void stepstag_state::stepstag_b00000_w(u16 data)
 	vj_upload_fini = false;
 }
 
-u16 stepstag_state::unknown_read_0xc00000()
+u16 stepstag_state::stepstag_sprite_status_status_r()
 {
-	return machine().rand();    // 3
+	return 3; // sprite chips on subboard are ready
 }
 
 u16 stepstag_state::unknown_read_0xffff00()
@@ -602,6 +602,38 @@ void stepstag_state::stepstag_button_leds_w(offs_t offset, u16 data, u16 mem_mas
 	}
 }
 
+void stepstag_state::stepstag_spriteram1_updated_w(u16 data)
+{
+	// There's a timing issue with updating the spriteram buffers if the sprite buffers are used in place when
+	// updating the screen because the data can be partially overwritten (cleared or updating) when a screen update
+	// is performed before IRQ4 finishes.
+	//
+	// All 3 spriteram buffers get updated at the same time so I don't believe IRQ4 updates are directly linked to any
+	// individual monitor. So there is probably another mechanism for triggering IRQ4 as noted in the field_cb timer callback.
+	//
+	// 0x880000/0x980000/0xa80000 is written to (always just 0) every time the update for that monitor is finished pushing to RAM,
+	// so I think the intended method is for those registers to be used to signal that the sprite RAM is updated and/or to copy
+	// the data elsewhere for rendering until the next sprite buffer update is pushed.
+	//
+	// The difference between the way the main PCB handles sprites vs the subboard PCB handles sprites is probably
+	// because they used 3 FPGAs (+ a smaller core FPGA to tie them together?) for sprite rendering instead of the
+	// Jaleco branded chips as seen on the main PCB.
+	for (int i = 0; i < 0x400; i++)
+		m_spriteram1_data[i] = m_spriteram1[i];
+}
+
+void stepstag_state::stepstag_spriteram2_updated_w(u16 data)
+{
+	for (int i = 0; i < 0x400; i++)
+		m_spriteram2_data[i] = m_spriteram2[i];
+}
+
+void stepstag_state::stepstag_spriteram3_updated_w(u16 data)
+{
+	for (int i = 0; i < 0x400; i++)
+		m_spriteram3_data[i] = m_spriteram3[i];
+}
+
 // Main CPU
 void stepstag_state::stepstag_map(address_map &map)
 {
@@ -649,11 +681,8 @@ void stepstag_state::stepstag_sub_map(address_map &map)
 	map(0x000000, 0x0fffff).rom();
 	map(0x200000, 0x20ffff).ram();
 
-	// scrambled palettes?
 	map(0x300000, 0x33ffff).ram().w(FUNC(stepstag_state::stepstag_palette_left_w)).share("paletteram1");
-
 	map(0x400000, 0x43ffff).ram().w(FUNC(stepstag_state::stepstag_palette_mid_w)).share("paletteram2");
-
 	map(0x500000, 0x53ffff).ram().w(FUNC(stepstag_state::stepstag_palette_right_w)).share("paletteram3");
 
 	map(0x700000, 0x700001).w(":jaleco_vj_pc:pci:08.0:qtaro1", FUNC(jaleco_vj_qtaro_device::mix_w));
@@ -662,21 +691,21 @@ void stepstag_state::stepstag_sub_map(address_map &map)
 	map(0x700006, 0x700007).w(":jaleco_vj_pc:pci:08.0", FUNC(jaleco_vj_king_qtaro_device::video_control_w));
 
 	// left screen sprites
-	map(0x800000, 0x803fff).ram().share("spriteram1");      // Object RAM
-	map(0x804000, 0x87ffff).ram();
-	map(0x880000, 0x880001).nopw(); // cleared after writing this sprite list
+	map(0x800000, 0x8007ff).ram().share("spriteram1");      // Object RAM
+	map(0x800800, 0x87ffff).ram();
+	map(0x880000, 0x880001).w(FUNC(stepstag_state::stepstag_spriteram1_updated_w));
 //  map(0x8c0000, 0x8c0001).nopw(); // cleared at boot
 
 	// middle screen sprites
-	map(0x900000, 0x903fff).ram().share("spriteram2");      // Object RAM
-	map(0x904000, 0x97ffff).ram();
-	map(0x980000, 0x980001).nopw(); // cleared after writing this sprite list
+	map(0x900000, 0x9007ff).ram().share("spriteram2");      // Object RAM
+	map(0x900800, 0x97ffff).ram();
+	map(0x980000, 0x980001).w(FUNC(stepstag_state::stepstag_spriteram2_updated_w));
 //  map(0x9c0000, 0x9c0001).nopw(); // cleared at boot
 
 	// right screen sprites
-	map(0xa00000, 0xa03fff).ram().share("spriteram3");      // Object RAM
-	map(0xa04000, 0xa7ffff).ram();
-	map(0xa80000, 0xa80001).nopw(); // cleared after writing this sprite list
+	map(0xa00000, 0xa007ff).ram().share("spriteram3");      // Object RAM
+	map(0xa00800, 0xa7ffff).ram();
+	map(0xa80000, 0xa80001).w(FUNC(stepstag_state::stepstag_spriteram3_updated_w));
 //  map(0xac0000, 0xac0001).nopw(); // cleared at boot
 
 	// The code for PC comms fully exists but it doesn't appear to ever be called
@@ -686,7 +715,11 @@ void stepstag_state::stepstag_sub_map(address_map &map)
 
 	map(0xb00000, 0xb00001).rw(m_soundlatch, FUNC(generic_latch_16_device::read), FUNC(generic_latch_16_device::write));
 
-	map(0xc00000, 0xc00001).r(FUNC(stepstag_state::unknown_read_0xc00000)).nopw(); //??
+	// A write here likely locks the sprite RAM buffers for batch updating.
+	// Stepping Stage and VJ both will set this register to 1, clear 0x800000-0x880000
+	// and also the ranges for spriteram2 and spriteram3, then set this register back to 0.
+	map(0xc00000, 0xc00001).r(FUNC(stepstag_state::stepstag_sprite_status_status_r)).nopw();
+
 	map(0xd00000, 0xd00001).nopr(); // watchdog
 	map(0xf00000, 0xf00001).nopw(); //??
 	map(0xffff00, 0xffff01).r(FUNC(stepstag_state::unknown_read_0xffff00));
@@ -1465,11 +1498,19 @@ void tetrisp2_state::init_rockn3()
 
 void stepstag_state::init_stepstag()
 {
+	init_vj();
 	m_soundisa->set_steppingstage_mode(true);
 }
 
 void stepstag_state::init_vj()
 {
+	m_spriteram1_data = std::make_unique<uint16_t[]>(0x400);
+	m_spriteram2_data = std::make_unique<uint16_t[]>(0x400);
+	m_spriteram3_data = std::make_unique<uint16_t[]>(0x400);
+
+	save_pointer(NAME(m_spriteram1_data), 0x400);
+	save_pointer(NAME(m_spriteram2_data), 0x400);
+	save_pointer(NAME(m_spriteram3_data), 0x400);
 }
 
 WRITE_LINE_MEMBER(tetrisp2_state::field_irq_w)

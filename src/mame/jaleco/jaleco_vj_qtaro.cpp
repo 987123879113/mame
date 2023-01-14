@@ -254,7 +254,7 @@ void jaleco_vj_qtaro_device::update_frame(double elapsed_time)
 
 void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base)
 {
-    if (!m_raw_video || !m_video_decode_enabled || m_mix_level >= 15)
+    if (!m_raw_video || m_mix_level >= 15)
         return;
 
     assert(base.width() == m_frame_width);
@@ -285,9 +285,10 @@ void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base)
         for (int x = 0; x < m_frame_width; x++) {
             int offs = (x + (y * m_frame_width)) * 4;
             auto p = &base.pix(y, x);
-            uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * overlay_blend);
-            uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * overlay_blend);
-            uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * overlay_blend);
+            auto a = BIT(*p, 24, 8) / 255.0;
+            uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * overlay_blend * a);
+            uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * overlay_blend * a);
+            uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * overlay_blend * a);
             *p = 0xff000000 | (b << 16) | (g << 8) | r;
         }
     }
