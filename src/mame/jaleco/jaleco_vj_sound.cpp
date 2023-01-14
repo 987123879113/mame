@@ -257,20 +257,20 @@ void jaleco_vj_isa16_sound_device::ymz280b_map2(address_map &map)
 
 void jaleco_vj_isa16_sound_device::io_map(address_map &map)
 {
-    map(0x0000, 0x0001).r(FUNC(jaleco_vj_isa16_sound_device::comm_r));
-    map(0x0002, 0x0002).r(FUNC(jaleco_vj_isa16_sound_device::unk2_r));
-    map(0x0004, 0x0005).r(FUNC(jaleco_vj_isa16_sound_device::buffer_status_r));
-    map(0x0005, 0x0006).w(FUNC(jaleco_vj_isa16_sound_device::response_w));
-    map(0x0008, 0x0009).rw(FUNC(jaleco_vj_isa16_sound_device::target_buffer_r), FUNC(jaleco_vj_isa16_sound_device::target_buffer_w));
-    map(0x000a, 0x000b).w(FUNC(jaleco_vj_isa16_sound_device::sound_data_w));
-    map(0x000c, 0x000d).r(FUNC(jaleco_vj_isa16_sound_device::unkc_r));
-    map(0x000e, 0x000f).r(FUNC(jaleco_vj_isa16_sound_device::unke_r));
+    map(0x00, 0x01).r(FUNC(jaleco_vj_isa16_sound_device::comm_r));
+    map(0x02, 0x02).r(FUNC(jaleco_vj_isa16_sound_device::unk2_r));
+    map(0x04, 0x05).r(FUNC(jaleco_vj_isa16_sound_device::buffer_status_r));
+    map(0x05, 0x06).w(FUNC(jaleco_vj_isa16_sound_device::response_w));
+    map(0x08, 0x09).rw(FUNC(jaleco_vj_isa16_sound_device::target_buffer_r), FUNC(jaleco_vj_isa16_sound_device::target_buffer_w));
+    map(0x0a, 0x0b).w(FUNC(jaleco_vj_isa16_sound_device::sound_data_w));
+    map(0x0c, 0x0d).r(FUNC(jaleco_vj_isa16_sound_device::unkc_r));
+    map(0x0e, 0x0f).r(FUNC(jaleco_vj_isa16_sound_device::unke_r));
 }
 
 void jaleco_vj_isa16_sound_device::remap(int space_id, offs_t start, offs_t end)
 {
     if (space_id == AS_IO) {
-        m_isa->install_device(0x0300, 0x030f, *this, &jaleco_vj_isa16_sound_device::io_map);
+        m_isa->install_device(0x300, 0x30f, *this, &jaleco_vj_isa16_sound_device::io_map);
     }
 }
 

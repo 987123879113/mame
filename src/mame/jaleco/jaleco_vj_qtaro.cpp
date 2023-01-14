@@ -83,7 +83,7 @@ FLEX     - Altera FLEX EPF10K30AQC240-3 DBA439849
 D4516161 - NEC uPD4516161AG5-A80 512K x 16-bit x 2-banks (16MBit) SDRAM (SSOP50)
 U1, U2   - LVX244
 
-Communication with ADV7176AKS for one of these cables but it's hard to tell which (maybe CN3?).
+Communication with ADV7176AKS using one of these cables but it's hard to tell which (maybe CN3 based on traces?).
 CN3 - 40 pin connector (video output, connects to VJ-98342, sprites)
 CN4 - 40 pin connector (video output, connects to VJ-98342, decoded video stream)
 
@@ -276,6 +276,7 @@ void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base)
         return;
     }
 
+    // TODO: Stepping stage sets the mix level to 15 even when it's supposed to be playing videos
     // When a song ends and the video fades the black, the level goes from 0 to 15
     const double overlay_blend = m_mix_level / 15.0;
     const double movie_blend = 1.0 - overlay_blend;
@@ -287,13 +288,12 @@ void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base)
             uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * overlay_blend);
             uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * overlay_blend);
             uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * overlay_blend);
-            *p = (*p & 0xff000000) | (b << 16) | (g << 8) | r;
+            *p = 0xff000000 | (b << 16) | (g << 8) | r;
         }
     }
 }
 
 DEFINE_DEVICE_TYPE(JALECO_VJ_QTARO, jaleco_vj_qtaro_device, "jaleco_vj_qtaro", "Jaleco VJ Qtaro Subboard")
-
 
 /////////////////////////////////////////////
 

@@ -7,6 +7,8 @@
 #include "emupal.h"
 #include "tilemap.h"
 #include "jaleco_vj_pc.h"
+#include "jaleco_vj_qtaro.h"
+#include "jaleco_vj_sound.h"
 
 class tetrisp2_state : public driver_device
 {
@@ -217,6 +219,8 @@ public:
 		, m_soundlatch(*this, "soundlatch")
 		, m_jaleco_vj_pc(*this, "jaleco_vj_pc")
 		, m_soundvr(*this, "SOUND_VR%u", 1)
+		, m_qtaro(*this, ":jaleco_vj_pc:pci:08.0:qtaro%u", 1)
+		, m_soundisa(*this, ":jaleco_vj_pc:isa1:jaleco_vj_sound")
 	{ }
 
 	virtual void machine_reset() override;
@@ -224,6 +228,7 @@ public:
 	void stepstag(machine_config &config);
 	void vjdash(machine_config &config);
 
+	void init_vj();
 	void init_stepstag();
 
 	DECLARE_VIDEO_START(stepstag);
@@ -280,5 +285,7 @@ private:
 	required_device<generic_latch_16_device> m_soundlatch;
 	required_device<jaleco_vj_pc_device> m_jaleco_vj_pc;
 	optional_ioport_array<2> m_soundvr;
+	required_device_array<jaleco_vj_qtaro_device, 3> m_qtaro;
+	required_device<jaleco_vj_isa16_sound_device> m_soundisa;
 	void convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram,u32 offset);
 };

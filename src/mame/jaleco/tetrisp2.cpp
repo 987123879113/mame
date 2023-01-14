@@ -1465,8 +1465,11 @@ void tetrisp2_state::init_rockn3()
 
 void stepstag_state::init_stepstag()
 {
-	init_rockn_timer();        // used
-	m_rockn_protectdata = 1;    // unused?
+	m_soundisa->set_steppingstage_mode(true);
+}
+
+void stepstag_state::init_vj()
+{
 }
 
 WRITE_LINE_MEMBER(tetrisp2_state::field_irq_w)
@@ -2641,43 +2644,44 @@ ROM_END
     JALECO VJ-98342
     98053 EB-00-20122-0
     MADE IN JAPAN
-	---------------------
- 	TODO: Document PCB
+    ---------------------
+    TODO: Document PCB
 
 
-	JALECO VJ-98346
-	98053 EB-00-20123-0
-	MADE IN JAPAN
-	4CH AMP (x2)
-	---------------------
-	------------------------------------------
-	|                    ?                   |
-	|                                        |
-	|    IC     IC     IC            FUSE    |
-	|                                        |
-	| P1 P2 P3 P4 CN1 CN2 CN3 CN4    CN5     |
-	------------------------------------------
+    JALECO VJ-98346
+    98053 EB-00-20123-0
+    MADE IN JAPAN
+    4CH AMP (x2)
+    ---------------------
+    ------------------------------------------
+    |                    ?                   |
+    |                                        |
+    |    IC     IC     IC            FUSE    |
+    |                                        |
+    | P1 P2 P3 P4 CN1 CN2 CN3 CN4    CN5     |
+    ------------------------------------------
 
-	P1, P2, P3, P4 - Small screwing potentiometers
-	CN1 - Audio signal input
-	CN2, CN3 - Unpopulated, 3 pads in a triangle formation.
-			   One of the PCBs is completely unused but the other uses resistors to bridge the pads.
-			   TODO: Verify if resistors are a quirk for this specific machine or not.
-	CN4 - Audio signal output
-	CN5 - Power input
-	ICs - SOIC8 (TODO: verify what chip this is)
+    P1, P2, P3, P4 - Small screwing potentiometers
+    CN1 - Audio signal input
+    CN2, CN3 - Unpopulated, 3 pads in a triangle formation.
+                One of the PCBs is completely unused but the other uses resistors to bridge the pads.
+                TODO: Verify if resistors are a quirk for this specific machine or not.
+    CN4 - Audio signal output
+    CN5 - Power input
+    ICs - SOIC8 (TODO: verify what chip this is)
 
 
     JALECO VJ-98348
     98053 EB-00-20126-0
     MADE IN JAPAN
-	---------------------
-	TMP68HC000P-12
-	3x Analog Devices ADV7176AKS video encoder
-	6x 40-pin connectors for Qtaro device (2 cables per Qtaro board)
-	3x 5-pin headers (R, G, B, black, white wires connected to each header)
+    ---------------------
+    TMP68HC000P-12
+    3x Analog Devices ADV7176AKS video encoder
+    6x 40-pin connectors for Qtaro device (2 cables per Qtaro board)
+    3x 5-pin headers (R, G, B, black, white wires connected to each header)
 
-  40-pin IDC ribbon cable connects main board to sub board and then sub board to PC (via the ISA card), chained using same cable
+    40-pin IDC ribbon cable connects main board to sub board and then sub board to PC (via the ISA card), chained using same cable
+
 ***************************************************************************/
 
 ROM_START( vjslap )
@@ -2996,12 +3000,14 @@ GAME( 1999, rocknms,   0,        rocknms,  rocknms,   rocknms_state,  init_rockn
 GAME( 1999, rockn3,    0,        rockn2,   rockn,     tetrisp2_state, init_rockn3,  ROT270, "Jaleco",         "Rock'n 3 (Japan)",                MACHINE_SUPPORTS_SAVE )
 GAME( 2000, rockn4,    0,        rockn2,   rockn,     tetrisp2_state, init_rockn3,  ROT270, "Jaleco / PCCWJ", "Rock'n 4 (Japan, prototype)",     MACHINE_SUPPORTS_SAVE )
 
+// vjdasha is an incomplete dump of what it claims to be is a Ver 1.2 revision of VJ Dash
+GAME( 1999, vjslap,    0,        vjdash,   vjdash,    stepstag_state, init_vj,      ROT0,   "Jaleco",         "VJ: Visual & Music Slap", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, vjdash,    vjslap,   vjdash,   vjdash,    stepstag_state, init_vj,      ROT0,   "Jaleco",         "VJ Dash",                 MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1999, vjdasha,   vjslap,   vjdash,   vjdash,    stepstag_state, init_vj,      ROT0,   "Jaleco",         "VJ Dash (Ver 1.2)",       MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+
 // Undumped:
 // - Stepping Stage <- the original Game
 // - Stepping Stage 2 Supreme
 // Dumped (partially):
-GAME( 1999, vjslap,    0,        vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ: Visual & Music Slap", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
-GAME( 1999, vjdash,    vjslap,   vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Dash",                 MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
-GAME( 1999, vjdasha,   vjslap,   vjdash,   vjdash,    stepstag_state, init_stepstag, ROT0,   "Jaleco",         "VJ Dash (Ver 1.2)",       MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
 GAME( 1999, stepstag,  0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping Stage Special",  MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
 GAME( 1999, step3,     0,        stepstag, stepstag,  stepstag_state, init_stepstag, ROT0,   "Jaleco",         "Stepping 3 Superior",     MACHINE_NO_SOUND | MACHINE_NOT_WORKING)

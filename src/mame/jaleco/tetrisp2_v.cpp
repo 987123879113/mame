@@ -676,9 +676,7 @@ u32 stepstag_state::screen_update_stepstag_left(screen_device &screen, bitmap_rg
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram1, m_spriteram1.bytes(), m_vj_sprite_l);
 
-	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro1");
-	if (player != nullptr)
-		player->render_video_frame(bitmap);
+	m_qtaro[0]->render_video_frame(bitmap);
 
 	return 0;
 }
@@ -692,9 +690,7 @@ u32 stepstag_state::screen_update_stepstag_mid(screen_device &screen, bitmap_rgb
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram2, m_spriteram2.bytes(), m_vj_sprite_m);
 
-	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro2");
-	if (player != nullptr)
-		player->render_video_frame(bitmap);
+	m_qtaro[1]->render_video_frame(bitmap);
 
 	m_tilemap_bg->set_scrollx(0, (((m_scroll_bg[ 0 ] + 0x0014) + m_scroll_bg[ 2 ] ) & 0xffff));
 	m_tilemap_bg->set_scrolly(0, (((m_scroll_bg[ 3 ] + 0x0000) + m_scroll_bg[ 5 ] ) & 0xffff));
@@ -759,9 +755,7 @@ u32 stepstag_state::screen_update_stepstag_right(screen_device &screen, bitmap_r
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram3, m_spriteram3.bytes(), m_vj_sprite_r);
 
-	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro3");
-	if (player != nullptr)
-		player->render_video_frame(bitmap);
+	m_qtaro[2]->render_video_frame(bitmap);
 
 	return 0;
 }
@@ -879,9 +873,7 @@ u32 stepstag_state::screen_update_vjdash_left(screen_device &screen, bitmap_rgb3
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram1, m_spriteram1.bytes(), m_vj_sprite_l);
 
-	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro1");
-	if (player != nullptr)
-		player->render_video_frame(bitmap);
+	m_qtaro[0]->render_video_frame(bitmap);
 
 	return 0;
 }
@@ -895,9 +887,7 @@ u32 stepstag_state::screen_update_vjdash_mid(screen_device &screen, bitmap_rgb32
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram2, m_spriteram2.bytes(), m_vj_sprite_m);
 
-	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro2");
-	if (player != nullptr)
-		player->render_video_frame(bitmap);
+	m_qtaro[1]->render_video_frame(bitmap);
 
 	return 0;
 }
@@ -911,9 +901,7 @@ u32 stepstag_state::screen_update_vjdash_right(screen_device &screen, bitmap_rgb
 			bitmap, screen.priority(), cliprect, m_priority.get(),
 			m_spriteram3, m_spriteram3.bytes(), m_vj_sprite_r);
 
-	auto player = subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro3");
-	if (player != nullptr)
-		player->render_video_frame(bitmap);
+	m_qtaro[2]->render_video_frame(bitmap);
 
 	return 0;
 }
@@ -922,6 +910,5 @@ u32 stepstag_state::screen_update_nop(screen_device &screen, bitmap_rgb32 &bitma
 {
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
-	subdevice<jaleco_vj_isa16_sound_device>(":jaleco_vj_pc:isa1:jaleco_vj_sound")->set_steppingstage_mode(true);
 	return 0;
 }
