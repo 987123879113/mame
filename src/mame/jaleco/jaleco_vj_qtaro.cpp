@@ -2,9 +2,7 @@
 // copyright-holders:windyfairy
 
 /*
-King Qtaro PCI card and Qtaro subboard for VJ
-
-Connects to the VJ-98348 subboard PCB via 40-pin ribbon cable
+King Qtaro PCI card and Qtaro subboards for VJ
 
 Main board ("King Qtaro"):
 No markings
@@ -31,6 +29,8 @@ https://web.archive.org/web/20001015203836/http://www.lsisys.co.jp:80/prod/LS620
 
 The King Qtaro board appears to be a custom spec ordered from LSI Systems and shares some
 layout similarities to the LS6201 evaluation card offered by LSI Systems.
+
+
 
 
 JALECO VJ-98347
@@ -66,6 +66,8 @@ U4 - HM87AV LM3940IS
 CN7, CN8 - 68-pin connectors. Connects to CN3, CN2 on main board
 
 
+
+
 JALECO VJ-98341 ("Qtaro")
 MADE IN JAPAN
 EB-00-20124-0
@@ -86,6 +88,9 @@ U1, U2   - LVX244
 Communication with ADV7176AKS using one of these cables but it's hard to tell which (maybe CN3 based on traces?).
 CN3 - 40 pin connector (video output, connects to VJ-98342, sprites)
 CN4 - 40 pin connector (video output, connects to VJ-98342, decoded video stream)
+
+
+
 
 Hardware testing confirms that the Qtaro board is responsible for mixing the sprites from the subboard
 with the movies from the PC side.

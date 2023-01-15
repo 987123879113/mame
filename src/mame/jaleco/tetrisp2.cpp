@@ -2686,7 +2686,19 @@ ROM_END
     98053 EB-00-20122-0
     MADE IN JAPAN
     ---------------------
-    TODO: Document PCB
+    TMP68HC000P-12
+    3x Analog Devices ADV7176AKS video encoder
+    6x 40-pin connectors for Qtaro device (2 cables per Qtaro board)
+    3x 5-pin headers (R, G, B, black, white wires connected to each header)
+    3x XILINX XCS30 PQ240CKN9825 A2016280A 3C
+    3x XILINX 17S30PC One-Time Programmable Configuration PROM
+    1x XILINX XCS05 VQ100CKN9845 A2015738A 3C
+    1x XILINX 17S05PC One-Time Programmable Configuration PROM
+    15x CY7C109-20VC 128k x 8 SRAM (5 for each XCS30)
+    2x CY7C199-15PC 32k x 8 SRAM
+    OSC1 54.0000 MHz
+
+    34-pin IDC cable connects main board to sub board and then sub board to PC (via the ISA card), chained using same cable
 
 
     JALECO VJ-98346
@@ -2716,12 +2728,46 @@ ROM_END
     98053 EB-00-20126-0
     MADE IN JAPAN
     ---------------------
-    TMP68HC000P-12
-    3x Analog Devices ADV7176AKS video encoder
-    6x 40-pin connectors for Qtaro device (2 cables per Qtaro board)
-    3x 5-pin headers (R, G, B, black, white wires connected to each header)
+    ------------------------------------------------------------------
+    |                                     23  24  25  26  27  28     |
+    | CN3 15  16  17  18  19  20  21  22                         CN4 |
+    |   IC16                                                         |
+    |                                                      IC31      |
+    |     1   2   3   4   5   6   7   8   9   10                     |
+    | CN1                                         11  12  13  14 CN2 |
+    |    IC1                                                         |
+    ------------------------------------------------------------------
 
-    40-pin IDC ribbon cable connects main board to sub board and then sub board to PC (via the ISA card), chained using same cable
+    IC1, IC16, IC31 - Texas Instruments SN74AS138N
+    CN1, CN2, CN3, CN4 - 50-pin headers (connects to VJ-98342)
+    1 - MR98053-05
+    2 - MR98053-06
+    3 - MR98053-07
+    4 - MR98053-08
+    5 - MR98053-09
+    6 - MR98053-10
+    7 - MR98053-11
+    8 - MR98053-14
+    9 - MR98053-16
+    10 - MR98053-13
+    11 - VJ 11 Ver1.1 sub program ROM, M27C4001-10F1
+    12 - Unpopulated
+    13 - Unpopulated
+    14 - VJ 14 Ver1.1 sub program ROM, M27C4001-10F1
+    15 - MR98053-05
+    16 - MR98053-06
+    17 - MR98053-07
+    18 - MR98053-08
+    19 - MR98053-09
+    20 - MR98053-10
+    21 - MR98053-C0
+    22 - MR98053-C1
+    23 - MR98053-10
+    24 - MR98053-09
+    25 - MR98053-08
+    26 - MR98053-07
+    27 - MR98053-06
+    28 - MR98053-05
 
 ***************************************************************************/
 

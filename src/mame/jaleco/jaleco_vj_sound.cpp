@@ -4,18 +4,47 @@
     ISA card used by VJ
     Handles sound playback and communication between PC and arcade PCB
 
-    TODO: Document PCB
+    ------------------------------------------------------------------
+    |                    IC26?                             CN6       |
+    |     IC23 IC24 IC25                                             |
+    |                           IC27      IC28            IC2x1      |
+    |     IC15 IC16 IC17                        IC29     IC2x2       |
+    | CN5                IC18                                    CN4 |
+    |     IC9  IC10 IC11                  IC19  IC20   IC14          |
+    |                                        X1 IC13   IC6           |
+    |     IC1  IC2  IC3  IC4    IC12         IC5       IC7    IC8    |
+    ---------------------|           |-|                |-------------
+                         |-----------| |----------------|
 
-    2x XILINX XCS30 PQ240CKN9817 A2014617A 3C
-    2x Yamaha YMZ280B-F sound chip
-    2x Yamaha YAC516-M DAC
-    1x XILINX XC9572
-    12x Toshiba TC554001 FL-70 4MBit 512Kx8 SRAM
-    16.9344MHz clock
 
-    40-pin connector accessible from outside the PC case is connected to the arcade subboard and main board PCBs
+    CN4 - 34-pin connector for IDC cable (chains to both CN6 on main board and CN1 on subboard)
+    CN5 - 80-pin connector
+    CN6 - 8-pin header, carries 4 channel stereo audio
+
+    IC1, IC2, IC3, IC9, IC10, IC11, IC15, IC16, IC17, IC23, IC24, IC25 - Toshiba TC554001 FL-70 4MBit 512Kx8 SRAM
+    IC4 - ?
+    IC5 - XILINX XC9572
+    IC7 - Texas Instruments HC24(5?)
+    IC6 - Texas Instruments HC244
+    IC12 - XILINX XCS30 PQ240CKN9817 A2014617A 3C
+    IC13 - Motorola 74HCU04A 845UE
+    IC14 - Texas Instruments HC245
+    IC18 - XILINX 17S30PC One-Time Programmable Configuration PROM
+    IC19 - Yamaha YMZ280B-F sound chip
+    IC20 - Yamaha YAC516-M DAC
+    IC2x1 - Unidentified 8-pin chip
+    IC2x2 - Unidentified TO-92 package 3-pin IC
+    IC26 - XILINX 17S30PC One-Time Programmable Configuration PROM
+    IC27 - XILINX XCS30 PQ240CKN9817 A2014617A 3C
+    IC28 - Yamaha YMZ280B-F sound chip
+    IC29 - Yamaha YAC516-M DAC
+    X1 - 16.9344MHz clock
 
     Audio gets sent to the VJ-98346 4ch amp via 8 pin header (CN6) on ISA card
+
+    TODO: Check Stepping Stage
+    VJ and Stepping Stage most likely have different FPGA programs in IC18 and IC26 based on the differences in where
+    each game expects to be able to play certain audio files when loaded into the assigned channels.
 
     TODO: Main board PCB's YMZ is used for sound effect channels (0x01, 0x02) but there's no way to differentiate
     what YMZ chip a write to the YMZ register should go to so just using the two YMZ chips in this driver simplifies
