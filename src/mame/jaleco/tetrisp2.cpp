@@ -1778,6 +1778,9 @@ TIMER_DEVICE_CALLBACK_MEMBER(stepstag_state::field_cb)
 	// TODO: pinpoint the exact source, translate to configure_scanline if necessary
 	// irq 4 is definitely a 30 Hz-ish here as well,
 	// except we have a multi-screen arrangement setup and no way to pinpoint source
+	// Based on PCB pics there appears to be a trace coming out of BLANK on the video encoder
+	// chip closest to the CPU (and only that chip?) so I suspect that it's tied to that,
+	// but it's not possible to 100% confirm it from the pics alone.
 	m_subcpu->set_input_line(4, HOLD_LINE);
 }
 

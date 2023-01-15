@@ -159,16 +159,8 @@ TILE_GET_INFO_MEMBER(tetrisp2_state::get_tile_info_fg)
 
 void tetrisp2_state::tetrisp2_vram_fg_w(offs_t offset, u16 data, u16 mem_mask)
 {
-	// TODO: Check this with other games besides VJ and Stepping Stage before sending PR
-	// Assumption is that a write here will contain the full data for each tile and that
-	// no game is partially updating the tile field (assuming that the upper byte will be
-	// set already so it only writes the lower byte).
-	// This fixes ASCII text not displaying properly in VJ and Stepping Stage because
-	// the game is programmed to write the ASCII letters as a single 8-bit value, whereas
-	// other tiles used for gameplay elements are written as proper 16-bit values.
-	// Maybe it's possible that a write with mem_mask of 0x00ff should result in something like
-	// m_vram_fg[offset] = BIT(data, 0, 8) << 8 instead of handling it also like a
-	// normal 8-bit value.
+	// VJ and Stepping Stage write to the upper byte here to display ASCII text,
+	// other usages in those games outside of ASCII text write a full 16-bit value.
 	if (ACCESSING_BITS_0_7)
 		m_vram_fg[offset] = data;
 	else
