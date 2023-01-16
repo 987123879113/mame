@@ -126,6 +126,8 @@ jaleco_vj_qtaro_device::jaleco_vj_qtaro_device(const machine_config &mconfig, co
 
 void jaleco_vj_qtaro_device::device_start()
 {
+    m_is_steppingstage = false;
+
     save_item(NAME(m_int));
     save_item(NAME(m_frame_width));
     save_item(NAME(m_frame_height));
@@ -133,6 +135,7 @@ void jaleco_vj_qtaro_device::device_start()
     save_item(NAME(m_video_decode_enabled));
     save_item(NAME(m_found_first_frame));
     save_item(NAME(m_plm_cur_time));
+    save_item(NAME(m_is_steppingstage));
 }
 
 void jaleco_vj_qtaro_device::device_reset()
@@ -259,7 +262,7 @@ void jaleco_vj_qtaro_device::update_frame(double elapsed_time)
 
 void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base)
 {
-    if (!m_raw_video || m_mix_level >= 15)
+    if (!m_raw_video || (!m_is_steppingstage && m_mix_level >= 15))
         return;
 
     assert(base.width() == m_frame_width);
@@ -281,20 +284,34 @@ void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base)
         return;
     }
 
-    // TODO: Stepping stage sets the mix level to 15 even when it's supposed to be playing videos
-    // When a song ends and the video fades the black, the level goes from 0 to 15
-    const double overlay_blend = m_mix_level / 15.0;
-    const double movie_blend = 1.0 - overlay_blend;
+    if (m_is_steppingstage) {
+        // TODO: Stepping Stage is just built different
+        for (int y = 0; y < m_frame_height; y++) {
+            for (int x = 0; x < m_frame_width; x++) {
+                int offs = (x + (y * m_frame_width)) * 4;
+                auto p = &base.pix(y, x);
+                auto a = (BIT(*p, 24, 8) / 255.0) * (m_mix_level / 15.0);
+                const double movie_blend = 1.0 - a;
+                uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * a);
+                uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * a);
+                uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * a);
+                *p = 0xff000000 | (b << 16) | (g << 8) | r;
+            }
+        }
+    } else {
+        const double overlay_blend = m_mix_level / 15.0;
+        const double movie_blend = 1.0 - overlay_blend;
 
-    for (int y = 0; y < m_frame_height; y++) {
-        for (int x = 0; x < m_frame_width; x++) {
-            int offs = (x + (y * m_frame_width)) * 4;
-            auto p = &base.pix(y, x);
-            auto a = BIT(*p, 24, 8) / 255.0;
-            uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * overlay_blend * a);
-            uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * overlay_blend * a);
-            uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * overlay_blend * a);
-            *p = 0xff000000 | (b << 16) | (g << 8) | r;
+        for (int y = 0; y < m_frame_height; y++) {
+            for (int x = 0; x < m_frame_width; x++) {
+                int offs = (x + (y * m_frame_width)) * 4;
+                auto p = &base.pix(y, x);
+                auto a = BIT(*p, 24, 8) / 255.0;
+                uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * overlay_blend * a);
+                uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * overlay_blend * a);
+                uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * overlay_blend * a);
+                *p = 0xff000000 | (b << 16) | (g << 8) | r;
+            }
         }
     }
 }

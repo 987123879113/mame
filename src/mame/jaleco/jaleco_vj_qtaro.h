@@ -35,6 +35,8 @@ public:
     void update_frame(double elapsed_time);
     void render_video_frame(bitmap_rgb32& base);
 
+    void set_steppingstage_mode(bool val) { m_is_steppingstage = val; }
+
 protected:
     virtual void device_start() override;
     virtual void device_reset() override;
@@ -55,6 +57,8 @@ private:
     bool m_video_decode_enabled;
 
     uint32_t m_frame_width, m_frame_height;
+
+    bool m_is_steppingstage;
 };
 
 DECLARE_DEVICE_TYPE(JALECO_VJ_QTARO, jaleco_vj_qtaro_device)

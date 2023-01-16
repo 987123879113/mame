@@ -1500,6 +1500,9 @@ void stepstag_state::init_stepstag()
 {
 	init_vj();
 	m_soundisa->set_steppingstage_mode(true);
+	subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro1")->set_steppingstage_mode(true);
+	subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro2")->set_steppingstage_mode(true);
+	subdevice<jaleco_vj_qtaro_device>(":jaleco_vj_pc:pci:08.0:qtaro3")->set_steppingstage_mode(true);
 }
 
 void stepstag_state::init_vj()
