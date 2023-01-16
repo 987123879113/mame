@@ -1808,7 +1808,9 @@ void stepstag_state::stepstag(machine_config &config)
 
 	M68000(config, m_subcpu, subxtal/3);
 	m_subcpu->set_addrmap(AS_PROGRAM, &stepstag_state::stepstag_sub_map);
-	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(30)); // controls gameplay note scrolling speed
+
+	constexpr double field_timer_hz = ATTOSECONDS_TO_HZ(HZ_TO_ATTOSECONDS(subxtal/4) * 858 * 525);
+	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(field_timer_hz)); // controls gameplay note scrolling speed
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
@@ -1902,7 +1904,9 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 
 	M68000(config, m_subcpu, subxtal/3); // divider unknown
 	m_subcpu->set_addrmap(AS_PROGRAM, &stepstag_state::stepstag_sub_map);
-	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(30)); // memo: controls speed of animations on top screens
+
+	constexpr double field_timer_hz = ATTOSECONDS_TO_HZ(HZ_TO_ATTOSECONDS(subxtal/4) * 858 * 525);
+	TIMER(config, "field_timer").configure_periodic(FUNC(stepstag_state::field_cb), attotime::from_hz(field_timer_hz)); // controls speed of animations on top screens
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
