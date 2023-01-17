@@ -260,60 +260,107 @@ void jaleco_vj_qtaro_device::update_frame(double elapsed_time)
     }
 }
 
-void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base)
+void jaleco_vj_qtaro_device::render_video_frame(bitmap_rgb32& base, uint32_t *yuv_base_frame)
 {
-    if (!m_raw_video || (!m_is_steppingstage && m_mix_level >= 15))
-        return;
+    if (m_raw_video && m_mix_level < 15) {
+        assert(base.width() == m_frame_width);
+        assert(base.height() == m_frame_height);
 
-    assert(base.width() == m_frame_width);
-    assert(base.height() == m_frame_height);
+        // if (m_mix_level == 0) {
+        //     // Full movie frame
+        //     copybitmap(
+        //         base,
+        //         bitmap_rgb32(
+        //             (uint32_t*)m_raw_video,
+        //             m_frame_width,
+        //             m_frame_height,
+        //             m_frame_width
+        //         ),
+        //         0, 0, 0, 0,
+        //         rectangle(0, base.width(), 0, base.height())
+        //     );
+        //     return;
+        // }
 
-    if (m_mix_level == 0) {
-        // Full movie frame
-        copybitmap(
-            base,
-            bitmap_rgb32(
-                (uint32_t*)m_raw_video,
-                m_frame_width,
-                m_frame_height,
-                m_frame_width
-            ),
-            0, 0, 0, 0,
-            rectangle(0, base.width(), 0, base.height())
-        );
-        return;
+        // if (m_is_steppingstage) {
+        //     // TODO: Stepping Stage is just built different
+        //     for (int y = 0; y < m_frame_height; y++) {
+        //         for (int x = 0; x < m_frame_width; x++) {
+        //             int offs = (x + (y * m_frame_width)) * 4;
+        //             auto p = &base.pix(y, x);
+        //             auto a = (BIT(*p, 24, 8) / 255.0) * (m_mix_level / 15.0);
+        //             const double movie_blend = 1.0 - a;
+        //             uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * a);
+        //             uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * a);
+        //             uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * a);
+        //             *p = 0xff000000 | (b << 16) | (g << 8) | r;
+        //         }
+        //     }
+        // } else {
+        //     const double overlay_blend = m_mix_level / 15.0;
+        //     const double movie_blend = 1.0 - overlay_blend;
+
+        //     for (int y = 0; y < m_frame_height; y++) {
+        //         for (int x = 0; x < m_frame_width; x++) {
+        //             int offs = (x + (y * m_frame_width)) * 4;
+        //             auto p = &base.pix(y, x);
+        //             auto a = BIT(*p, 24, 8) / 255.0;
+        //             uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * overlay_blend * a);
+        //             uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * overlay_blend * a);
+        //             uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * overlay_blend * a);
+        //             *p = 0xff000000 | (b << 16) | (g << 8) | r;
+        //         }
+        //     }
+        // }
+
+        // const double overlay_blend = m_mix_level / 15.0;
+        // const double movie_blend = 1.0 - overlay_blend;
+
+        // for (int y = 0; y < m_frame_height; y++) {
+        //     for (int x = 0; x < m_frame_width; x++) {
+        //         int offs = (x + (y * m_frame_width)) * 4;
+        //         auto p = yuv_base_frame[y * m_frame_width + x];
+        //         auto a = BIT(p, 24, 8) / 255.0;
+        //         uint8_t u = ((m_raw_video[offs] * movie_blend) + (BIT(p, 0, 8) * overlay_blend * a)) / 2;
+        //         uint8_t y1 = ((m_raw_video[offs+1] * movie_blend) + (BIT(p, 8, 8) * overlay_blend * a)) / 2;
+        //         uint8_t v = ((m_raw_video[offs+2] * movie_blend) + (BIT(p, 16, 8) * overlay_blend * a)) / 2;
+        //         yuv_base_frame[y * m_frame_width + x] = u | (y1 << 8) | (v << 16);
+        //     }
+        // }
     }
 
-    if (m_is_steppingstage) {
-        // TODO: Stepping Stage is just built different
-        for (int y = 0; y < m_frame_height; y++) {
-            for (int x = 0; x < m_frame_width; x++) {
-                int offs = (x + (y * m_frame_width)) * 4;
-                auto p = &base.pix(y, x);
-                auto a = (BIT(*p, 24, 8) / 255.0) * (m_mix_level / 15.0);
-                const double movie_blend = 1.0 - a;
-                uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * a);
-                uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * a);
-                uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * a);
-                *p = 0xff000000 | (b << 16) | (g << 8) | r;
-            }
-        }
-    } else {
-        const double overlay_blend = m_mix_level / 15.0;
-        const double movie_blend = 1.0 - overlay_blend;
+	for (int y = 0; y < 480; y++) {
+		for (int x = 0; x < 720; x++) {
+			auto p = &base.pix(y, x);
 
-        for (int y = 0; y < m_frame_height; y++) {
-            for (int x = 0; x < m_frame_width; x++) {
-                int offs = (x + (y * m_frame_width)) * 4;
-                auto p = &base.pix(y, x);
-                auto a = BIT(*p, 24, 8) / 255.0;
-                uint8_t r = std::min(255.0, m_raw_video[offs] * movie_blend + BIT(*p, 0, 8) * overlay_blend * a);
-                uint8_t g = std::min(255.0, m_raw_video[offs+1] * movie_blend + BIT(*p, 8, 8) * overlay_blend * a);
-                uint8_t b = std::min(255.0, m_raw_video[offs+2] * movie_blend + BIT(*p, 16, 8) * overlay_blend * a);
-                *p = 0xff000000 | (b << 16) | (g << 8) | r;
-            }
-        }
-    }
+			if (yuv_base_frame[y * 720 + x] == 0) {
+				*p = 0;
+				continue;
+			}
+
+			u8 u =  BIT(yuv_base_frame[y * 720 + x], 0, 8);
+			u8 y1 = BIT(yuv_base_frame[y * 720 + x], 8, 8);
+			u8 v =  BIT(yuv_base_frame[y * 720 + x], 16, 8);
+
+			double rf = y1 + 1.402 * (v - 128);
+			double gf = y1 - 0.334 * (u - 128) - 0.714 * (v - 128);
+			double bf = y1 + 1.772 * (u - 128);
+
+			// clamp to 0-255 range
+			rf = std::min(rf,255.0);
+			rf = std::max(rf,0.0);
+			gf = std::min(gf,255.0);
+			gf = std::max(gf,0.0);
+			bf = std::min(bf,255.0);
+			bf = std::max(bf,0.0);
+
+			u8 r = (u8)rf;
+			u8 g = (u8)gf;
+			u8 b = (u8)bf;
+
+			*p = 0xff000000 | (r << 16) | (g << 8) | b;
+		}
+	}
 }
 
 DEFINE_DEVICE_TYPE(JALECO_VJ_QTARO, jaleco_vj_qtaro_device, "jaleco_vj_qtaro", "Jaleco VJ Qtaro Subboard")

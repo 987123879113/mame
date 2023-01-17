@@ -669,11 +669,11 @@ u32 stepstag_state::screen_update_stepstag_left(screen_device &screen, bitmap_rg
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
 
-	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, nullptr,
-			m_spriteram1_data.get(), 0x400, m_vj_sprite_l);
+	uint32_t raw_frame[720 * 480];
+	std::fill(std::begin(raw_frame), std::end(raw_frame), 0);
+	stepstag_draw_sprites(raw_frame, m_spriteram1_data.get(), 0x400, m_vj_sprite_l, m_vj_paletteram_l);
 
-	m_qtaro[0]->render_video_frame(bitmap);
+	m_qtaro[0]->render_video_frame(bitmap, raw_frame);
 
 	return 0;
 }
@@ -683,11 +683,11 @@ u32 stepstag_state::screen_update_stepstag_mid(screen_device &screen, bitmap_rgb
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
 
-	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, nullptr,
-			m_spriteram2_data.get(), 0x400, m_vj_sprite_m);
+	uint32_t raw_frame[720 * 480];
+	std::fill(std::begin(raw_frame), std::end(raw_frame), 0);
+	stepstag_draw_sprites(raw_frame, m_spriteram2_data.get(), 0x400, m_vj_sprite_m, m_vj_paletteram_m);
 
-	m_qtaro[1]->render_video_frame(bitmap);
+	m_qtaro[1]->render_video_frame(bitmap, raw_frame);
 
 	m_tilemap_bg->set_scrollx(0, (((m_scroll_bg[ 0 ] + 0x0014) + m_scroll_bg[ 2 ] ) & 0xffff));
 	m_tilemap_bg->set_scrolly(0, (((m_scroll_bg[ 3 ] + 0x0000) + m_scroll_bg[ 5 ] ) & 0xffff));
@@ -748,58 +748,53 @@ u32 stepstag_state::screen_update_stepstag_right(screen_device &screen, bitmap_r
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
 
-	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, nullptr,
-			m_spriteram3_data.get(), 0x400, m_vj_sprite_r);
+	uint32_t raw_frame[720 * 480];
+	std::fill(std::begin(raw_frame), std::end(raw_frame), 0);
+	stepstag_draw_sprites(raw_frame, m_spriteram3_data.get(), 0x400, m_vj_sprite_r, m_vj_paletteram_r);
 
-	m_qtaro[2]->render_video_frame(bitmap);
+	m_qtaro[2]->render_video_frame(bitmap, raw_frame);
 
 	return 0;
 }
 
 // Stepping Stage encodes palette as YUV422.
 // Convert them on the fly
-void stepstag_state::convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram, u32 offset)
-{
-	u8 u =  palram[offset/4*4+0] & 0xff;
-	u8 y1 = palram[offset/4*4+1] & 0xff;
-	u8 v =  palram[offset/4*4+2] & 0xff;
-	//u8 y2 = palram[offset/4*4+3] & 0xff;
+// void stepstag_state::convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram, u32 offset)
+// {
+// 	u8 u =  palram[offset/4*4+0] & 0xff;
+// 	u8 y1 = palram[offset/4*4+1] & 0xff;
+// 	u8 v =  palram[offset/4*4+2] & 0xff;
+// 	//u8 y2 = palram[offset/4*4+3] & 0xff;
 
-	double bf = y1+1.772*(u - 128);
-	double gf = y1-0.334*(u - 128) - 0.714 * (v - 128);
-	double rf = y1+1.402*(v - 128);
-	// clamp to 0-255 range
-	rf = std::min(rf,255.0);
-	rf = std::max(rf,0.0);
-	gf = std::min(gf,255.0);
-	gf = std::max(gf,0.0);
-	bf = std::min(bf,255.0);
-	bf = std::max(bf,0.0);
+// 	double bf = y1+1.772*(u - 128);
+// 	double gf = y1-0.334*(u - 128) - 0.714 * (v - 128);
+// 	double rf = y1+1.402*(v - 128);
+// 	// clamp to 0-255 range
+// 	rf = std::min(rf,255.0);
+// 	rf = std::max(rf,0.0);
+// 	gf = std::min(gf,255.0);
+// 	gf = std::max(gf,0.0);
+// 	bf = std::min(bf,255.0);
+// 	bf = std::max(bf,0.0);
 
-	u8 r = (u8)rf;
-	u8 g = (u8)gf;
-	u8 b = (u8)bf;
-
-	paldev->set_pen_color(offset/4, r, g, b);
-}
+// 	u8 r = (u8)rf;
+// 	u8 g = (u8)gf;
+// 	u8 b = (u8)bf;
+// }
 
 void stepstag_state::stepstag_palette_left_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_vj_paletteram_l[offset]);
-	convert_yuv422_to_rgb888(m_vj_palette_l,m_vj_paletteram_l,offset);
 }
 
 void stepstag_state::stepstag_palette_mid_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_vj_paletteram_m[offset]);
-	convert_yuv422_to_rgb888(m_vj_palette_m,m_vj_paletteram_m,offset);
 }
 
 void stepstag_state::stepstag_palette_right_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_vj_paletteram_r[offset]);
-	convert_yuv422_to_rgb888(m_vj_palette_r,m_vj_paletteram_r,offset);
 }
 
 u32 stepstag_state::screen_update_vjdash_main(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
@@ -867,11 +862,11 @@ u32 stepstag_state::screen_update_vjdash_left(screen_device &screen, bitmap_rgb3
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
 
-	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, nullptr,
-			m_spriteram1_data.get(), 0x400, m_vj_sprite_l);
+	uint32_t raw_frame[720 * 480];
+	std::fill(std::begin(raw_frame), std::end(raw_frame), 0);
+	stepstag_draw_sprites(raw_frame, m_spriteram1_data.get(), 0x400, m_vj_sprite_l, m_vj_paletteram_l);
 
-	m_qtaro[0]->render_video_frame(bitmap);
+	m_qtaro[0]->render_video_frame(bitmap, raw_frame);
 
 	return 0;
 }
@@ -881,11 +876,11 @@ u32 stepstag_state::screen_update_vjdash_mid(screen_device &screen, bitmap_rgb32
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
 
-	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, nullptr,
-			m_spriteram2_data.get(), 0x400, m_vj_sprite_m);
+	uint32_t raw_frame[720 * 480];
+	std::fill(std::begin(raw_frame), std::end(raw_frame), 0);
+	stepstag_draw_sprites(raw_frame, m_spriteram2_data.get(), 0x400, m_vj_sprite_m, m_vj_paletteram_m);
 
-	m_qtaro[1]->render_video_frame(bitmap);
+	m_qtaro[1]->render_video_frame(bitmap, raw_frame);
 
 	return 0;
 }
@@ -895,11 +890,11 @@ u32 stepstag_state::screen_update_vjdash_right(screen_device &screen, bitmap_rgb
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
 
-	tetrisp2_draw_sprites(
-			bitmap, screen.priority(), cliprect, nullptr,
-			m_spriteram3_data.get(), 0x400, m_vj_sprite_r);
+	uint32_t raw_frame[720 * 480];
+	std::fill(std::begin(raw_frame), std::end(raw_frame), 0);
+	stepstag_draw_sprites(raw_frame, m_spriteram3_data.get(), 0x400, m_vj_sprite_r, m_vj_paletteram_r);
 
-	m_qtaro[2]->render_video_frame(bitmap);
+	m_qtaro[2]->render_video_frame(bitmap, raw_frame);
 
 	return 0;
 }
@@ -909,4 +904,35 @@ u32 stepstag_state::screen_update_nop(screen_device &screen, bitmap_rgb32 &bitma
 	bitmap.fill(0, cliprect);
 	screen.priority().fill(0);
 	return 0;
+}
+
+void stepstag_state::stepstag_draw_sprites(u32 *output, u16 *sprram_top, size_t sprram_size, vj_sprite_device *chip, u16 *paletteram)
+{
+	u16 *source = sprram_top;
+	u16 *finish = sprram_top + (sprram_size - 0x10) / 2;
+
+	for (; source<finish; source+=8)
+	{
+		bool disable;
+		u32 code, color;
+		u8 tx, ty;
+		u16 xsize, ysize;
+		s32 sx, sy;
+
+		chip->extract_parameters(source, disable, code, color, tx, ty, xsize, ysize, sx, sy);
+
+		if (disable)
+			continue;
+
+		chip->render(
+			output,
+			code,
+			color,
+			sx, sy,
+			tx, ty,
+			xsize, ysize,
+			paletteram
+		);
+
+	}   /* end sprite loop */
 }

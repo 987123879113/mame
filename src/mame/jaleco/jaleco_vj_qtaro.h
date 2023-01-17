@@ -33,7 +33,7 @@ public:
     void set_video_decode_enabled(bool is_enabled);
 
     void update_frame(double elapsed_time);
-    void render_video_frame(bitmap_rgb32& base);
+    void render_video_frame(bitmap_rgb32& base, uint32_t *yuv_base_frame);
 
     void set_steppingstage_mode(bool val) { m_is_steppingstage = val; }
 

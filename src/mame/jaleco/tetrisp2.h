@@ -9,6 +9,7 @@
 #include "jaleco_vj_pc.h"
 #include "jaleco_vj_qtaro.h"
 #include "jaleco_vj_sound.h"
+#include "vj_sprite.h"
 
 class tetrisp2_state : public driver_device
 {
@@ -270,6 +271,8 @@ private:
 
 	u32 screen_update_nop(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
+	void stepstag_draw_sprites(u32 *output, u16 *sprram_top, size_t sprram_size, vj_sprite_device *chip, u16 *paletteram);
+
 	void stepstag_map(address_map &map);
 	void stepstag_sub_map(address_map &map);
 	void vjdash_map(address_map &map);
@@ -278,9 +281,9 @@ private:
 	void setup_non_sysctrl_screen(machine_config &config, screen_device *screen, const XTAL xtal);
 
 	required_device<cpu_device> m_subcpu;
-	optional_device<ms32_sprite_device> m_vj_sprite_l;
-	optional_device<ms32_sprite_device> m_vj_sprite_m;
-	optional_device<ms32_sprite_device> m_vj_sprite_r;
+	optional_device<vj_sprite_device> m_vj_sprite_l;
+	optional_device<vj_sprite_device> m_vj_sprite_m;
+	optional_device<vj_sprite_device> m_vj_sprite_r;
 	required_shared_ptr<u16> m_spriteram1;
 	required_shared_ptr<u16> m_spriteram3;
 	optional_device<palette_device> m_vj_palette_l;
@@ -298,8 +301,6 @@ private:
 	std::unique_ptr<uint16_t[]> m_spriteram1_data;
 	std::unique_ptr<uint16_t[]> m_spriteram2_data;
 	std::unique_ptr<uint16_t[]> m_spriteram3_data;
-
-	void convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram,u32 offset);
 
 	uint8_t m_video_encoder_bits;
 	uint16_t m_video_encoder_byte;

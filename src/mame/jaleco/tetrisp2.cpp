@@ -2087,28 +2087,22 @@ void stepstag_state::stepstag(machine_config &config)
 	m_sprite->set_zoom(false);
 
 	// (left screen, vertical in stepping stage)
-	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_l, sub_pixel_clock); // unknown
+	JALECO_VJ_SPRITE(config, m_vj_sprite_l, sub_pixel_clock); // unknown
 	m_vj_sprite_l->set_palette(m_vj_palette_l);
 	m_vj_sprite_l->set_color_base(0);
 	m_vj_sprite_l->set_color_entries(0x80);
-	m_vj_sprite_l->set_zoom(false);
-	m_vj_sprite_l->set_yuv(true);
 
 	// (mid screen, horizontal)
-	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_m, sub_pixel_clock); // unknown
+	JALECO_VJ_SPRITE(config, m_vj_sprite_m, sub_pixel_clock); // unknown
 	m_vj_sprite_m->set_palette(m_vj_palette_m);
 	m_vj_sprite_m->set_color_base(0);
 	m_vj_sprite_m->set_color_entries(0x80);
-	m_vj_sprite_m->set_zoom(false);
-	m_vj_sprite_m->set_yuv(true);
 
 	// (right screen, vertical in stepping stage)
-	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_r, sub_pixel_clock); // unknown
+	JALECO_VJ_SPRITE(config, m_vj_sprite_r, sub_pixel_clock); // unknown
 	m_vj_sprite_r->set_palette(m_vj_palette_r);
 	m_vj_sprite_r->set_color_base(0);
 	m_vj_sprite_r->set_color_entries(0x80);
-	m_vj_sprite_r->set_zoom(false);
-	m_vj_sprite_r->set_yuv(true);
 
 	// All video for Stepping Stage comes from subboard's 3 RGB headers so this screen isn't needed
 	// but jaleco_ms32_sysctrl is built such that it requires a screen to work.
@@ -2179,28 +2173,22 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	PALETTE(config, m_vj_palette_r).set_entries(0x8000);
 
 	// (left screen, horizontal)
-	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_l, sub_pixel_clock); // unknown
+	JALECO_VJ_SPRITE(config, m_vj_sprite_l, sub_pixel_clock); // unknown
 	m_vj_sprite_l->set_palette(m_vj_palette_l);
 	m_vj_sprite_l->set_color_base(0);
 	m_vj_sprite_l->set_color_entries(0x80);
-	m_vj_sprite_l->set_zoom(false);
-	m_vj_sprite_l->set_yuv(true);
 
 	// (mid screen, horizontal)
-	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_m, sub_pixel_clock); // unknown
+	JALECO_VJ_SPRITE(config, m_vj_sprite_m, sub_pixel_clock); // unknown
 	m_vj_sprite_m->set_palette(m_vj_palette_m);
 	m_vj_sprite_m->set_color_base(0);
 	m_vj_sprite_m->set_color_entries(0x80);
-	m_vj_sprite_m->set_zoom(false);
-	m_vj_sprite_m->set_yuv(true);
 
 	// (right screen, horizontal)
-	JALECO_MEGASYSTEM32_SPRITE(config, m_vj_sprite_r, sub_pixel_clock); // unknown
+	JALECO_VJ_SPRITE(config, m_vj_sprite_r, sub_pixel_clock); // unknown
 	m_vj_sprite_r->set_palette(m_vj_palette_r);
 	m_vj_sprite_r->set_color_base(0);
 	m_vj_sprite_r->set_color_entries(0x80);
-	m_vj_sprite_r->set_zoom(false);
-	m_vj_sprite_r->set_yuv(true);
 
 	setup_main_sprite(config, main_pixel_clock);
 	setup_main_sysctrl(config, mainxtal); // unknown, controls game speed including sync of charts/keysounds to BGM
