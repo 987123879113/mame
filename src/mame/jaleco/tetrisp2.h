@@ -255,6 +255,7 @@ private:
 	void stepstag_spriteram1_updated_w(u16 data);
 	void stepstag_spriteram2_updated_w(u16 data);
 	void stepstag_spriteram3_updated_w(u16 data);
+	void video_encoder_w(u16 data);
 
 	u16 stepstag_soundvolume_r();
 
@@ -299,4 +300,14 @@ private:
 	std::unique_ptr<uint16_t[]> m_spriteram3_data;
 
 	void convert_yuv422_to_rgb888(palette_device *paldev, u16 *palram,u32 offset);
+
+	uint8_t m_video_encoder_bits;
+	uint16_t m_video_encoder_byte;
+	uint8_t m_video_encoder_clk;
+	uint8_t m_video_encoder_bit;
+	uint8_t m_video_encoder_state;
+	uint16_t m_video_encoder_slaveaddr;
+	uint16_t m_video_encoder_subaddr;
+	uint32_t m_video_encoder_subcarrier_freq;
+	uint8_t m_video_encoder_timing_mode;
 };

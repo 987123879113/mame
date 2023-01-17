@@ -634,6 +634,238 @@ void stepstag_state::stepstag_spriteram3_updated_w(u16 data)
 		m_spriteram3_data[i] = m_spriteram3[i];
 }
 
+void stepstag_state::video_encoder_w(u16 data)
+{
+	int clk = BIT(data, 0);
+	int bit2 = BIT(data, 1);
+	int bit = m_video_encoder_clk == 0 && clk == 1 ? bit2 : -1;
+
+	// printf("0xf00000 %02x %d %d\n", data, clk, bit2);
+
+	if (clk == 1 && m_video_encoder_clk == 1 && m_video_encoder_bit == 1 && bit2 == 0) {
+		m_video_encoder_state = 1;
+		m_video_encoder_bits = m_video_encoder_byte = 0;
+		printf("[video encoder] start bit found\n");
+	} else if (clk == 1 && m_video_encoder_clk == 1 && m_video_encoder_bit == 0 && bit2 == 1) {
+		m_video_encoder_state = 0;
+		m_video_encoder_bits = m_video_encoder_byte = 0;
+		printf("[video encoder] stop bit found\n\n");
+	} else if (m_video_encoder_state == 1) {
+		// Waiting for slave addr
+		if (bit != -1) {
+			m_video_encoder_byte |= bit << m_video_encoder_bits;
+			m_video_encoder_bits++;
+		}
+
+		if (m_video_encoder_bits > 8) {
+			m_video_encoder_slaveaddr = m_video_encoder_byte;
+			m_video_encoder_bits = m_video_encoder_byte = 0;
+			m_video_encoder_state = 2;
+			printf("[video encoder] slave addr %02x %c\n", BIT(m_video_encoder_slaveaddr, 0, 7), BIT(m_video_encoder_slaveaddr, 8) ? 'r' : 'w');
+		}
+	} else if (m_video_encoder_state == 2) {
+		// Waiting for sub addr
+		if (bit != -1) {
+			m_video_encoder_byte |= bit << m_video_encoder_bits;
+			m_video_encoder_bits++;
+		}
+
+		if (m_video_encoder_bits > 8) {
+			m_video_encoder_subaddr = bitswap<8>(BIT(m_video_encoder_byte, 0, 8), 0, 1, 2, 3, 4, 5, 6, 7);
+			m_video_encoder_bits = m_video_encoder_byte = 0;
+			m_video_encoder_state = 3;
+			printf("[video encoder] addr %02x (%d %d %d %d %d %d %d %d)\n", m_video_encoder_subaddr, BIT(m_video_encoder_subaddr, 7), BIT(m_video_encoder_subaddr, 6), BIT(m_video_encoder_subaddr, 5), BIT(m_video_encoder_subaddr, 4), BIT(m_video_encoder_subaddr, 3), BIT(m_video_encoder_subaddr, 2), BIT(m_video_encoder_subaddr, 1), BIT(m_video_encoder_subaddr, 0));
+		}
+	} else if (m_video_encoder_state == 3) {
+		// Waiting for data
+		if (bit != -1) {
+			m_video_encoder_byte |= bit << m_video_encoder_bits;
+			m_video_encoder_bits++;
+		}
+
+		if (m_video_encoder_bits > 8) {
+			m_video_encoder_byte = bitswap<8>(BIT(m_video_encoder_byte, 0, 8), 0, 1, 2, 3, 4, 5, 6, 7);
+
+			printf("[video encoder] data %02x (%d %d %d %d %d %d %d %d)\n", m_video_encoder_byte, BIT(m_video_encoder_byte, 7), BIT(m_video_encoder_byte, 6), BIT(m_video_encoder_byte, 5), BIT(m_video_encoder_byte, 4), BIT(m_video_encoder_byte, 3), BIT(m_video_encoder_byte, 2), BIT(m_video_encoder_byte, 1), BIT(m_video_encoder_byte, 0));
+
+			if (m_video_encoder_subaddr == 0x00) {
+				// Mode register 0
+				auto encode_mode_control = BIT(m_video_encoder_byte, 0, 2);
+				auto pedestal_control = BIT(m_video_encoder_byte, 2);
+				auto luminance_filter_control = BIT(m_video_encoder_byte, 3, 2);
+				auto rgb_sync = BIT(m_video_encoder_byte, 5);
+				auto output_control = BIT(m_video_encoder_byte, 6);
+
+				printf("Mode register 0\n");
+				printf("\t encode mode control %02x ", encode_mode_control);
+				switch(encode_mode_control) {
+					case 0b00: printf("NTSC\n"); break;
+					case 0b01: printf("PAL (B, D, G, H, I)\n"); break;
+					case 0b10: printf("PAL (M)\n"); break;
+					case 0b11: printf("Reserved\n"); break;
+				}
+
+				printf("\t pedestal control %02x %s\n", pedestal_control, pedestal_control ? "on" : "off");
+
+				printf("\t luminance filter control %02x ", luminance_filter_control);
+				switch(luminance_filter_control) {
+					case 0b00: printf("Low pass filter (A)\n"); break;
+					case 0b01: printf("Notch filter\n"); break;
+					case 0b10: printf("Extended mode\n"); break;
+					case 0b11: printf("Low pass filter (B)\n"); break;
+				}
+
+				printf("\t rgb sync %02x %s\n", rgb_sync, rgb_sync ? "on" : "off");
+				printf("\t output control %02x %s\n", output_control, output_control ? "RGB/YUV" : "YC");
+			} else if (m_video_encoder_subaddr == 0x01) {
+				// Mode register 1
+				auto interlaced_mode_control = BIT(m_video_encoder_byte, 0);
+				auto closed_captioning_field_control = BIT(m_video_encoder_byte, 1, 2);
+				auto dac_c_control = BIT(m_video_encoder_byte, 3);
+				auto dac_d_control = BIT(m_video_encoder_byte, 4);
+				auto dac_b_control = BIT(m_video_encoder_byte, 5);
+				auto dac_a_control = BIT(m_video_encoder_byte, 6);
+				auto color_bar_control = BIT(m_video_encoder_byte, 7);
+
+				printf("Mode register 1\n");
+				printf("\t interlaced mode control %02x %s\n", interlaced_mode_control, interlaced_mode_control ? "non-interlaced" : "interlaced");
+				printf("\t closed captioning field control %02x ", closed_captioning_field_control);
+				switch(closed_captioning_field_control) {
+					case 0b00: printf("No data out\n"); break;
+					case 0b01: printf("Odd field only\n"); break;
+					case 0b10: printf("Even field only\n"); break;
+					case 0b11: printf("Data out (both fields)\n"); break;
+				}
+
+				printf("\t dac a control %02x %s\n", dac_a_control, dac_a_control ? "power-down" : "normal");
+				printf("\t dac b control %02x %s\n", dac_b_control, dac_b_control ? "power-down" : "normal");
+				printf("\t dac c control %02x %s\n", dac_c_control, dac_c_control ? "power-down" : "normal");
+				printf("\t dac d control %02x %s\n", dac_d_control, dac_d_control ? "power-down" : "normal");
+				printf("\t color bar control %02x %s\n", color_bar_control, color_bar_control ? "enabled" : "disabled");
+			} else if (m_video_encoder_subaddr >= 0x02 && m_video_encoder_subaddr <= 0x05) {
+				// Mode register 1
+				auto r = 5 - m_video_encoder_subaddr;
+
+				switch(r) {
+					case 0: m_video_encoder_subcarrier_freq &= 0xffffff00; break;
+					case 1: m_video_encoder_subcarrier_freq &= 0xffff00ff; break;
+					case 2: m_video_encoder_subcarrier_freq &= 0xff00ffff; break;
+					case 3: m_video_encoder_subcarrier_freq &= 0x00ffffff; break;
+				}
+
+				m_video_encoder_subcarrier_freq |= m_video_encoder_byte << (8 * r);
+
+				printf("Subcarrier frequency register %d %02x %08x\n", r, m_video_encoder_byte, m_video_encoder_subcarrier_freq);
+			} else if (m_video_encoder_subaddr == 0x07) {
+				// Timing register 0
+				auto masterslave_control = BIT(m_video_encoder_byte, 0);
+				m_video_encoder_timing_mode = BIT(m_video_encoder_byte, 1, 2);
+				auto blank_control = BIT(m_video_encoder_byte, 3);
+				auto luma_delay_control = BIT(m_video_encoder_byte, 4, 2);
+				auto pixel_port_control = BIT(m_video_encoder_byte, 6);
+				auto timing_register_reset = BIT(m_video_encoder_byte, 7);
+
+				printf("Timing register 0\n");
+				printf("\t master/slave control %02x %s\n", masterslave_control, masterslave_control ? "master timing" : "slave timing");
+				printf("\t timing mode selection %02x mode %d\n", m_video_encoder_timing_mode, m_video_encoder_timing_mode);
+				printf("\t blank control %02x %s\n", blank_control, blank_control ? "disable" : "enable");
+
+				printf("\t luma delay %02x ", luma_delay_control);
+				switch(luma_delay_control) {
+					case 0b00: printf("0ns delay\n"); break;
+					case 0b01: printf("74ns delay\n"); break;
+					case 0b10: printf("148ns delay\n"); break;
+					case 0b11: printf("222ns delay\n"); break;
+				}
+
+				printf("\t pixel port control %02x %s\n", pixel_port_control, pixel_port_control ? "16-bit" : "8-bit");
+				printf("\t timing register reset %02x\n", timing_register_reset);
+			} else if (m_video_encoder_subaddr == 0x0c) {
+				// Timing register 1
+				auto hsync_width = BIT(m_video_encoder_byte, 0, 2);
+				auto hsync_to_vsync_delay = BIT(m_video_encoder_byte, 2, 2);
+				auto r = BIT(m_video_encoder_byte, 4, 2);
+				auto hsync_to_pixel_adjust = BIT(m_video_encoder_byte, 6, 2);
+
+				const auto pixel_clock = XTAL(54'000'000)/2;
+
+				printf("Timing register 1\n");
+				auto d = 1;
+				switch(hsync_width) {
+					case 0b00: d = 1; break;
+					case 0b01: d = 4; break;
+					case 0b10: d = 16; break;
+					case 0b11: d = 128; break;
+				}
+				printf("\t hsync width %02x %lf\n", hsync_width, (attotime::from_hz(pixel_clock) * d).as_hz());
+				switch(hsync_to_vsync_delay) {
+					case 0b00: d = 0; break;
+					case 0b01: d = 4; break;
+					case 0b10: d = 8; break;
+					case 0b11: d = 16; break;
+				}
+				printf("\t hsync to field/vsync delay %02x %lf\n", hsync_to_vsync_delay, (attotime::from_hz(pixel_clock) * d).as_hz());
+				if (m_video_encoder_timing_mode == 1) {
+					printf("\t hsync to field rising edge delay %02x\n", r);
+				} else if (m_video_encoder_timing_mode == 2) {
+					printf("\t vsync width %02x\n", r);
+				} else {
+					printf("\t tr14-tr15 %02x\n", r);
+				}
+				printf("\t hsync to pixel data adjustment %02x %lf\n", hsync_to_pixel_adjust, (attotime::from_hz(pixel_clock) * hsync_to_pixel_adjust).as_hz());
+			} else if (m_video_encoder_subaddr == 0x0d) {
+				// Mode register 2
+				auto square_pixel_mode_control = BIT(m_video_encoder_byte, 0);
+				auto genlock_control = BIT(m_video_encoder_byte, 1, 2);
+				auto active_video_line_control = BIT(m_video_encoder_byte, 3);
+				auto chrominance_control = BIT(m_video_encoder_byte, 4);
+				auto burst_control = BIT(m_video_encoder_byte, 5);
+				auto rgb_yuv_control = BIT(m_video_encoder_byte, 6);
+				auto lower_power_control = BIT(m_video_encoder_byte, 7);
+
+				printf("Mode register 2\n");
+				printf("\t square pixel control %02x %s\n", square_pixel_mode_control, square_pixel_mode_control ? "enable" : "disable");
+				printf("\t genlock control %02x ", genlock_control);
+				switch(genlock_control) {
+					case 0b00: case 0b10:
+						printf("Disable genlock\n"); break;
+					case 0b01: printf("Enable subcarrier reset pin\n"); break;
+					case 0b11: printf("Enable RTC pin\n"); break;
+				}
+
+				printf("\t active video line control %02x %s\n", active_video_line_control, active_video_line_control ? "ITU-R/SMPTE active line" : "720 pixels active line");
+				printf("\t chrominance control %02x %s\n", chrominance_control, chrominance_control ? "disable color" : "enable color");
+				printf("\t burst control %02x %s\n", burst_control, burst_control ? "disable burst" : "enable burst");
+				printf("\t RGB/YUV control %02x %s\n", rgb_yuv_control, rgb_yuv_control ? "YUV output" : "RGB output");
+				printf("\t lower power control %02x %s\n", lower_power_control, lower_power_control ? "enable" : "disabled");
+			} else if (m_video_encoder_subaddr >= 0x0e && m_video_encoder_subaddr <= 0x11) {
+				auto r = 0x11 - m_video_encoder_subaddr;
+				printf("NTSC pedestal/PAL teletext register %d %02x\n", r, m_video_encoder_byte);
+			} else if (m_video_encoder_subaddr == 0x12) {
+				// Mode register 3
+				auto vbi_passthrough_control = BIT(m_video_encoder_byte, 1);
+				auto teletext_enable = BIT(m_video_encoder_byte, 4);
+				auto input_default_color = BIT(m_video_encoder_byte, 6);
+				auto dac_switching_control = BIT(m_video_encoder_byte, 7);
+
+				printf("Mode register 3\n");
+				printf("\t VBI passthrough control %02x %s\n", vbi_passthrough_control, vbi_passthrough_control ? "enable" : "disable");
+				printf("\t teletext enable %02x %s\n", teletext_enable, teletext_enable ? "enable" : "disable");
+				printf("\t input default color %02x %s\n", input_default_color, input_default_color ? "black" : "input color");
+				printf("\t DAC switching control %02x dac a[%s] dac b[blue/comp/u] dac c[red/chroma/v] dac d[%s]\n", dac_switching_control, dac_switching_control ? "green/luma/y" : "composite", dac_switching_control ? "composite" : "green/luma/y");
+			} else {
+				printf("Unknown subaddr! %02x\n", m_video_encoder_subaddr);
+			}
+
+			m_video_encoder_bits = m_video_encoder_byte = 0;
+			m_video_encoder_state = 3;
+		}
+	}
+
+	m_video_encoder_clk = clk;
+	m_video_encoder_bit = bit2;
+}
+
 // Main CPU
 void stepstag_state::stepstag_map(address_map &map)
 {
@@ -721,7 +953,7 @@ void stepstag_state::stepstag_sub_map(address_map &map)
 	map(0xc00000, 0xc00001).r(FUNC(stepstag_state::stepstag_sprite_status_status_r)).nopw();
 
 	map(0xd00000, 0xd00001).nopr(); // watchdog
-	map(0xf00000, 0xf00001).nopw(); //??
+	map(0xf00000, 0xf00001).w(FUNC(stepstag_state::video_encoder_w));
 	map(0xffff00, 0xffff01).r(FUNC(stepstag_state::unknown_read_0xffff00));
 }
 
@@ -1511,6 +1743,16 @@ void stepstag_state::init_vj()
 	m_spriteram2_data = std::make_unique<uint16_t[]>(0x400);
 	m_spriteram3_data = std::make_unique<uint16_t[]>(0x400);
 
+	m_video_encoder_bits = 0;
+	m_video_encoder_byte = 0;
+	m_video_encoder_clk = 1;
+	m_video_encoder_bit = 1;
+	m_video_encoder_state = 0;
+	m_video_encoder_slaveaddr = 0;
+	m_video_encoder_subaddr = 0;
+	m_video_encoder_subcarrier_freq = 0;
+	m_video_encoder_timing_mode = 0;
+
 	save_pointer(NAME(m_spriteram1_data), 0x400);
 	save_pointer(NAME(m_spriteram2_data), 0x400);
 	save_pointer(NAME(m_spriteram3_data), 0x400);
@@ -1789,13 +2031,8 @@ TIMER_DEVICE_CALLBACK_MEMBER(stepstag_state::field_cb)
 
 void stepstag_state::setup_non_sysctrl_screen(machine_config &config, screen_device *screen, const XTAL xtal)
 {
-	// Seems to be 480i based on measurements:
-	// 13.5 mhz pixel clock (54mhz/4)
-	// 15.72 khz hfreq
-	// 720 h active
-	// 240-241 v active
-	// approx 59.95 hz vfreq
-	screen->set_raw(xtal/8, 429, 0, 352, 262, 0, 240);
+	// The video encoder chips are configured for NTSC 480i on boot
+	screen->set_raw(xtal, 858, 0, 720, 525, 0, 480);
 }
 
 void stepstag_state::stepstag(machine_config &config)
@@ -1822,17 +2059,17 @@ void stepstag_state::stepstag(machine_config &config)
 	// video hardware
 	screen_device &lscreen(SCREEN(config, "lscreen", SCREEN_TYPE_RASTER));
 	lscreen.set_orientation(ROT270);
-	setup_non_sysctrl_screen(config, &lscreen, subxtal);
+	setup_non_sysctrl_screen(config, &lscreen, subxtal/2);
 	lscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_left));
 
 	screen_device &mscreen(SCREEN(config, "mscreen", SCREEN_TYPE_RASTER));
 	mscreen.set_orientation(ROT0);
-	setup_non_sysctrl_screen(config, &mscreen, subxtal);
+	setup_non_sysctrl_screen(config, &mscreen, subxtal/2);
 	mscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_mid));
 
 	screen_device &rscreen(SCREEN(config, "rscreen", SCREEN_TYPE_RASTER));
 	rscreen.set_orientation(ROT270);
-	setup_non_sysctrl_screen(config, &rscreen, subxtal);
+	setup_non_sysctrl_screen(config, &rscreen, subxtal/2);
 	rscreen.set_screen_update(FUNC(stepstag_state::screen_update_stepstag_right));
 
 	MCFG_VIDEO_START_OVERRIDE(stepstag_state, stepstag)
@@ -1922,15 +2159,15 @@ void stepstag_state::vjdash(machine_config &config)    // 4 Screens
 	m_screen->set_palette(m_palette);
 
 	screen_device &lscreen(SCREEN(config, "lscreen", SCREEN_TYPE_RASTER));
-	setup_non_sysctrl_screen(config, &lscreen, subxtal);
+	setup_non_sysctrl_screen(config, &lscreen, subxtal/2);
 	lscreen.set_screen_update(FUNC(stepstag_state::screen_update_vjdash_left));
 
 	screen_device &mscreen(SCREEN(config, "mscreen", SCREEN_TYPE_RASTER));
-	setup_non_sysctrl_screen(config, &mscreen, subxtal);
+	setup_non_sysctrl_screen(config, &mscreen, subxtal/2);
 	mscreen.set_screen_update(FUNC(stepstag_state::screen_update_vjdash_mid));
 
 	screen_device &rscreen(SCREEN(config, "rscreen", SCREEN_TYPE_RASTER));
-	setup_non_sysctrl_screen(config, &rscreen, subxtal);
+	setup_non_sysctrl_screen(config, &rscreen, subxtal/2);
 	rscreen.set_screen_update(FUNC(stepstag_state::screen_update_vjdash_right));
 
 	MCFG_VIDEO_START_OVERRIDE(stepstag_state, stepstag)
