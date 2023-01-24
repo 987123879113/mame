@@ -4,8 +4,8 @@
  * Konami 573 Network PCB Unit
  *
  */
-#ifndef MAME_MACHINE_K573NPU_H
-#define MAME_MACHINE_K573NPU_H
+#ifndef MAME_KONAMI_K573NPU_H
+#define MAME_KONAMI_K573NPU_H
 
 #pragma once
 
@@ -46,4 +46,4 @@ private:
 	void fpga_write(offs_t offset, uint16_t data, uint16_t mem_mask);
 };
 
-#endif // MAME_MACHINE_K573NPU_H
+#endif // MAME_KONAMI_K573NPU_H

@@ -4,8 +4,8 @@
  * Konami 573 Multi Session Unit
  *
  */
-#ifndef MAME_MACHINE_K573MSU_H
-#define MAME_MACHINE_K573MSU_H
+#ifndef MAME_KONAMI_K573MSU_H
+#define MAME_KONAMI_K573MSU_H
 
 #pragma once
 
@@ -90,4 +90,4 @@ private:
 	std::deque<uint8_t> m_dsp_fifo_buffer[4];
 };
 
-#endif // MAME_MACHINE_K573MSU_H
+#endif // MAME_KONAMI_K573MSU_H
