@@ -1490,8 +1490,10 @@ if CPUS["PSX"] then
 		MAME_DIR .. "src/devices/cpu/psx/mdec.h",
 		MAME_DIR .. "src/devices/cpu/psx/rcnt.cpp",
 		MAME_DIR .. "src/devices/cpu/psx/rcnt.h",
-		MAME_DIR .. "src/devices/cpu/psx/sio.cpp",
-		MAME_DIR .. "src/devices/cpu/psx/sio.h",
+		MAME_DIR .. "src/devices/cpu/psx/sio0.cpp",
+		MAME_DIR .. "src/devices/cpu/psx/sio0.h",
+		MAME_DIR .. "src/devices/cpu/psx/sio1.cpp",
+		MAME_DIR .. "src/devices/cpu/psx/sio1.h",
 	}
 end
 

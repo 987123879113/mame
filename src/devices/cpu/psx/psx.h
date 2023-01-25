@@ -16,7 +16,8 @@
 #include "dma.h"
 #include "gte.h"
 #include "irq.h"
-#include "sio.h"
+#include "sio0.h"
+#include "sio1.h"
 #include "psxdasm.h"
 
 //**************************************************************************
@@ -313,6 +314,9 @@ protected:
 	devcb_write8 m_cd_write_handler;
 	required_device<ram_device> m_ram;
 	required_memory_region m_rom;
+
+	required_device<psxsio1_device> m_sio1;
+
 	bool m_disable_rom_berr;
 
 private:
