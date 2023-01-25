@@ -4,9 +4,9 @@
  * Konami 573 Martial Beat I/O
  *
  * Sys573 GFDM's magnetic card readers are also the same protocol, except the connected nodes are ICCA card readers.
- * 
+ *
  * TODO: Refactor so this code is not tied to Martial Beat and the nodes can be attached dynamically.
- * 
+ *
  */
 #include "emu.h"
 #include "k573martial.h"
@@ -45,7 +45,7 @@ void k573martial_device::device_start()
 
 	m_timer_response = timer_alloc(FUNC(k573martial_device::send_response), this);
 	m_timer_io = timer_alloc(FUNC(k573martial_device::send_io_packet), this);
-	
+
 }
 
 void k573martial_device::device_reset()
@@ -104,7 +104,7 @@ void k573martial_device::rcv_complete()
 
 	m_message.push_back(get_received_char());
 
-	while (m_message.front() != HEADER_BYTE) {
+	while (!m_message.empty() && m_message.front() != HEADER_BYTE) {
 		m_message.pop_front();
 	}
 
@@ -149,7 +149,7 @@ void k573martial_device::rcv_complete()
 					}
 					return;
 				}
-					
+
 				if ((cmd == SERIAL_REQ && (subcmd != CMD_NODE_COUNT && subcmd != CMD_VERSION && subcmd != CMD_EXEC))
 					|| (cmd == NODE_REQ && (subcmd != CMD_INIT))) {
 					printf("Unknown command! %02x %02x\n", cmd, subcmd);
