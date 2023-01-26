@@ -32,12 +32,6 @@ void k573martial_device::device_start()
 	set_data_frame(startbits, databits, parity, stopbits);
 	set_rate(BAUDRATE);
 
-	output_rxd(1);
-	output_dcd(0);
-	output_dsr(0);
-	output_ri(0);
-	output_cts(0);
-
 	m_message.clear();
 	m_response.clear();
 	m_io_counter = 0;

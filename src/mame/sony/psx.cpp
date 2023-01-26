@@ -516,8 +516,10 @@ void psx1_state::psx_base(machine_config &config)
 	rs232_port_device& rs232(RS232_PORT(config, "rs232", default_rs232_devices, nullptr));
 	rs232.rxd_handler().set(sio1, FUNC(psxsio1_device::write_rxd));
 	rs232.dsr_handler().set(sio1, FUNC(psxsio1_device::write_dsr));
+	rs232.cts_handler().set(sio1, FUNC(psxsio1_device::write_cts));
 	sio1.txd_handler().set(rs232, FUNC(rs232_port_device::write_txd));
 	sio1.dtr_handler().set(rs232, FUNC(rs232_port_device::write_dtr));
+	sio1.rts_handler().set(rs232, FUNC(rs232_port_device::write_rts));
 
 	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
 

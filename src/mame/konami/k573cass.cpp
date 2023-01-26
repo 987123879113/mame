@@ -83,7 +83,7 @@ void konami573_cassette_x_device::device_add_mconfig(machine_config &config)
 
 void konami573_cassette_x_device::device_start()
 {
-	output_dsr(0);
+	output_dsr(1);
 }
 
 WRITE_LINE_MEMBER(konami573_cassette_x_device::write_line_d0)
@@ -206,7 +206,7 @@ void konami573_cassette_y_device::device_start()
 	m_d6_handler.resolve_safe();
 	m_d7_handler.resolve_safe();
 
-	output_dsr(0);
+	output_dsr(1);
 }
 
 READ_LINE_MEMBER(konami573_cassette_y_device::read_line_secflash_sda)
@@ -305,7 +305,7 @@ void konami573_cassette_zi_device::device_add_mconfig(machine_config &config)
 
 void konami573_cassette_zi_device::device_start()
 {
-	output_dsr(0);
+	output_dsr(1);
 
 	m_d7_handler.resolve_safe();
 }

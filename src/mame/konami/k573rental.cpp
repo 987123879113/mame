@@ -31,12 +31,6 @@ void k573rental_device::device_start()
 	set_data_frame(startbits, databits, parity, stopbits);
 	set_rate(BAUDRATE);
 
-	output_rxd(1);
-	output_dcd(0);
-	output_dsr(0);
-	output_ri(0);
-	output_cts(0);
-
 	std::fill(std::begin(m_buffer), std::end(m_buffer), 0);
 	m_response.clear();
 

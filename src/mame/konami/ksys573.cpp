@@ -1235,10 +1235,6 @@ void ksys573_state::machine_reset()
 
 	std::fill_n( m_jvs_input_buffer, sizeof( m_jvs_input_buffer ), 0 );
 	std::fill_n( m_jvs_output_buffer, sizeof( m_jvs_output_buffer ), 0 );
-
-	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
-	if (sio1 != nullptr)
-		sio1->write_dsr(0);
 }
 
 uint8_t ksys573_state::explus_speed_inc1() {
@@ -2769,6 +2765,9 @@ void ddr_state::ddrk(machine_config &config)
 	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	sio1->rts_handler().set(rs232_network, FUNC(rs232_port_device::write_rts));
+	rs232_network.cts_handler().set(*sio1, FUNC(psxsio1_device::write_cts));
+	rs232_network.dsr_handler().set(*sio1, FUNC(psxsio1_device::write_dsr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 }
 
@@ -2781,6 +2780,9 @@ void ddr_state::ddr2mc(machine_config &config)
 	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	sio1->rts_handler().set(rs232_network, FUNC(rs232_port_device::write_rts));
+	rs232_network.cts_handler().set(*sio1, FUNC(psxsio1_device::write_cts));
+	rs232_network.dsr_handler().set(*sio1, FUNC(psxsio1_device::write_dsr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 }
 
@@ -2795,6 +2797,9 @@ void ddr_state::ddr2mc2(machine_config &config)
 	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	sio1->rts_handler().set(rs232_network, FUNC(rs232_port_device::write_rts));
+	rs232_network.cts_handler().set(*sio1, FUNC(psxsio1_device::write_cts));
+	rs232_network.dsr_handler().set(*sio1, FUNC(psxsio1_device::write_dsr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 }
 
@@ -2956,6 +2961,9 @@ void ksys573_state::mrtlbeat(machine_config &config)
 	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	sio1->rts_handler().set(rs232_network, FUNC(rs232_port_device::write_rts));
+	rs232_network.cts_handler().set(*sio1, FUNC(psxsio1_device::write_cts));
+	rs232_network.dsr_handler().set(*sio1, FUNC(psxsio1_device::write_dsr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 	rs232_network.option_add("k573martial", KONAMI_573_MARTIAL_BEAT_IO);
 	rs232_network.set_default_option("k573martial");
@@ -2989,6 +2997,9 @@ void ksys573_state::msu_remote(machine_config &config)
 	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	sio1->rts_handler().set(rs232_network, FUNC(rs232_port_device::write_rts));
+	rs232_network.cts_handler().set(*sio1, FUNC(psxsio1_device::write_cts));
+	rs232_network.dsr_handler().set(*sio1, FUNC(psxsio1_device::write_dsr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 }
 
@@ -3249,6 +3260,9 @@ void ksys573_state::mamboagga(machine_config &config)
 	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	sio1->rts_handler().set(rs232_network, FUNC(rs232_port_device::write_rts));
+	rs232_network.cts_handler().set(*sio1, FUNC(psxsio1_device::write_cts));
+	rs232_network.dsr_handler().set(*sio1, FUNC(psxsio1_device::write_dsr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 	rs232_network.option_add("k573rental", KONAMI_573_EAMUSE_RENTAL_DEVICE);
 	rs232_network.set_default_option("k573rental");
