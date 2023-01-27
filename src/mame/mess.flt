@@ -202,6 +202,7 @@ dec/decmate2.cpp
 dec/decstation.cpp
 dec/dectalk.cpp
 dec/decwritr.cpp
+dec/dtc03.cpp
 dec/jensen.cpp
 dec/pdp1.cpp
 dec/pdp11.cpp
@@ -381,6 +382,7 @@ hp/hp48.cpp
 hp/hp49gp.cpp
 hp/hp64k.cpp
 hp/hp700.cpp
+hp/hp7596a.cpp
 hp/hp80.cpp
 hp/hp95lx.cpp
 hp/hp9825.cpp
