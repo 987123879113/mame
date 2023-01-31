@@ -24,6 +24,7 @@ DEFINE_DEVICE_TYPE(NCR53C90, ncr53c90_device, "ncr53c90", "NCR 53C90 SCSI Contro
 DEFINE_DEVICE_TYPE(NCR53C90A, ncr53c90a_device, "ncr53c90a", "NCR 53C90A Advanced SCSI Controller")
 DEFINE_DEVICE_TYPE(NCR53C94, ncr53c94_device, "ncr53c94", "NCR 53C94 Advanced SCSI Controller")
 DEFINE_DEVICE_TYPE(NCR53CF94, ncr53cf94_device, "ncr53cf94", "NCR 53CF94-2 Fast SCSI Controller") // TODO: differences not emulated
+DEFINE_DEVICE_TYPE(NCR53CF96, ncr53cf96_device, "ncr53cf96", "NCR 53CF96-2 Fast SCSI Controller") // TODO: differences not emulated
 
 void ncr53c90_device::map(address_map &map)
 {
@@ -102,6 +103,8 @@ void ncr53c94_device::map(address_map &map)
 	ncr53c90a_device::map(map);
 
 	map(0xc, 0xc).rw(FUNC(ncr53c94_device::conf3_r), FUNC(ncr53c94_device::conf3_w));
+	map(0xd, 0xd).rw(FUNC(ncr53c94_device::conf4_r), FUNC(ncr53c94_device::conf4_w));
+	map(0xe, 0xe).rw(FUNC(ncr53c94_device::tcounter_hi2_r), FUNC(ncr53c94_device::tcount_hi2_w));
 	map(0xf, 0xf).w(FUNC(ncr53c94_device::fifo_align_w));
 }
 
@@ -109,17 +112,41 @@ uint8_t ncr53c94_device::read(offs_t offset)
 {
 	if (offset == 12)
 		return conf3_r();
+	else if (offset == 13)
+		return conf4_r();
+	else if (offset == 14)
+		return tcounter_hi2_r();
 	return ncr53c90a_device::read(offset);
 }
 
 void ncr53c94_device::write(offs_t offset, uint8_t data)
 {
-	if (offset == 11)
+	if (offset == 12)
 		conf3_w(data);
+	else if (offset == 13)
+		conf4_w(data);
+	else if (offset == 14)
+		tcount_hi2_w(data);
 	else if (offset == 15)
 		fifo_align_w(data);
 	else
 		ncr53c90a_device::write(offset, data);
+}
+
+uint8_t ncr53c94_device::tcounter_hi2_r()
+{
+	// tcounter is 24-bit when the features bit is set, otherwise it returns the ID
+	if (!BIT(config2, 6))
+		return (1 << 7) | (family_id << 3) | revision_level;
+
+	LOG("tcounter_hi2_r %02x (%s)\n", BIT(tcounter, 16, 8), machine().describe_context());
+	return BIT(tcounter, 16, 8);
+}
+
+void ncr53c94_device::tcount_hi2_w(uint8_t data)
+{
+	tcount = (tcount & ~0xff0000) | (data << 16);
+	LOG("tcount_hi2_w %02x (%s)\n", data, machine().describe_context());
 }
 
 ncr53c90_device::ncr53c90_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock)
@@ -156,12 +183,20 @@ ncr53c94_device::ncr53c94_device(const machine_config &mconfig, const char *tag,
 ncr53c94_device::ncr53c94_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock)
 	: ncr53c90a_device(mconfig, type, tag, owner, clock)
 	, config3(0)
+	, config4(0)
+	, family_id(0x02)
+	, revision_level(0x02)
 	, m_busmd(BUSMD_0)
 {
 }
 
 ncr53cf94_device::ncr53cf94_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: ncr53c94_device(mconfig, NCR53CF94, tag, owner, clock)
+{
+}
+
+ncr53cf96_device::ncr53cf96_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: ncr53c94_device(mconfig, NCR53CF96, tag, owner, clock)
 {
 }
 
@@ -752,24 +787,24 @@ void ncr53c90_device::delay_cycles(int cycles)
 uint8_t ncr53c90_device::tcounter_lo_r()
 {
 	LOG("tcounter_lo_r %02x (%s)\n", tcounter & 0xff, machine().describe_context());
-	return tcounter;
+	return BIT(tcounter, 0, 8);
 }
 
 void ncr53c90_device::tcount_lo_w(uint8_t data)
 {
-	tcount = (tcount & 0xff00) | data;
+	tcount = (tcount & ~0xff) | data;
 	LOG("tcount_lo_w %02x (%s)\n", data, machine().describe_context());
 }
 
 uint8_t ncr53c90_device::tcounter_hi_r()
 {
-	LOG("tcounter_hi_r %02x (%s)\n", tcounter >> 8, machine().describe_context());
-	return tcounter >> 8;
+	LOG("tcounter_hi_r %02x (%s)\n", BIT(tcounter, 8, 8), machine().describe_context());
+	return BIT(tcounter, 8, 8);
 }
 
 void ncr53c90_device::tcount_hi_w(uint8_t data)
 {
-	tcount = (tcount & 0x00ff) | (data << 8);
+	tcount = (tcount & ~0xff00) | (data << 8);
 	LOG("tcount_hi_w %02x (%s)\n", data, machine().describe_context());
 }
 
@@ -1212,8 +1247,10 @@ bool ncr53c90a_device::check_valid_command(uint8_t cmd)
 void ncr53c94_device::device_start()
 {
 	save_item(NAME(config3));
+	save_item(NAME(config4));
 
 	config3 = 0;
+	config4 = 0;
 
 	ncr53c90a_device::device_start();
 }
@@ -1221,6 +1258,7 @@ void ncr53c94_device::device_start()
 void ncr53c94_device::device_reset()
 {
 	config3 = 0;
+	config4 = 0;
 
 	ncr53c90a_device::device_reset();
 }
