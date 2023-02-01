@@ -247,7 +247,6 @@ public:
 	{
 	}
 
-	void tmosh(machine_config &config);
 	void kdeadeye(machine_config &config);
 	void btchamp(machine_config &config);
 	void konamigv(machine_config &config);
@@ -261,17 +260,13 @@ protected:
 	virtual void machine_reset() override;
 
 	void btc_trackball_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
-	uint16_t tokimeki_serial_r();
-	void tokimeki_serial_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void scsi_dma_read( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size );
 	void scsi_dma_write( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size );
 
 	void btchamp_map(address_map &map);
 	void kdeadeye_map(address_map &map);
-	void tmosh_map(address_map &map);
 
 	TIMER_CALLBACK_MEMBER(scsi_dma_transfer);
-	emu_timer *m_dma_timer;
 
 	required_device<ncr53cf96_device> m_ncr53cf96;
 	optional_device_array<upd4701_device, 2> m_btc_trackball;
@@ -283,6 +278,8 @@ protected:
 	int32_t m_dma_size;
 	bool m_dma_is_write;
 	bool m_dma_requested;
+
+	emu_timer *m_dma_timer;
 };
 
 class simpbowl_state : public konamigv_state
@@ -307,6 +304,41 @@ private:
 	required_device_array<fujitsu_29f016a_device, 4> m_flash8;
 
 	uint32_t m_flash_address = 0;
+};
+
+class tokimeki_state : public konamigv_state
+{
+public:
+	tokimeki_state(const machine_config &mconfig, device_type type, const char *tag)
+		: konamigv_state(mconfig, type, tag),
+		m_sensors(*this, "SENSOR%u", 1u),
+		m_heartbeat(*this, "HEARTBEAT")
+	{
+	}
+
+	void tmosh(machine_config &config);
+
+	uint16_t tokimeki_serial_r();
+	void tokimeki_serial_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+
+	DECLARE_CUSTOM_INPUT_MEMBER(tokimeki_device_check_r);
+	void tokimeki_device_check_w(int state);
+
+private:
+	virtual void machine_start() override;
+	virtual void machine_reset() override;
+
+	void tmosh_map(address_map &map);
+
+	required_ioport_array<3> m_sensors;
+	required_ioport m_heartbeat;
+
+	uint16_t m_tokimeki_device_val;
+	uint8_t m_tokimeki_serial_val;
+	uint8_t m_tokimeki_serial_len;
+	uint8_t m_tokimeki_serial_clk;
+	uint8_t m_tokimeki_serial_sensor_id;
+	uint16_t m_tokimeki_serial_sensor_data;
 };
 
 void konamigv_state::konamigv_map(address_map &map)
@@ -353,12 +385,12 @@ void konamigv_state::kdeadeye_map(address_map &map)
 	map(0x1f6800e0, 0x1f6800e3).nopw();
 }
 
-void konamigv_state::tmosh_map(address_map &map)
+void tokimeki_state::tmosh_map(address_map &map)
 {
 	konamigv_map(map);
 
-	map(0x1f680080, 0x1f680081).r(FUNC(konamigv_state::tokimeki_serial_r));
-	map(0x1f680090, 0x1f680091).w(FUNC(konamigv_state::tokimeki_serial_w));
+	map(0x1f680080, 0x1f680081).r(FUNC(tokimeki_state::tokimeki_serial_r));
+	map(0x1f680090, 0x1f680091).w(FUNC(tokimeki_state::tokimeki_serial_w));
 }
 
 // SCSI
@@ -424,6 +456,28 @@ void simpbowl_state::machine_start()
 {
 	konamigv_state::machine_start();
 	save_item(NAME(m_flash_address));
+}
+
+void tokimeki_state::machine_start()
+{
+	konamigv_state::machine_start();
+	save_item(NAME(m_tokimeki_device_val));
+	save_item(NAME(m_tokimeki_serial_val));
+	save_item(NAME(m_tokimeki_serial_len));
+	save_item(NAME(m_tokimeki_serial_clk));
+	save_item(NAME(m_tokimeki_serial_sensor_id));
+	save_item(NAME(m_tokimeki_serial_sensor_data));
+}
+
+void tokimeki_state::machine_reset()
+{
+	konamigv_state::machine_reset();
+	m_tokimeki_device_val = 0xf0ba;
+	m_tokimeki_serial_val = 0;
+	m_tokimeki_serial_len = 0;
+	m_tokimeki_serial_clk = 0;
+	m_tokimeki_serial_sensor_id = 0;
+	m_tokimeki_serial_sensor_data = 0;
 }
 
 void konamigv_state::konamigv(machine_config &config)
@@ -659,15 +713,23 @@ INPUT_PORTS_END
 
 // Tokimeki Memorial games - have a mouse and printer and who knows what else
 
-uint16_t konamigv_state::tokimeki_serial_r()
+uint16_t tokimeki_state::tokimeki_serial_r()
 {
 	// bits checked: 0x80 and 0x20 for periodic status (800b6968 and 800b69e0 in tmoshs)
-	// 0x08 for reading the serial device (8005e624)
+	// 0x04 is for the heartbeat sensor
+	// 0x08 is for the GSR sensor
+	uint16_t r = 4;
 
-	return 0xffff;
+	if (m_heartbeat->read() & 1)
+		r &= ~4;
+
+	if (m_tokimeki_serial_sensor_id != 0)
+		r |= BIT(m_tokimeki_serial_sensor_data, 8) << 3;
+
+	return r;
 }
 
-void konamigv_state::tokimeki_serial_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+void tokimeki_state::tokimeki_serial_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	/*
 	    serial EEPROM-like device here: when mem_mask == 0x000000ff only,
@@ -676,18 +738,101 @@ void konamigv_state::tokimeki_serial_w(offs_t offset, uint16_t data, uint16_t me
 	    0x20 = clock
 	    0x10 = data
 
-	    tmoshs sends 6 bits: 110100 then reads 8 bits.
-	    readback is bit 3 (0x08) of serial_r
-	    This happens starting around 8005e580.
-	*/
+		0x02 = sensors dest
 
+		0x80 = printer config?
+		0x40 = printer config?
+		0x01 = printer data?
+	*/
+	int clk = BIT(data, 5);
+
+	if (BIT(data, 1))
+	{
+		m_tokimeki_serial_sensor_data = 0;
+		m_tokimeki_serial_sensor_id = 0;
+		m_tokimeki_serial_val = 0;
+		m_tokimeki_serial_len = 0;
+	}
+	else if (!m_tokimeki_serial_clk && clk)
+	{
+		if (m_tokimeki_serial_len < 5)
+		{
+			// Sends 5 bits of data for the sensor ID
+			m_tokimeki_serial_val |= BIT(data, 4) << (4 - m_tokimeki_serial_len);
+
+			if (m_tokimeki_serial_len == 4)
+			{
+				m_tokimeki_serial_sensor_id = m_tokimeki_serial_val;
+
+				switch (m_tokimeki_serial_sensor_id)
+				{
+					case 0x18:
+						m_tokimeki_serial_sensor_data = m_sensors[0]->read() & 0xff;
+						break;
+					case 0x19:
+						m_tokimeki_serial_sensor_data = m_sensors[1]->read() & 0xff;
+						break;
+					case 0x1a:
+						m_tokimeki_serial_sensor_data = m_sensors[2]->read() & 0xff;
+						break;
+					default:
+						m_tokimeki_serial_sensor_data = 0;
+						break;
+				}
+			}
+		}
+		else if (m_tokimeki_serial_len >= 6)
+		{
+			// Shifts data between reads of tokimeki_serial_r
+			m_tokimeki_serial_sensor_data <<= 1;
+		}
+
+		m_tokimeki_serial_len++;
+	}
+
+	m_tokimeki_serial_clk = clk;
 }
 
-void konamigv_state::tmosh(machine_config &config)
+void tokimeki_state::tmosh(machine_config &config)
 {
 	konamigv(config);
-	m_maincpu->set_addrmap(AS_PROGRAM, &konamigv_state::tmosh_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &tokimeki_state::tmosh_map);
 }
+
+CUSTOM_INPUT_MEMBER(tokimeki_state::tokimeki_device_check_r)
+{
+	return BIT(m_tokimeki_device_val, 15);
+}
+
+void tokimeki_state::tokimeki_device_check_w(int state)
+{
+	// The check is accepted when it reads 0xf0ba
+	if (state)
+		m_tokimeki_device_val = (m_tokimeki_device_val << 1) | BIT(m_tokimeki_device_val, 15);
+}
+
+static INPUT_PORTS_START( tmosh )
+	PORT_INCLUDE( konamigv )
+
+	PORT_MODIFY("P2")
+	PORT_BIT( 0x00000400, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(tokimeki_state, tokimeki_device_check_r)
+
+	PORT_MODIFY("EEPROMOUT")
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_MEMBER(tokimeki_state, tokimeki_device_check_w)
+
+	PORT_START("HEARTBEAT")
+	PORT_BIT( 0x01, 0x00, IPT_BUTTON4 ) PORT_PLAYER(1)
+
+	PORT_START("SENSOR1")
+	PORT_BIT( 0xff, 0x00, IPT_AD_STICK_X ) PORT_SENSITIVITY(100) PORT_KEYDELTA(2) PORT_CENTERDELTA(20) PORT_MINMAX(0x00, 0xff) PORT_PLAYER(1)
+
+	PORT_START("SENSOR2")
+	PORT_BIT( 0xff, 0x00, IPT_AD_STICK_Y ) PORT_SENSITIVITY(100) PORT_KEYDELTA(2) PORT_CENTERDELTA(20) PORT_MINMAX(0x00, 0xff) PORT_PLAYER(1)
+
+	PORT_START("SENSOR3")
+	PORT_BIT( 0xff, 0x00, IPT_AD_STICK_Z ) PORT_SENSITIVITY(100) PORT_KEYDELTA(2) PORT_CENTERDELTA(20) PORT_MINMAX(0x00, 0xff) PORT_PLAYER(1)
+
+INPUT_PORTS_END
 
 /*
 Dead Eye
@@ -961,10 +1106,10 @@ GAME( 1996, susume,   lacrazyc, konamigv, konamigv, konamigv_state, empty_init, 
 GAME( 1996, btchamp,  konamigv, btchamp,  btchamp,  konamigv_state, empty_init, ROT0, "Konami", "Beat the Champ (GV053 UAA01)", MACHINE_IMPERFECT_SOUND )
 GAME( 1996, kdeadeye, konamigv, kdeadeye, kdeadeye, konamigv_state, empty_init, ROT0, "Konami", "Dead Eye (GV054 UAA01)", MACHINE_IMPERFECT_SOUND | MACHINE_IMPERFECT_GRAPHICS ) // Sprite layer renders incorrectly
 GAME( 1997, weddingr, konamigv, konamigv, weddingr, konamigv_state, empty_init, ROT0, "Konami", "Wedding Rhapsody (GX624 JAA)", MACHINE_IMPERFECT_SOUND )
-GAME( 1997, tmosh,    konamigv, tmosh,    konamigv, konamigv_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart (GQ673 JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
-GAME( 1997, tmoshs,   konamigv, tmosh,    konamigv, konamigv_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart Seal Version (GE755 JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
-GAME( 1997, tmoshsp,  konamigv, tmosh,    konamigv, konamigv_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart Seal Version Plus (GE756 JAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
-GAME( 1997, tmoshspa, tmoshsp,  tmosh,    konamigv, konamigv_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart Seal Version Plus (GE756 JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
+GAME( 1997, tmosh,    konamigv, tmosh,    tmosh,    tokimeki_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart (GQ673 JAA)", MACHINE_IMPERFECT_SOUND )
+GAME( 1997, tmoshs,   konamigv, tmosh,    tmosh,    tokimeki_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart Seal Version (GE755 JAA)", MACHINE_IMPERFECT_SOUND )
+GAME( 1997, tmoshsp,  konamigv, tmosh,    tmosh,    tokimeki_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart Seal Version Plus (GE756 JAB)", MACHINE_IMPERFECT_SOUND )
+GAME( 1997, tmoshspa, tmoshsp,  tmosh,    tmosh,    tokimeki_state, empty_init, ROT0, "Konami", "Tokimeki Memorial Oshiete Your Heart Seal Version Plus (GE756 JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1998, nagano98, konamigv, konamigv, konamigv, konamigv_state, empty_init, ROT0, "Konami", "Nagano Winter Olympics '98 (GX720 EAA)", MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE)
 GAME( 1998, naganoj,  nagano98, konamigv, konamigv, konamigv_state, empty_init, ROT0, "Konami", "Hyper Olympic in Nagano (GX720 JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE)
 GAME( 2000, simpbowl, konamigv, simpbowl, simpbowl, simpbowl_state, empty_init, ROT0, "Konami", "The Simpsons Bowling (GQ829 UAA)", MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE)
