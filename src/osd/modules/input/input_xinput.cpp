@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Brad Hughes
+// copyright-holders:Brad Hughes, Vas Crabb
 //============================================================
 //
 //  input_xinput.cpp - XInput API input support for Windows
@@ -176,14 +176,19 @@ LSX 15  C
 
 #include "modules/osdmodule.h"
 
-#if defined(OSD_WINDOWS)
+#if defined(OSD_WINDOWS) || defined(SDLMAME_WIN32)
 
-#include "emu.h"
+// emu
+#include "emu.h" // put this here before windows.h defines interface as a macro
 
 #include "input_xinput.h"
 
-// standard windows headers
-#include <windows.h>
+#include "modules/lib/osdobj_common.h"
+
+// lib/util
+#include "util/coretmpl.h"
+
+#include "eminline.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -200,6 +205,9 @@ LSX 15  C
 namespace osd {
 
 namespace {
+
+using util::BIT;
+
 
 char const *const AXIS_NAMES_GAMEPAD[]{
 		"LSX",
@@ -325,18 +333,14 @@ char const *const BUTTON_NAMES_KEYBOARD[]{
 
 class xinput_device_base : public device_info
 {
-public:
-	virtual void configure() = 0;
-
 protected:
 	xinput_device_base(
-			running_machine &machine,
 			std::string &&name,
 			std::string &&id,
 			input_module &module,
 			u32 player,
 			XINPUT_CAPABILITIES const &caps,
-			std::shared_ptr<xinput_api_helper> const &helper);
+			xinput_api_helper const &helper);
 
 	// capabilities
 	BYTE device_type() const { return m_capabilities.Type; }
@@ -370,19 +374,18 @@ private:
 	XINPUT_STATE        m_xinput_state;
 	bool                m_reset;
 
-	std::shared_ptr<xinput_api_helper> m_xinput_helper;
+	xinput_api_helper const &m_xinput_helper;
 };
 
 
 xinput_device_base::xinput_device_base(
-		running_machine &machine,
 		std::string &&name,
 		std::string &&id,
 		input_module &module,
 		u32 player,
 		XINPUT_CAPABILITIES const &caps,
-		std::shared_ptr<xinput_api_helper> const &helper) :
-	device_info(machine, std::move(name), std::move(id), DEVICE_CLASS_JOYSTICK, module),
+		xinput_api_helper const &helper) :
+	device_info(std::move(name), std::move(id), module),
 	m_player_index(player),
 	m_capabilities(caps),
 	m_xinput_state{ 0 },
@@ -522,7 +525,7 @@ bool xinput_device_base::read_state()
 {
 	// save previous packet number and try to read peripheral state
 	DWORD const prevpacket = m_xinput_state.dwPacketNumber;
-	HRESULT const result = m_xinput_helper->xinput_get_state(m_player_index, &m_xinput_state);
+	HRESULT const result = m_xinput_helper.xinput_get_state(m_player_index, &m_xinput_state);
 
 	// only update if it succeeded and the packed number changed
 	if (FAILED(result))
@@ -593,18 +596,16 @@ class xinput_joystick_device : public xinput_device_base
 {
 public:
 	xinput_joystick_device(
-			running_machine &machine,
 			std::string &&name,
 			std::string &&id,
 			input_module &module,
 			u32 player,
 			XINPUT_CAPABILITIES const &caps,
-			std::shared_ptr<xinput_api_helper> const &helper);
+			xinput_api_helper const &helper);
 
 	virtual void poll() override;
 	virtual void reset() override;
-
-	virtual void configure() override;
+	virtual void configure(input_device &device) override;
 
 private:
 	static inline constexpr USHORT SWITCH_BITS[] =
@@ -677,14 +678,13 @@ private:
 
 
 xinput_joystick_device::xinput_joystick_device(
-		running_machine &machine,
 		std::string &&name,
 		std::string &&id,
 		input_module &module,
 		u32 player,
 		XINPUT_CAPABILITIES const &caps,
-		std::shared_ptr<xinput_api_helper> const &helper) :
-	xinput_device_base(machine, std::move(name), std::move(id), module, player, caps, helper)
+		xinput_api_helper const &helper) :
+	xinput_device_base(std::move(name), std::move(id), module, player, caps, helper)
 {
 	std::fill(std::begin(m_switches), std::end(m_switches), 0);
 	std::fill(std::begin(m_axes), std::end(m_axes), 0);
@@ -735,7 +735,7 @@ void xinput_joystick_device::reset()
 }
 
 
-void xinput_joystick_device::configure()
+void xinput_joystick_device::configure(input_device &device)
 {
 	// TODO: proper support for dance mat controllers
 
@@ -789,8 +789,9 @@ void xinput_joystick_device::configure()
 	{
 		if (axis_caps[i])
 		{
-			device()->add_item(
+			device.add_item(
 					axis_names[i],
+					std::string_view(),
 					axis_ids[i],
 					generic_axis_get_state<s32>,
 					&m_axes[AXIS_LSX + i]);
@@ -811,8 +812,9 @@ void xinput_joystick_device::configure()
 	{
 		if (hat_caps[i])
 		{
-			device()->add_item(
+			device.add_item(
 					hat_names[i],
+					std::string_view(),
 					input_item_id(ITEM_ID_HAT1UP + i), // matches up/down/left/right order
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_DPAD_UP + i]);
@@ -837,8 +839,9 @@ void xinput_joystick_device::configure()
 		auto const [offset, supported] = button_caps[i];
 		if (supported)
 		{
-			device()->add_item(
+			device.add_item(
 					button_names[i],
+					std::string_view(),
 					button_id++,
 					generic_button_get_state<u8>,
 					&m_switches[offset]);
@@ -848,16 +851,18 @@ void xinput_joystick_device::configure()
 	// add start/back
 	if (has_button(XINPUT_GAMEPAD_START))
 	{
-		device()->add_item(
+		device.add_item(
 				"Start",
+				std::string_view(),
 				ITEM_ID_START,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_START]);
 	}
 	if (has_button(XINPUT_GAMEPAD_BACK))
 	{
-		device()->add_item(
+		device.add_item(
 				"Back",
+				std::string_view(),
 				ITEM_ID_SELECT,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_BACK]);
@@ -870,8 +875,9 @@ void xinput_joystick_device::configure()
 		{
 			if (i ? has_trigger_right() : has_trigger_left())
 			{
-				device()->add_item(
+				device.add_item(
 						axis_names[4 + i],
+						std::string_view(),
 						axis_ids[4 + i],
 						generic_axis_get_state<s32>,
 						&m_axes[AXIS_LT + i]);
@@ -890,18 +896,16 @@ class xinput_guitar_device : public xinput_device_base
 {
 public:
 	xinput_guitar_device(
-			running_machine &machine,
 			std::string &&name,
 			std::string &&id,
 			input_module &module,
 			u32 player,
 			XINPUT_CAPABILITIES const &caps,
-			std::shared_ptr<xinput_api_helper> const &helper);
+			xinput_api_helper const &helper);
 
 	virtual void poll() override;
 	virtual void reset() override;
-
-	virtual void configure() override;
+	virtual void configure(input_device &device) override;
 
 private:
 	static inline constexpr USHORT SWITCH_BITS[] =
@@ -965,14 +969,13 @@ private:
 
 
 xinput_guitar_device::xinput_guitar_device(
-		running_machine &machine,
 		std::string &&name,
 		std::string &&id,
 		input_module &module,
 		u32 player,
 		XINPUT_CAPABILITIES const &caps,
-		std::shared_ptr<xinput_api_helper> const &helper) :
-	xinput_device_base(machine, std::move(name), std::move(id), module, player, caps, helper)
+		xinput_api_helper const &helper) :
+	xinput_device_base(std::move(name), std::move(id), module, player, caps, helper)
 {
 	std::fill(std::begin(m_switches), std::end(m_switches), 0);
 	std::fill(std::begin(m_axes), std::end(m_axes), 0);
@@ -1012,7 +1015,7 @@ void xinput_guitar_device::reset()
 }
 
 
-void xinput_guitar_device::configure()
+void xinput_guitar_device::configure(input_device &device)
 {
 	// TODO: does subtype 0x06 indicate digital neck orientation sensor or lack of three-axis accelerometer?
 
@@ -1030,8 +1033,9 @@ void xinput_guitar_device::configure()
 		auto const [item, name, supported] = axis_caps[i];
 		if (supported)
 		{
-			device()->add_item(
+			device.add_item(
 					name,
+					std::string_view(),
 					item,
 					generic_axis_get_state<s32>,
 					&m_axes[AXIS_SLIDER + i]);
@@ -1043,8 +1047,9 @@ void xinput_guitar_device::configure()
 	{
 		if (has_button(SWITCH_BITS[SWITCH_DPAD_UP + i]))
 		{
-			device()->add_item(
+			device.add_item(
 					HAT_NAMES_GUITAR[i],
+					std::string_view(),
 					input_item_id(ITEM_ID_HAT1UP + i), // matches up/down/left/right order
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_DPAD_UP + i]);
@@ -1057,8 +1062,9 @@ void xinput_guitar_device::configure()
 	{
 		if (has_button(SWITCH_BITS[i]))
 		{
-			device()->add_item(
+			device.add_item(
 					BUTTON_NAMES_GUITAR[i],
+					std::string_view(),
 					button_id++,
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_FRET1 + i]);
@@ -1068,16 +1074,18 @@ void xinput_guitar_device::configure()
 	// add start/back
 	if (has_button(XINPUT_GAMEPAD_START))
 	{
-		device()->add_item(
+		device.add_item(
 				"Start",
+				std::string_view(),
 				ITEM_ID_START,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_START]);
 	}
 	if (has_button(XINPUT_GAMEPAD_BACK))
 	{
-		device()->add_item(
+		device.add_item(
 				"Back",
+				std::string_view(),
 				ITEM_ID_SELECT,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_BACK]);
@@ -1094,18 +1102,16 @@ class xinput_drumkit_device : public xinput_device_base
 {
 public:
 	xinput_drumkit_device(
-			running_machine &machine,
 			std::string &&name,
 			std::string &&id,
 			input_module &module,
 			u32 player,
 			XINPUT_CAPABILITIES const &caps,
-			std::shared_ptr<xinput_api_helper> const &helper);
+			xinput_api_helper const &helper);
 
 	virtual void poll() override;
 	virtual void reset() override;
-
-	virtual void configure() override;
+	virtual void configure(input_device &device) override;
 
 private:
 	static inline constexpr USHORT SWITCH_BITS[] =
@@ -1166,14 +1172,13 @@ private:
 
 
 xinput_drumkit_device::xinput_drumkit_device(
-		running_machine &machine,
 		std::string &&name,
 		std::string &&id,
 		input_module &module,
 		u32 player,
 		XINPUT_CAPABILITIES const &caps,
-		std::shared_ptr<xinput_api_helper> const &helper) :
-	xinput_device_base(machine, std::move(name), std::move(id), module, player, caps, helper)
+		xinput_api_helper const &helper) :
+	xinput_device_base(std::move(name), std::move(id), module, player, caps, helper)
 {
 	std::fill(std::begin(m_switches), std::end(m_switches), 0);
 	std::fill(std::begin(m_axes), std::end(m_axes), 0);
@@ -1208,7 +1213,7 @@ void xinput_drumkit_device::reset()
 }
 
 
-void xinput_drumkit_device::configure()
+void xinput_drumkit_device::configure(input_device &device)
 {
 	// add axes
 	std::tuple<input_item_id, char const *, bool> const axis_caps[]{
@@ -1223,8 +1228,9 @@ void xinput_drumkit_device::configure()
 		auto const [item, name, supported] = axis_caps[i];
 		if (supported)
 		{
-			device()->add_item(
+			device.add_item(
 					name,
+					std::string_view(),
 					item,
 					generic_axis_get_state<s32>,
 					&m_axes[AXIS_GREEN + i]);
@@ -1236,8 +1242,9 @@ void xinput_drumkit_device::configure()
 	{
 		if (has_button(SWITCH_BITS[SWITCH_DPAD_UP + i]))
 		{
-			device()->add_item(
+			device.add_item(
 					HAT_NAMES_GAMEPAD[i],
+					std::string_view(),
 					input_item_id(ITEM_ID_HAT1UP + i), // matches up/down/left/right order
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_DPAD_UP + i]);
@@ -1250,8 +1257,9 @@ void xinput_drumkit_device::configure()
 	{
 		if (has_button(SWITCH_BITS[i]))
 		{
-			device()->add_item(
+			device.add_item(
 					BUTTON_NAMES_DRUMKIT[i],
+					std::string_view(),
 					button_id++,
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_GREEN + i]);
@@ -1261,16 +1269,18 @@ void xinput_drumkit_device::configure()
 	// add start/back
 	if (has_button(XINPUT_GAMEPAD_START))
 	{
-		device()->add_item(
+		device.add_item(
 				"Start",
+				std::string_view(),
 				ITEM_ID_START,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_START]);
 	}
 	if (has_button(XINPUT_GAMEPAD_BACK))
 	{
-		device()->add_item(
+		device.add_item(
 				"Back",
+				std::string_view(),
 				ITEM_ID_SELECT,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_BACK]);
@@ -1287,18 +1297,16 @@ class xinput_turntable_device : public xinput_device_base
 {
 public:
 	xinput_turntable_device(
-			running_machine &machine,
 			std::string &&name,
 			std::string &&id,
 			input_module &module,
 			u32 player,
 			XINPUT_CAPABILITIES const &caps,
-			std::shared_ptr<xinput_api_helper> const &helper);
+			xinput_api_helper const &helper);
 
 	virtual void poll() override;
 	virtual void reset() override;
-
-	virtual void configure() override;
+	virtual void configure(input_device &device) override;
 
 private:
 	static inline constexpr USHORT SWITCH_BITS[] =
@@ -1361,14 +1369,13 @@ private:
 
 
 xinput_turntable_device::xinput_turntable_device(
-		running_machine &machine,
 		std::string &&name,
 		std::string &&id,
 		input_module &module,
 		u32 player,
 		XINPUT_CAPABILITIES const &caps,
-		std::shared_ptr<xinput_api_helper> const &helper) :
-	xinput_device_base(machine, std::move(name), std::move(id), module, player, caps, helper),
+		xinput_api_helper const &helper) :
+	xinput_device_base(std::move(name), std::move(id), module, player, caps, helper),
 	m_prev_effect(0)
 {
 	std::fill(std::begin(m_switches), std::end(m_switches), 0);
@@ -1391,7 +1398,7 @@ void xinput_turntable_device::poll()
 			m_switches[SWITCH_GREEN + i] = BIT(trigger_right(), i) ? 0xff : 0x00;
 
 		// translate axes
-		m_axes[AXIS_TURNTABLE] = s32(thumb_left_y()) * INPUT_RELATIVE_PER_PIXEL * 2;
+		m_axes[AXIS_TURNTABLE] = s32(thumb_left_y()) * input_device::RELATIVE_PER_PIXEL * 2;
 		m_axes[AXIS_CROSSFADE] = normalize_absolute_axis(thumb_right_y(), XINPUT_AXIS_MINVALUE, XINPUT_AXIS_MAXVALUE);
 
 		// convert effect dial value to relative displacement
@@ -1402,7 +1409,7 @@ void xinput_turntable_device::poll()
 				effect_delta -= 0x1'0000;
 			else if (-0x8000 > effect_delta)
 				effect_delta += 0x1'0000;
-			m_axes[AXIS_EFFECT] = effect_delta * INPUT_RELATIVE_PER_PIXEL / 128;
+			m_axes[AXIS_EFFECT] = effect_delta * input_device::RELATIVE_PER_PIXEL / 128;
 		}
 		m_prev_effect = u16(thumb_right_x());
 	}
@@ -1423,21 +1430,24 @@ void xinput_turntable_device::reset()
 }
 
 
-void xinput_turntable_device::configure()
+void xinput_turntable_device::configure(input_device &device)
 {
 	// add axes
-	device()->add_item(
+	device.add_item(
 			"Turntable",
+			std::string_view(),
 			ITEM_ID_ADD_RELATIVE1,
 			generic_axis_get_state<s32>,
 			&m_axes[AXIS_TURNTABLE]);
-	device()->add_item(
+	device.add_item(
 			"Effect",
+			std::string_view(),
 			ITEM_ID_ADD_RELATIVE2,
 			generic_axis_get_state<s32>,
 			&m_axes[AXIS_EFFECT]);
-	device()->add_item(
+	device.add_item(
 			"Crossfade",
+			std::string_view(),
 			ITEM_ID_XAXIS,
 			generic_axis_get_state<s32>,
 			&m_axes[AXIS_CROSSFADE]);
@@ -1447,8 +1457,9 @@ void xinput_turntable_device::configure()
 	{
 		if (has_button(SWITCH_BITS[SWITCH_DPAD_UP + i]))
 		{
-			device()->add_item(
+			device.add_item(
 					HAT_NAMES_GAMEPAD[i],
+					std::string_view(),
 					input_item_id(ITEM_ID_HAT1UP + i), // matches up/down/left/right order
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_DPAD_UP + i]);
@@ -1461,25 +1472,29 @@ void xinput_turntable_device::configure()
 	{
 		if (has_button(SWITCH_BITS[i]))
 		{
-			device()->add_item(
+			device.add_item(
 					BUTTON_NAMES_KEYBOARD[i],
+					std::string_view(),
 					button_id++,
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_A + i]);
 		}
 	}
-	device()->add_item(
+	device.add_item(
 			"Green",
+			std::string_view(),
 			button_id++,
 			generic_button_get_state<u8>,
 			&m_switches[SWITCH_GREEN]);
-	device()->add_item(
+	device.add_item(
 			"Red",
+			std::string_view(),
 			button_id++,
 			generic_button_get_state<u8>,
 			&m_switches[SWITCH_RED]);
-	device()->add_item(
+	device.add_item(
 			"Blue",
+			std::string_view(),
 			button_id++,
 			generic_button_get_state<u8>,
 			&m_switches[SWITCH_BLUE]);
@@ -1487,16 +1502,18 @@ void xinput_turntable_device::configure()
 	// add start/back
 	if (has_button(XINPUT_GAMEPAD_START))
 	{
-		device()->add_item(
+		device.add_item(
 				"Start",
+				std::string_view(),
 				ITEM_ID_START,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_START]);
 	}
 	if (has_button(XINPUT_GAMEPAD_BACK))
 	{
-		device()->add_item(
+		device.add_item(
 				"Back",
+				std::string_view(),
 				ITEM_ID_SELECT,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_BACK]);
@@ -1513,18 +1530,16 @@ class xinput_keyboard_device : public xinput_device_base
 {
 public:
 	xinput_keyboard_device(
-			running_machine &machine,
 			std::string &&name,
 			std::string &&id,
 			input_module &module,
 			u32 player,
 			XINPUT_CAPABILITIES const &caps,
-			std::shared_ptr<xinput_api_helper> const &helper);
+			xinput_api_helper const &helper);
 
 	virtual void poll() override;
 	virtual void reset() override;
-
-	virtual void configure() override;
+	virtual void configure(input_device &device) override;
 
 private:
 	static inline constexpr USHORT SWITCH_BITS[] =
@@ -1584,14 +1599,13 @@ private:
 
 
 xinput_keyboard_device::xinput_keyboard_device(
-		running_machine &machine,
 		std::string &&name,
 		std::string &&id,
 		input_module &module,
 		u32 player,
 		XINPUT_CAPABILITIES const &caps,
-		std::shared_ptr<xinput_api_helper> const &helper) :
-	xinput_device_base(machine, std::move(name), std::move(id), module, player, caps, helper)
+		xinput_api_helper const &helper) :
+	xinput_device_base(std::move(name), std::move(id), module, player, caps, helper)
 {
 	std::fill(std::begin(m_switches), std::end(m_switches), 0);
 	std::fill(std::begin(m_axes), std::end(m_axes), 0);
@@ -1634,16 +1648,18 @@ void xinput_keyboard_device::reset()
 }
 
 
-void xinput_keyboard_device::configure()
+void xinput_keyboard_device::configure(input_device &device)
 {
 	// add axes
-	device()->add_item(
+	device.add_item(
 			"Velocity",
+			std::string_view(),
 			ITEM_ID_SLIDER1,
 			generic_axis_get_state<s32>,
 			&m_axes[AXIS_VELOCITY]);
-	device()->add_item(
+	device.add_item(
 			"Pedal",
+			std::string_view(),
 			ITEM_ID_SLIDER2,
 			generic_axis_get_state<s32>,
 			&m_axes[AXIS_PEDAL]);
@@ -1653,8 +1669,9 @@ void xinput_keyboard_device::configure()
 	{
 		if (has_button(SWITCH_BITS[SWITCH_DPAD_UP + i]))
 		{
-			device()->add_item(
+			device.add_item(
 					HAT_NAMES_GAMEPAD[i],
+					std::string_view(),
 					input_item_id(ITEM_ID_HAT1UP + i), // matches up/down/left/right order
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_DPAD_UP + i]);
@@ -1667,8 +1684,9 @@ void xinput_keyboard_device::configure()
 	{
 		if (has_button(SWITCH_BITS[i]))
 		{
-			device()->add_item(
+			device.add_item(
 					BUTTON_NAMES_KEYBOARD[i],
+					std::string_view(),
 					button_id++,
 					generic_button_get_state<u8>,
 					&m_switches[SWITCH_A + i]);
@@ -1680,8 +1698,9 @@ void xinput_keyboard_device::configure()
 			"C %d", "C# %d", "D %d", "D# %d", "E %d", "F %d", "F# %d", "G %d", "G# %d", "A %d", "A# %d", "B %d" };
 	for (unsigned i = 0; (SWITCH_C3 - SWITCH_C1) >= i; ++i)
 	{
-		device()->add_item(
+		device.add_item(
 				util::string_format(key_formats[i % 12], (i / 12) + 1),
+				std::string_view(),
 				(ITEM_ID_BUTTON32 >= button_id) ? button_id++ : ITEM_ID_OTHER_SWITCH,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_C1 + i]);
@@ -1690,16 +1709,18 @@ void xinput_keyboard_device::configure()
 	// add start/back
 	if (has_button(XINPUT_GAMEPAD_START))
 	{
-		device()->add_item(
+		device.add_item(
 				"Start",
+				std::string_view(),
 				ITEM_ID_START,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_START]);
 	}
 	if (has_button(XINPUT_GAMEPAD_BACK))
 	{
-		device()->add_item(
+		device.add_item(
 				"Back",
+				std::string_view(),
 				ITEM_ID_SELECT,
 				generic_button_get_state<u8>,
 				&m_switches[SWITCH_BACK]);
@@ -1712,22 +1733,24 @@ void xinput_keyboard_device::configure()
 //  XInput joystick module
 //============================================================
 
-class xinput_joystick_module : public wininput_module
+class xinput_joystick_module : public input_module_impl<device_info, osd_common_t>
 {
 public:
-	xinput_joystick_module() : wininput_module(OSD_JOYSTICKINPUT_PROVIDER, "xinput")
+	xinput_joystick_module() : input_module_impl<device_info, osd_common_t>(OSD_JOYSTICKINPUT_PROVIDER, "xinput")
 	{
 	}
 
-	int init(const osd_options &options) override
+	virtual int init(osd_interface &osd, const osd_options &options) override
 	{
+		int status;
+
 		// Call the base
-		int status = wininput_module::init(options);
+		status = input_module_impl<device_info, osd_common_t>::init(osd, options);
 		if (status != 0)
 			return status;
 
 		// Create and initialize our helper
-		m_xinput_helper = std::make_shared<xinput_api_helper>();
+		m_xinput_helper = std::make_unique<xinput_api_helper>();
 		status = m_xinput_helper->initialize();
 		if (status != 0)
 		{
@@ -1738,22 +1761,29 @@ public:
 		return 0;
 	}
 
-protected:
 	virtual void input_init(running_machine &machine) override
 	{
+		input_module_impl<device_info, osd_common_t>::input_init(machine);
+
 		// Loop through each gamepad to determine if they are connected
 		for (UINT i = 0; i < XUSER_MAX_COUNT; i++)
 		{
-			XINPUT_STATE state{ 0 };
-
 			// allocate and link in a new device
-			if (m_xinput_helper->xinput_get_state(i, &state) == ERROR_SUCCESS)
-				m_xinput_helper->create_xinput_device(machine, i, *this);
+			auto devinfo = m_xinput_helper->create_xinput_device(i, *this);
+			if (devinfo)
+				add_device(DEVICE_CLASS_JOYSTICK, std::move(devinfo));
 		}
 	}
 
+	virtual void exit() override
+	{
+		input_module_impl<device_info, osd_common_t>::exit();
+
+		m_xinput_helper.reset();
+	}
+
 private:
-	std::shared_ptr<xinput_api_helper> m_xinput_helper;
+	std::unique_ptr<xinput_api_helper> m_xinput_helper;
 };
 
 } // anonymous namespace
@@ -1781,9 +1811,14 @@ int xinput_api_helper::initialize()
 //  create_xinput_device
 //============================================================
 
-device_info *xinput_api_helper::create_xinput_device(running_machine &machine, UINT index, wininput_module &module)
+std::unique_ptr<device_info> xinput_api_helper::create_xinput_device(
+		UINT index,
+		input_module_base &module)
 {
 	// If we can't get the capabilities skip this device
+	XINPUT_STATE state{ 0 };
+	if (xinput_get_state(index, &state) != ERROR_SUCCESS)
+		return nullptr;
 	XINPUT_CAPABILITIES caps{ 0 };
 	if (FAILED(xinput_get_capabilities(index, 0, &caps)))
 		return nullptr;
@@ -1791,8 +1826,7 @@ device_info *xinput_api_helper::create_xinput_device(running_machine &machine, U
 	char device_name[16];
 	snprintf(device_name, sizeof(device_name), "XInput Player %u", index + 1);
 
-	// allocate the device object
-	xinput_device_base *devinfo;
+	// allocate specialised device objects
 	switch (caps.Type)
 	{
 	case XINPUT_DEVTYPE_GAMEPAD:
@@ -1801,81 +1835,63 @@ device_info *xinput_api_helper::create_xinput_device(running_machine &machine, U
 		case XINPUT_DEVSUBTYPE_GUITAR:
 		case XINPUT_DEVSUBTYPE_GUITAR_ALTERNATE:
 		case XINPUT_DEVSUBTYPE_GUITAR_BASS:
-			devinfo = &module.devicelist().create_device<xinput_guitar_device>(
-					machine,
+			return std::make_unique<xinput_guitar_device>(
 					device_name,
 					device_name,
 					module,
 					index,
 					caps,
-					shared_from_this());
+					*this);
 			break;
 		case XINPUT_DEVSUBTYPE_DRUM_KIT:
-			devinfo = &module.devicelist().create_device<xinput_drumkit_device>(
-					machine,
+			return std::make_unique<xinput_drumkit_device>(
 					device_name,
 					device_name,
 					module,
 					index,
 					caps,
-					shared_from_this());
+					*this);
 			break;
 		case 0x0f:
-			devinfo = &module.devicelist().create_device<xinput_keyboard_device>(
-					machine,
+			return std::make_unique<xinput_keyboard_device>(
 					device_name,
 					device_name,
 					module,
 					index,
 					caps,
-					shared_from_this());
+					*this);
 			break;
 		case 0x17:
-			devinfo = &module.devicelist().create_device<xinput_turntable_device>(
-					machine,
+			return std::make_unique<xinput_turntable_device>(
 					device_name,
 					device_name,
 					module,
 					index,
 					caps,
-					shared_from_this());
+					*this);
 			break;
-		default:
-			devinfo = &module.devicelist().create_device<xinput_joystick_device>(
-					machine,
-					device_name,
-					device_name,
-					module,
-					index,
-					caps,
-					shared_from_this());
 		}
 		break;
-	default:
-		devinfo = &module.devicelist().create_device<xinput_joystick_device>(
-				machine,
-				device_name,
-				device_name,
-				module,
-				index,
-				caps,
-				shared_from_this());
 	}
 
-	// configure each controller to add buttons, axes, etc.
-	devinfo->configure();
-
-	return devinfo;
+	// create default general-purpose device
+	return std::make_unique<xinput_joystick_device>(
+			device_name,
+			device_name,
+			module,
+			index,
+			caps,
+			*this);
 }
 
 } // namespace osd
 
-#else // defined(OSD_WINDOWS)
+#else // defined(OSD_WINDOWS) || defined(SDLMAME_WIN32)
 
 #include "input_module.h"
 
-namespace osd { MODULE_NOT_SUPPORTED(xinput_joystick_module, OSD_JOYSTICKINPUT_PROVIDER, "xinput") }
+namespace osd { namespace { MODULE_NOT_SUPPORTED(xinput_joystick_module, OSD_JOYSTICKINPUT_PROVIDER, "xinput") } }
 
-#endif // defined(OSD_WINDOWS)
+#endif // defined(OSD_WINDOWS) || defined(SDLMAME_WIN32)
 
 MODULE_DEFINITION(JOYSTICKINPUT_XINPUT, osd::xinput_joystick_module)

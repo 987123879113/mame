@@ -802,6 +802,9 @@ apple2gsmt                      // 1991 "Mark Twain" prototype
 @source:apple/apple3.cpp
 apple3                          // May 1980 Apple ///
 
+@source:apple/imacg3.cpp
+imac                            // August 15, 1998 Apple iMac (Bondi blue)
+
 @source:apple/iphone2g.cpp
 iphone2g                        // (c) 2007 Apple
 
@@ -886,6 +889,9 @@ mp130
 emate
 mp2000
 mp2100
+
+@source:apple/powermacg3.cpp
+pwrmacg3                        // November 10, 1997 Apple Power Macintosh G3 (beige)
 
 @source:apple/superga2.cpp
 kuzmich
@@ -16247,6 +16253,7 @@ astrof2                         // (c) [1980?]
 astrof3                         // (c) [1980?]
 astroff                         // bootleg (Famaresa)
 astroff2                        // bootleg (Famaresa)
+satsf3d                         //
 spfghmk2                        // (c) [1979] Data East Corporation
 spfghmk22                       // (c) [1979] Data East Corporation
 sstarbtl                        // bootleg
@@ -18227,6 +18234,7 @@ mshuttle2                       // (c) 1981 Nichibutsu
 mshuttlea                       // (c) 1981 Nichibutsu
 mshuttlej                       // (c) 1981 Nichibutsu
 mshuttlej2                      // (c) 1981 Nichibutsu
+mutacion                        // bootleg (Explomatic)
 namenayo                        // (c) 1982 Cat's
 ncentury                        // bootleg (Petaco S.A.)
 offensiv                        // bootleg (Video Dens)
@@ -28660,6 +28668,7 @@ goldenchip                      // (c) 19?? SegaSA / Sonic
 @source:misc/discoboy.cpp
 discoboy                        // (c) 1993 Soft Art Co.
 discoboyp                       // (c) 1993 Soft Art Co. (Promat license?)
+djgirl
 
 @source:misc/dmainevent.cpp
 dmainevent                      // (c) 1983 Destron
@@ -29550,6 +29559,7 @@ amuse1                          // (c) 1982 Greyhound Electronics
 amuse1a                         // (c) 1983 Greyhound Electronics
 bigjoke                         // (c) 1987 Greyhound Electronics
 findout                         // (c) 1987 [Elettronolo]
+findouta                        // (c) 1989 [Elettronolo]
 geimulti                        // (c) 1992 Grayhound Electronics
 gepoker                         // (c) 1984 Greyhound Electronics
 gepoker1                        // (c) 1984 Greyhound Electronics
@@ -29988,6 +29998,7 @@ joystand                        // 1997 Yuvo
 jubileep                        //
 
 @source:misc/jungleyo.cpp
+frtgenie
 jungleyo
 
 @source:misc/kas89.cpp
@@ -30697,7 +30708,8 @@ onetwo                          // (c) 1997 Barko
 onetwoe                         // (c) 1997 Barko
 
 @source:misc/opercoin.cpp
-multibaby                       // (c) 1990 oper Coin
+multibaby                       // (c) 1990 Oper Coin
+spirulo                         // (c) 19?? Oper Coin
 
 @source:misc/othello.cpp
 othello                         // (c) 1984 Success.
@@ -32426,6 +32438,7 @@ tekken2a                        // 1995.08 Tekken 2 (World, TES2/VER.A)
 tekken2b                        // 1995.09 Tekken 2 Ver.B (World, TES2/VER.B)
 tekken2jb                       // 1995.09 Tekken 2 Ver.B (Japan, TES1/VER.B)
 tekken2jc                       // 1995.11 Tekken 2 Ver.B (Japan, TES1/VER.C)
+tekken2ua                       // 1995.08 Tekken 2 (US, TES3/VER.A)
 tekken2ub                       // 1995.09 Tekken 2 Ver.B (US, TES3/VER.B)
 tekkenac                        // 1995.01 Tekken (Asia, TE4/VER.C)
 tekkenb                         // 1994.12 Tekken (World, TE2/VER.B)
@@ -32457,14 +32470,14 @@ pacapp                          // 1998.12 Paca Paca Passion (Japan, PPP1/VER.A2
 pacapp2                         // 1999.07 Paca Paca Passion 2 (Japan, PKS1/VER.A)
 pacappsp                        // 1999.12 Paca Paca Passion Special (Japan, PSP1/VER.A)
 ptblank2                        // 1999.?? Point Blank 2 (GNB5/VER.A)
-soulclbr                        // 1998.?? Soul Calibur (World, SOC14/VER.C)
-soulclbraa                      // 1998.?? Soul Calibur (Asia, SOC12/VER.A2)
+soulclbr                        // 1998.?? Soul Calibur (Asia, SOC14/VER.C)
+soulclbra                       // 1998.?? Soul Calibur (World, SOC12/VER.A2)
+soulclbrab                      // 1998.?? Soul Calibur (Asia, SOC14/VER.B)
 soulclbrja                      // 1998.?? Soul Calibur (Japan, SOC11/VER.A2)
 soulclbrjb                      // 1998.?? Soul Calibur (Japan, SOC11/VER.B)
 soulclbrjc                      // 1998.07 Soul Calibur (Japan, SOC11/VER.C)
 soulclbrub                      // 1998.?? Soul Calibur (US, SOC13/VER.B)
 soulclbruc                      // 1998.?? Soul Calibur (US, SOC13/VER.C)
-soulclbrwb                      // 1998.?? Soul Calibur (World, SOC14/VER.B)
 sws2000                         // 2000.03 Super World Stadium 2000 (Japan, SS01/VER.A)
 sws2001                         // 2001.04 Super World Stadium 2001 (Japan, SS11/VER.A)
 sws98                           // 1998.06 Super World Stadium '98 (Japan, SS81/VER.A)
@@ -32473,6 +32486,7 @@ technodr                        // 1998.07 Techno Drive (Japan, TD2/VER.B)
 tekken3                         // 1997.03 Tekken 3 (World, TET2/VER.E1)
 tekken3a                        // 1997.?? Tekken 3 (World, TET2/VER.A)
 tekken3b                        // 1997.?? Tekken 3 (World, TET2/VER.B)
+tekken3c                        // 1997.?? Tekken 3 (World, TET2/VER.C)
 tekken3d                        // 1997.?? Tekken 3 (World, TET2/VER.D)
 tekken3ja                       // 1997.?? Tekken 3 (Japan, TET1/VER.A)
 tekken3je1                      // 1997.03 Tekken 3 (Japan, TET1/VER.E1)
@@ -33514,6 +33528,9 @@ cham24                          // 2002
 
 @source:nintendo/compmahj.cpp
 compmahj                        // 1983 Nintendo Computer Mah-jong Yakuman
+
+@source:nintendo/cothello.cpp
+cothello
 
 @source:nintendo/dkong.cpp
 8ballact                        // (c) 1984 Seatongrove Ltd (Magic Eletronics USA license)
@@ -44864,6 +44881,7 @@ ordisava                        // 1988 Ordisavant (France)
 pc1000                          // 1988 PreComputer 1000
 pc2000                          // 1993 PreComputer 2000
 pc2000s                         // 1993 PreComputer 2000 (Spain)
+primusex                        // 198? Yeno Primus Expert mit Stimme (Germany)
 
 @source:vtech/pc4.cpp
 pc4                             //
