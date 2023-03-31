@@ -206,7 +206,7 @@ DEVICE_IMAGE_LOAD_MEMBER(generalplus_zippity_game_state::cart_load)
 	m_cart->rom_alloc(size, GENERIC_ROM16_WIDTH, ENDIANNESS_LITTLE);
 	m_cart->common_load_rom(m_cart->get_rom_base(), size, "rom");
 
-	return image_init_result::PASS;
+	return std::error_condition();
 }
 
 
@@ -297,10 +297,8 @@ void generalplus_gpl32612_game_state::nand_init(int blocksize, int blocksize_str
 	// debug to allow for easy use of unidasm.exe
 	if (0)
 	{
-		FILE *fp;
-		char filename[256];
-		sprintf(filename,"stripped_%s", machine().system().name);
-		fp=fopen(filename, "w+b");
+		auto filename = "stripped_" + std::string(machine().system().name);
+		auto fp = fopen(filename.c_str(), "w+b");
 		if (fp)
 		{
 			fwrite(&m_strippedrom[0], blocksize_stripped * numblocks, 1, fp);

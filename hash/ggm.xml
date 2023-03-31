@@ -4,7 +4,7 @@
 license:CC0-1.0
 -->
 
-<softwarelist name="ggm" description="GGM Cartridges">
+<softwarelist name="ggm" description="GGM cartridges">
 
 <!-- Applied Concepts Great Game Machine (GGM) / Chafitz Modular Game System (MGS) game cartridges -->
 
@@ -62,6 +62,20 @@ license:CC0-1.0
 				<rom                    offset="0x6000" size="0x1000" loadflag="reload" />
 				<rom name="gruenfeld.5" offset="0x5000" size="0x1000" crc="66eddf41" sha1="8a1957f89e7b8a97c17c26fa755f9b640fba0760" /> <!-- " -->
 				<rom                    offset="0x7000" size="0x1000" loadflag="reload" />
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="gruens" cloneof="gruen">
+		<description>Gruenfeld-S Edition: Master Chess Openings</description>
+		<year>1982</year>
+		<publisher>Applied Concepts</publisher>
+		<part name="cart" interface="ggm">
+			<feature name="overlay" value="0x02" />
+			<dataarea name="rom" size="0x10000">
+				<rom name="7094-00" offset="0x6000" size="0x1000" crc="8e131f0f" sha1="a5f268cd25831719a6491590e0497ecd9bb6ea85" /> <!-- D2732A-3 -->
+				<rom                offset="0x7000" size="0x1000" loadflag="reload" />
+				<rom name="7095-00" offset="0xe000" size="0x2000" crc="88e02bd8" sha1="ada5db5871e82312e1b1b8da300deeebaeb886e9" /> <!-- D2764 -->
 			</dataarea>
 		</part>
 	</software>

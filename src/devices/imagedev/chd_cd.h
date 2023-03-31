@@ -34,7 +34,7 @@ public:
 	void enable_raw_images(bool mode) { m_enable_raw_images = mode; }
 
 	// image-level overrides
-	virtual image_init_result call_load() override;
+	virtual std::error_condition call_load() override;
 	virtual void call_unload() override;
 
 	virtual bool is_readable()  const noexcept override { return true; }

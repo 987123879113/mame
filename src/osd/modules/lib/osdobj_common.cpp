@@ -365,7 +365,7 @@ void osd_common_t::update_option(const std::string &key, std::vector<std::string
 //-------------------------------------------------
 //  output_callback  - callback for osd_printf_...
 //-------------------------------------------------
-void osd_common_t::output_callback(osd_output_channel channel, const util::format_argument_pack<std::ostream> &args)
+void osd_common_t::output_callback(osd_output_channel channel, const util::format_argument_pack<char> &args)
 {
 	switch (channel)
 	{
@@ -673,6 +673,14 @@ bool osd_common_t::input_init()
 	m_lightgun_input->input_init(machine());
 	m_joystick_input->input_init(machine());
 	return true;
+}
+
+void osd_common_t::poll_input_modules(bool relative_reset)
+{
+	m_keyboard_input->poll_if_necessary(relative_reset);
+	m_mouse_input->poll_if_necessary(relative_reset);
+	m_lightgun_input->poll_if_necessary(relative_reset);
+	m_joystick_input->poll_if_necessary(relative_reset);
 }
 
 void osd_common_t::exit_subsystems()
