@@ -357,7 +357,7 @@ DEVICE_IMAGE_LOAD_MEMBER(n64_mess_state::cart_load)
 	logerror("cart length = %d\n", length);
 
 	device_image_interface *battery_image = dynamic_cast<device_image_interface *>(m_rcp_periphs->m_nvram_image);
-	if(battery_image)
+	if (battery_image)
 	{
 		//printf("Loading\n");
 		uint8_t data[0x30800];
@@ -378,7 +378,7 @@ DEVICE_IMAGE_LOAD_MEMBER(n64_mess_state::cart_load)
 		mempak_format(m_rcp_periphs->m_save_data.mempak[1]);
 	}
 
-	return std::error_condition();
+	return std::make_pair(std::error_condition(), std::string());
 }
 
 MACHINE_START_MEMBER(n64_mess_state,n64dd)

@@ -1910,6 +1910,8 @@ if (BUSES["MSX_SLOT"]~=null) then
 		MAME_DIR .. "src/devices/bus/msx/cart/fs_sr022.h",
 		MAME_DIR .. "src/devices/bus/msx/cart/halnote.cpp",
 		MAME_DIR .. "src/devices/bus/msx/cart/halnote.h",
+		MAME_DIR .. "src/devices/bus/msx/cart/hbi55.cpp",
+		MAME_DIR .. "src/devices/bus/msx/cart/hbi55.h",
 		MAME_DIR .. "src/devices/bus/msx/cart/hfox.cpp",
 		MAME_DIR .. "src/devices/bus/msx/cart/hfox.h",
 		MAME_DIR .. "src/devices/bus/msx/cart/holy_quran.cpp",
@@ -1956,6 +1958,8 @@ if (BUSES["MSX_SLOT"]~=null) then
 		MAME_DIR .. "src/devices/bus/msx/module/module.h",
 		MAME_DIR .. "src/devices/bus/msx/module/sfg.cpp",
 		MAME_DIR .. "src/devices/bus/msx/module/sfg.h",
+		MAME_DIR .. "src/devices/bus/msx/module/skw01.cpp",
+		MAME_DIR .. "src/devices/bus/msx/module/skw01.h",
 		MAME_DIR .. "src/devices/bus/msx/softcard/softcard.cpp",
 		MAME_DIR .. "src/devices/bus/msx/softcard/softcard.h",
 	}
@@ -4504,6 +4508,20 @@ if (BUSES["SPECTRUM"]~=null) then
 		MAME_DIR .. "src/devices/bus/spectrum/uspeech.h",
 		MAME_DIR .. "src/devices/bus/spectrum/wafa.cpp",
 		MAME_DIR .. "src/devices/bus/spectrum/wafa.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/bus/spectrum/zxbus.h,BUSES["ZXBUS"] = true
+---------------------------------------------------
+
+if (BUSES["ZXBUS"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/bus/spectrum/zxbus.cpp",
+		MAME_DIR .. "src/devices/bus/spectrum/zxbus.h",
+		MAME_DIR .. "src/devices/bus/spectrum/neogs.cpp",
+		MAME_DIR .. "src/devices/bus/spectrum/neogs.h",
 	}
 end
 

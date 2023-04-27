@@ -11,9 +11,15 @@
 
 #pragma once
 
+#include <cstdint>
+#include <string>
+#include <system_error>
+#include <utility>
+
+
 #define CBM_QUICKLOAD_DELAY (attotime::from_seconds(3))
 
-std::error_condition general_cbm_loadsnap(
+std::pair<std::error_condition, std::string> general_cbm_loadsnap(
 		device_image_interface &image,
 		address_space &space,
 		offs_t offset,
