@@ -84,6 +84,7 @@ BD-62     ms   SM512   Bomb Sweeper
 JB-63     ms   SM511   Safe Buster
 MV-64     ms   SM512   Gold Cliff
 ZL-65     ms   SM512   Zelda
+TR-66*    ms   SM512?  Tetris Jr. (prototype)
 CJ-71*    tt   SM511?  Donkey Kong Jr.
 CM-72     tt   SM511   Mario's Cement Factory
 SM-73*    tt   SM511?  Snoopy
@@ -275,7 +276,7 @@ u8 hh_sm510_state::read_inputs(int columns, int fixed)
 
 	// read selected input rows
 	for (int i = 0; i < columns; i++)
-		if (m_inp_mux >> i & 1)
+		if (BIT(m_inp_mux, i))
 			ret |= m_inputs[i]->read();
 
 	if (fixed >= 0)
@@ -5543,6 +5544,70 @@ ROM_END
 
 
 
+/***************************************************************************
+
+  Konami Teenage Mutant Ninja Turtles 3: Shredder's Last Stand
+  * PCB label: BH018
+  * Sharp SM511 under epoxy (die label KMS73B, 794)
+  * lcd screen with custom segments, 1-bit sound
+
+***************************************************************************/
+
+class ktmnt3_state : public hh_sm510_state
+{
+public:
+	ktmnt3_state(const machine_config &mconfig, device_type type, const char *tag) :
+		hh_sm510_state(mconfig, type, tag)
+	{ }
+
+	void ktmnt3(machine_config &config);
+};
+
+// config
+
+static INPUT_PORTS_START( ktmnt3 )
+	PORT_START("IN.0") // S1
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_SELECT ) PORT_CHANGED_CB(input_changed) PORT_NAME("Pause")
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_START ) PORT_CHANGED_CB(input_changed) PORT_NAME("Power On/Start")
+
+	PORT_START("IN.1") // S2
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_POWER_OFF ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_VOLUME_DOWN ) PORT_CHANGED_CB(input_changed) PORT_NAME("Sound")
+
+	PORT_START("IN.2") // S3
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Attack")
+	PORT_BIT( 0x07, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("ACL")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SERVICE1 ) PORT_CHANGED_CB(acl_button) PORT_NAME("All Clear")
+INPUT_PORTS_END
+
+void ktmnt3_state::ktmnt3(machine_config &config)
+{
+	sm511_common(config, 1593, 1080);
+}
+
+// roms
+
+ROM_START( ktmnt3 )
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "794.program", 0x0000, 0x1000, CRC(fcbd6f79) SHA1(45badb94fb3e32350efb7e46e2e271c18135e2aa) )
+
+	ROM_REGION( 0x100, "maincpu:melody", 0 )
+	ROM_LOAD( "794.melody", 0x000, 0x100, CRC(9731c180) SHA1(443c4b9c2564e0901a0777d90ab8c138b24788ea) )
+
+	ROM_REGION( 563452, "screen", 0)
+	ROM_LOAD( "ktmnt3.svg", 0, 563452, CRC(3296c472) SHA1(2c6de52b4b840bb9d681bee04ebf4cdced66612f) )
+ROM_END
+
+
+
+
+
 /*******************************************************************************
 
   Konami Bucky O'Hare
@@ -10567,6 +10632,78 @@ ROM_END
 
 /*******************************************************************************
 
+  Tronica: Super Goal Keeper (model SK-10)
+  * PCB labels: SK-10 280683 32-647-1
+  * Sharp SM5A labels (no decap): 0132 238A TRONICA
+  * lcd screen with custom segments, 1-bit sound
+
+*******************************************************************************/
+
+class trsgkeep_state : public hh_sm510_state
+{
+public:
+	trsgkeep_state(const machine_config &mconfig, device_type type, const char *tag) :
+		hh_sm510_state(mconfig, type, tag)
+	{ }
+
+	void trsgkeep(machine_config &config);
+};
+
+// inputs
+
+static INPUT_PORTS_START( trsgkeep )
+	PORT_START("IN.0") // R2
+	PORT_BIT( 0x0f, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("IN.1") // R3
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_JOYSTICKRIGHT_DOWN ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICKRIGHT_UP ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_JOYSTICKLEFT_DOWN ) PORT_CHANGED_CB(input_changed)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_JOYSTICKLEFT_UP ) PORT_CHANGED_CB(input_changed)
+
+	PORT_START("IN.2") // R4
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SELECT ) PORT_CHANGED_CB(input_changed) PORT_NAME("Time")
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_START2 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Game B")
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_START1 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Game A")
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_SERVICE2 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Alarm")
+
+	PORT_START("BA")
+	PORT_CONFNAME( 0x01, 0x01, "Infinite Lives (Cheat)") // factory test, unpopulated on PCB
+	PORT_CONFSETTING(    0x01, DEF_STR( Off ) )
+	PORT_CONFSETTING(    0x00, DEF_STR( On ) )
+
+	PORT_START("B")
+	PORT_CONFNAME( 0x01, 0x01, "Increase Score (Cheat)") // factory test, unpopulated on PCB -- this one multiplies scoring factor with 10
+	PORT_CONFSETTING(    0x01, DEF_STR( Off ) )
+	PORT_CONFSETTING(    0x00, DEF_STR( On ) )
+
+	PORT_START("ACL")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SERVICE1 ) PORT_CHANGED_CB(acl_button) PORT_NAME("ACL")
+INPUT_PORTS_END
+
+// config
+
+void trsgkeep_state::trsgkeep(machine_config &config)
+{
+	sm5a_common(config, 1465, 1080); // R mask option confirmed
+}
+
+// roms
+
+ROM_START( trsgkeep )
+	ROM_REGION( 0x800, "maincpu", 0 )
+	ROM_LOAD( "0132_238a", 0x0000, 0x0740, CRC(db80f1ed) SHA1(030e18ec05bbc98a474105d8d6f503082ab638cc) )
+
+	ROM_REGION( 119358, "screen", 0)
+	ROM_LOAD( "trsgkeep.svg", 0, 119358, CRC(4108349e) SHA1(359fb4eee1cfd85965efd1308f0002ebf38d231a) )
+ROM_END
+
+
+
+
+
+/*******************************************************************************
+
   Tronica: Space Mission (model SM-11), Spider (model SG-21)
   * PCB labels: SPACE MISSION SM-11 250582 (SM-11)
                 SPACE MISSION SM-11 220982 (SG-21)
@@ -10931,6 +11068,7 @@ SYST( 1989, kloneran,     0,           0,      kloneran,     kloneran,     klone
 SYST( 1989, knascar,      0,           0,      knascar,      knascar,      knascar_state,      empty_init, "Konami", "Bill Elliott's NASCAR Racing (handheld)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1989, kblades,      0,           0,      kblades,      kblades,      kblades_state,      empty_init, "Konami", "Blades of Steel (handheld)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1989, knfl,         0,           0,      knfl,         knfl,         knfl_state,         empty_init, "Konami", "NFL Football (Konami, handheld)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
+SYST( 1991, ktmnt3,       0,           0,      ktmnt3,       ktmnt3,       ktmnt3_state,       empty_init, "Konami", "Teenage Mutant Ninja Turtles 3: Shredder's Last Stand (handheld)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1991, kbucky,       0,           0,      kbucky,       kbucky,       kbucky_state,       empty_init, "Konami", "Bucky O'Hare (handheld)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1991, kgarfld,      0,           0,      kgarfld,      kgarfld,      kgarfld_state,      empty_init, "Konami", "Garfield (Konami)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 
@@ -11003,6 +11141,7 @@ SYST( 1983, trshutvoy,    0,           0,      trshutvoy,    trshutvoy,    trshu
 SYST( 1983, tigarden,     trshutvoy,   0,      tigarden,     trshutvoy,    trshutvoy_state,    empty_init, "Tronica", "Thief in Garden", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1982, trsrescue,    0,           0,      trsrescue,    trsrescue,    trsrescue_state,    empty_init, "Tronica", "Space Rescue", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1983, trthuball,    trsrescue,   0,      trthuball,    trsrescue,    trsrescue_state,    empty_init, "Tronica", "Thunder Ball (Tronica)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
+SYST( 1983, trsgkeep,     0,           0,      trsgkeep,     trsgkeep,     trsgkeep_state,     empty_init, "Tronica", "Super Goal Keeper", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1982, trspacmis,    0,           0,      trspacmis,    trspacmis,    trspacmis_state,    empty_init, "Tronica", "Space Mission (Tronica)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1982, trspider,     trspacmis,   0,      trspider,     trspacmis,    trspacmis_state,    empty_init, "Tronica", "Spider (Tronica)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 

@@ -2267,6 +2267,36 @@ if opt_tool(CPUS, "RSP") then
 end
 
 --------------------------------------------------
+-- Matsushita (Panasonic) MN1400
+--@src/devices/cpu/mn1400/mn1400.h,CPUS["MN1400"] = true
+--------------------------------------------------
+
+if CPUS["MN1400"] then
+	files {
+		MAME_DIR .. "src/devices/cpu/mn1400/mn1400base.cpp",
+		MAME_DIR .. "src/devices/cpu/mn1400/mn1400base.h",
+		MAME_DIR .. "src/devices/cpu/mn1400/mn1400.cpp",
+		MAME_DIR .. "src/devices/cpu/mn1400/mn1400.h",
+		MAME_DIR .. "src/devices/cpu/mn1400/mn1400op.cpp",
+	}
+end
+
+if opt_tool(CPUS, "MN1400") then
+	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mn1400/mn1400d.cpp")
+	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mn1400/mn1400d.h")
+end
+
+--------------------------------------------------
+-- Panafacom MN1610, disassembler only
+--@src/devices/cpu/mn1610/mn1610d.h,CPUS["MN1610"] = true
+--------------------------------------------------
+
+if opt_tool(CPUS, "MN1610") then
+	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mn1610/mn1610d.cpp")
+	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mn1610/mn1610d.h")
+end
+
+--------------------------------------------------
 -- Panasonic MN1880
 --@src/devices/cpu/mn1880/mn1880.h,CPUS["MN1880"] = true
 --------------------------------------------------
@@ -2862,6 +2892,8 @@ if (CPUS["Z80"]~=null or CPUS["KC80"]~=null) then
 		MAME_DIR .. "src/devices/cpu/z80/mc8123.h",
 		MAME_DIR .. "src/devices/cpu/z80/r800.cpp",
 		MAME_DIR .. "src/devices/cpu/z80/r800.h",
+		MAME_DIR .. "src/devices/cpu/z80/z84c015.cpp",
+		MAME_DIR .. "src/devices/cpu/z80/z84c015.h",
 	}
 end
 
@@ -3768,16 +3800,6 @@ end
 if opt_tool(CPUS, "V620") then
 	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/v620/v620dasm.cpp")
 	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/v620/v620dasm.h")
-end
-
---------------------------------------------------
--- Panafacom MN1610, disassembler only
---@src/devices/cpu/mn1610/mn1610d.h,CPUS["MN1610"] = true
---------------------------------------------------
-
-if opt_tool(CPUS, "MN1610") then
-	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mn1610/mn1610d.cpp")
-	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mn1610/mn1610d.h")
 end
 
 --------------------------------------------------

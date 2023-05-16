@@ -15083,6 +15083,7 @@ sf2ce                           // 13/05/1992 (c) 1992 (World)
 sf2ceblp                        // hack
 sf2cebltw                       // hack
 sf2ceea                         // 13/03/1992 (c) 1992 (World)
+sf2ceec                         // 03/08/1992 (c) 1992 (World)
 sf2ceja                         // 22/03/1992 (c) 1992 (Japan)
 sf2cejb                         // 13/05/1992 (c) 1992 (Japan)
 sf2cejc                         // 03/08/1992 (c) 1992 (Japan)
@@ -15882,8 +15883,8 @@ cncchess
 
 @source:chess/conchess.cpp
 conc
+concams
 concams5
-concams8
 concgla
 concvicp
 
@@ -18710,6 +18711,11 @@ zackman                         // Bandai
 cfrogger                        // Coleco
 gjungler                        // Gakken
 
+@source:handheld/hh_mn1400.cpp
+compperf                        // Lakeside
+scrablexa                       // Selchow & Righter
+tmbaskb                         // Tomy
+
 @source:handheld/hh_pic16.cpp
 drdunk                          // Kmart
 flash                           // Ideal
@@ -18835,6 +18841,7 @@ kosmicpt                        // Elektronika
 krybolov                        // Elektronika
 kskatedie                       // Konami
 ktmnt                           // Konami
+ktmnt3                          // Konami
 ktopgun                         // Konami
 kvakazad                        // Elektronika
 morataka                        // Elektronika
@@ -18884,6 +18891,7 @@ trobhood                        // Tiger
 trobocop2                       // Tiger
 trobocop3                       // Tiger
 trockteer                       // Tiger
+trsgkeep                        // Tronica
 trshutvoy                       // Tronica
 trspacmis                       // Tronica
 trspider                        // Tronica
@@ -22925,6 +22933,10 @@ hb_ringbe                       //
 hb_ydd                          // Yabba-Dabba-Dough (Qps)
 hb_ydda                         //
 
+@source:jpm/pluto6.cpp
+pl6_kfp                         //
+pl6_lgk                         //
+
 @source:kaneko/airbustr.cpp
 airbustr                        // (c) 1990 Kaneko + Namco
 airbustrb                       // bootleg
@@ -23354,7 +23366,9 @@ popn8                           // GQB30 (c) 2002 (Japan)
 popnmt                          // GQ976 (c) 2000 (Japan)
 popnmt2                         // GQ976 (c) 2000 (Japan)
 popnanm                         // GQ987 (c) 2000 (Japan)
+popnanma                        // GQ987 (c) 2000 (Japan)
 popnanm2                        // GEA02 (c) 2001 (Japan)
+popnanm2a                       // GEA02 (c) 2001 (Japan)
 ppd                             // GQ977 (c) 2000 (Korea)
 ppp                             // GQ977 (c) 2000 (Japan)
 ppp11                           // GQ977 (c) 2000 (Japan)
@@ -23774,7 +23788,6 @@ drmn                            // 1999 - DrumMania (GQ881 VER. JAD)
 drmna                           // 1999 - DrumMania (GQ881 VER. JAB)
 drmnu                           // 1999 - DrumMania (GQ881 VER. UAB)
 drmn10m                         // 2004 - DrumMania 10th Mix (G*D40 VER. JAA)
-drmn10ma                        // 2004 - DrumMania 10th Mix eAmusement (G*D40 VER. JCA)
 drmn2m                          // 1999 - DrumMania 2nd Mix (GE912 VER. JAB)
 drmn2mpu                        // 1999 - DrumMania 2nd Mix Session Power Up Kit (GE912 VER. JAB)
 drmn3m                          // 2000 - DrumMania 3rd Mix (G*A23 VER. JAA)
@@ -23786,7 +23799,6 @@ drmn7ma                         // 2002 - DrumMania 7th Mix (G*C07 VER. JAA)
 drmn8m                          // 2003 - DrumMania 8th Mix (G*C38 VER. JAA)
 drmn9m                          // 2003 - DrumMania 9th Mix (G*D09 VER. JAB)
 drmn9ma                         // 2003 - DrumMania 9th Mix (G*D09 VER. JAA)
-drmn9mb                         // 2003 - DrumMania 9th Mix eAmusement (G*D09 VER. JCA)
 dsem                            // 2000 - Dancing Stage Euro Mix (G*936 VER. EAA)
 dsem2                           // 2002 - Dancing Stage Euro Mix 2 (G*C23 VER. EAA)
 dsfdct                          // 1999 - Dancing Stage featuring Dreams Come True (GC910 VER. JCA)
@@ -23809,9 +23821,7 @@ gbbchmp                         // 2002 - Great Bishi Bashi Champ (GBA48 VER. JA
 gchgchmp                        // 1999 - Gachaga Champ (GE877 VER. JAB)
 gtfrk10m                        // 2003 - Guitar Freaks 10th Mix (G*D10 VER. JAB)
 gtfrk10ma                       // 2003 - Guitar Freaks 10th Mix (G*D10 VER. JAA)
-gtfrk10mb                       // 2003 - Guitar Freaks 10th Mix eAmusement (G*D10 VER. JBA)
 gtfrk11m                        // 2004 - Guitar Freaks 11th Mix (G*D39 VER. JAA)
-gtfrk11ma                       // 2004 - Guitar Freaks 11th Mix eAmusement (G*D39 VER. JBA)
 gtfrk3ma                        // 2000 - Guitar Freaks 3rd Mix (GE949 VER. JAB)
 gtfrk3mb                        // 2000 - Guitar Freaks 3rd Mix - security cassette versionup (949JAZ02)
 gtrfrk2m                        // 1999 - Guitar Freaks 2nd Mix Ver 1.01 (GQ883 VER. JAD)
@@ -23860,7 +23870,7 @@ konam80k                        // 1998 - Konami 80's AC Special (GC826 VER. KAA
 konam80s                        // 1998 - Konami 80's AC Special (GC826 VER. EAA)
 konam80u                        // 1998 - Konami 80's AC Special (GC826 VER. UAA)
 mamboagg                        // 2001 - Mambo A Go-Go (GQA40 VER. JAB)
-mamboagga                       // 2001 - Mambo A Go-Go e-Amusement (GQA40 VER. JRB)
+mamboagga                       // 2001 - Mambo A Go-Go (GQA40 VER. JRB, Rental)
 mrtlbeat                        // 2002 - Martial Beat (Martial Beat (G*B47 VER. JBA)
 pcnfrk                          // 1999 - Percussion Freaks (GQ881 VER. EAB)
 pcnfrka                         // 1999 - Percussion Freaks (GQ881 VER. AAB)
@@ -23877,9 +23887,7 @@ pcnfrk6m                        // 2001 - Percussion Freaks 6th Mix (G*B16 VER. 
 pcnfrk7m                        // 2002 - Percussion Freaks 7th Mix (G*C07 VER. AAA)
 pcnfrk8m                        // 2003 - Percussion Freaks 8th Mix (G*C38 VER. AAA)
 pcnfrk9m                        // 2003 - Percussion Freaks 9th Mix (G*D09 VER. AAA)
-pcnfrk9ma                       // 2003 - Percussion Freaks 9th Mix eAmusement (G*D09 VER. ABA)
 pcnfrk10m                       // 2004 - Percussion Freaks 10th Mix (G*D40 VER. AAA)
-pcnfrk10ma                      // 2004 - Percussion Freaks 10th Mix eAmusement (G*D40 VER. ACA)
 pnchmn                          // 2000 - Punch Mania: Hokuto no Ken (GQ918 VER. JAB)
 pnchmn2                         // 2000 - Punch Mania 2: Hokuto no Ken (GQA09 JAA)
 pnchmna                         // 2000 - Punch Mania: Hokuto no Ken (GQ918 VER. JAB, ALT CD)
@@ -26480,6 +26488,12 @@ screenpl                        // Screenplay
 
 @source:maygay/mmm.cpp
 mmm_ldip                        // Lucky Dip
+
+@source:mc/mc68000.cpp
+mc68000                         // (c) 1984 mc / Franzis Verlag
+
+@source:mc/mccpm.cpp
+mccpm                           //
 
 @source:mchester/ssem.cpp
 ssem                            // Manchester Small-Scale Experimental Machine, "Baby"
@@ -32354,6 +32368,7 @@ superdbz                        //
 sys246                          //
 sys256                          //
 taiko10                         //
+taiko11                         //
 taiko7                          //
 taiko8                          //
 taiko9                          //
@@ -33357,7 +33372,7 @@ cop01                           // (c) 1985
 cop01a                          // (c) 1985
 mightguy                        // (c) 1986
 
-@source:nichibutsu/csplayh5.cpp
+@source:nichibutsu/hrdvd.cpp
 aimode                          // (c) 1999
 bikiniko                        // (c) 1999
 csplayh1                        // (c) 1995
@@ -33741,8 +33756,12 @@ sgmt1                           // 1994
 supergm3                        // 1996
 
 @source:nintendo/n64.cpp
-n64                             // Nintendo N64
+n64                             // Nintendo N64 (NTSC)
+n64pal                          // Nintendo N64 (PAL)
 n64dd                           // Nintendo N64 (64DD Attachment)
+
+@source:nintendo/n64_gateway.cpp
+n64_lodgenet
 
 @source:nintendo/n8080.cpp
 bandido                         // (c) 1980 Exidy
@@ -37565,6 +37584,7 @@ tmachzac                        //
 tmachzacf                       //
 tmachzacg                       //
 zankor                          //
+zankor2i                        //
 
 @source:pinball/zac_proto.cpp
 skijump                         //
@@ -40760,6 +40780,9 @@ tk90x                           // 1985 TK90x Color Computer
 tk95                            // 1986 TK95 Color Computer
 zvezda                          // 1990 Zvezda
 
+@source:sinclair/sprinter.cpp
+sprinter                        // 2000 Sprinter
+
 @source:sinclair/timex.cpp
 tc2048                          // 198? TC2048
 ts2068                          // 1983 TS2068
@@ -40779,6 +40802,9 @@ ts1500                          // Timex Sinclair 1500
 zx80                            // 1980 Sinclair ZX-80
 zx81                            // 1981 Sinclair ZX-81
 zx97                            //
+
+@source:skeleton/600cat.cpp
+600cat                          //
 
 @source:skeleton/aaa.cpp
 aaa                             //
@@ -40851,6 +40877,9 @@ bitgrphb                        //
 
 @source:skeleton/blit.cpp
 blit
+
+@source:skeleton/bolsaint.cpp
+bolsaint                        // (c) 2000 Sleic/Petaco
 
 @source:skeleton/bpmmicro.cpp
 bp1200                          // (c) 1991 BP Microsystems
@@ -41143,9 +41172,6 @@ lilith                          //
 
 @source:skeleton/lms46.cpp
 lms46                           //
-
-@source:skeleton/mccpm.cpp
-mccpm                           //
 
 @source:skeleton/mes.cpp
 mes                             //
@@ -42444,9 +42470,12 @@ othunderu                       // B67 (c) 1988 Taito America Corporation (US, r
 othunderuo                      // B67 (c) 1988 Taito America Corporation (US)
 
 @source:taito/pitnrun.cpp
+jumpkun                         // prototype
 pitnrun                         // PR  (c) 1984 Taito Corporation
 pitnruna                        // PR  (c) 1984 Taito Corporation
-jumpkun                         // prototype
+
+@source:taito/pkspirit.cpp
+pkspirit                        // D41
 
 @source:taito/qix.cpp
 complexx                        // CX  (c) 1984 Taito America Corporation
@@ -43027,6 +43056,9 @@ undrfire                        // D67 (c) 1993 Taito Corporation Japan (World)
 undrfirej                       // D67 (c) 1993 Taito Corporation (Japan)
 undrfireu                       // D67 (c) 1993 Taito America Corporation (US)
 
+@source:taito/vicshoot.cpp
+vicshoot                        // D97
+
 @source:taito/volfied.cpp
 volfied                         // C04 (c) 1989 Taito Corporation Japan (World)
 volfiedj                        // C04 (c) 1989 Taito Corporation (Japan)
@@ -43278,7 +43310,8 @@ vballb                          // bootleg (of US set)
 
 @source:technos/wwfsstar.cpp
 wwfsstar                        // TA-0024 (c) 1989 (Europe)
-wwfsstarb                       // TA-0024 (c) 1989 (Japan)
+wwfsstarb                       // bootleg
+wwfsstarb2                      // bootleg
 wwfsstarc                       // TA-0024 (c) 1989 (Canada)
 wwfsstarj                       // TA-0024 (c) 1989 (Japan)
 wwfsstaru7                      // TA-0024 (c) 1989 (US, newer)
@@ -43952,14 +43985,10 @@ trsvidtx                        // TRS-80 Videotex
 
 @source:trs/coco12.cpp
 cd6809                          // Codimex CD-6809
-coco                            // Color Computer
-coco2                           // Color Computer 2
+coco                            // Color Computer 1/2
 coco2b                          // Color Computer 2B (uses M6847T1 video chip)
 coco2bh                         // Color Computer 2B (uses M6847T1 video chip) with HD6309 CPU
-coco2h                          // Color Computer 2 with HD6309 CPU
-cocoe                           // Color Computer (Extended BASIC 1.0)
-cocoeh                          // Color Computer (Extended BASIC 1.0) with HD6309 CPU
-cocoh                           // Color Computer with HD6309 CPU
+cocoh                           // Color Computer 1/2 with HD6309 CPU
 cp400                           // Prológica CP400
 cp400c2                         // Prológica CP400 Color II
 deluxecoco                      // Deluxe Color Computer
@@ -45331,6 +45360,9 @@ mu50                            // 1995 MU-50
 
 @source:yamaha/ymmu80.cpp
 mu80                            // 1994 MU-80
+
+@source:yamaha/ympcs30.cpp
+pcs30                           // 1984
 
 @source:yamaha/ympsr16.cpp
 psr16                           // 1988 PSR-16

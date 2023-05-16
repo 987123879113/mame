@@ -143,9 +143,6 @@
 #include "bus/ata/ataintf.h"
 #include "bus/ata/atapicdr.h"
 #include "bus/ata/idehd.h"
-#include "bus/midi/midiinport.h"
-#include "bus/midi/midioutport.h"
-#include "bus/rs232/rs232.h"
 #include "cpu/m68000/m68000.h"
 #include "cpu/powerpc/ppc.h"
 #include "machine/fdc37c665gt.h"
@@ -378,11 +375,7 @@ struct IBUTTON
 static void firebeat_ata_devices(device_slot_interface &device)
 {
 	device.option_add("cdrom", ATAPI_FIXED_CDROM);
-}
-
-static void firebeat_ata_spu_devices(device_slot_interface &device)
-{
-	device.option_add("cdrom", ATAPI_FIXED_DVDROM);
+	device.option_add("dvdrom", ATAPI_FIXED_DVDROM);
 	device.option_add("hdd", IDE_HARDDISK);
 }
 
@@ -394,7 +387,7 @@ static void cdrom_config(device_t *device)
 
 static void dvdrom_config(device_t *device)
 {
-	downcast<atapi_dvdrom_device &>(*device).set_ultra_dma_mode(0x0102);
+	downcast<atapi_cdrom_device &>(*device).set_ultra_dma_mode(0x0102);
 }
 
 /*****************************************************************************/
@@ -434,7 +427,6 @@ protected:
 
 	INTERRUPT_GEN_MEMBER(firebeat_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(ata_interrupt);
-	DECLARE_WRITE_LINE_MEMBER(comm_uart_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(gcu_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(sound_irq_callback);
 
@@ -645,10 +637,8 @@ public:
 		m_spectrum_analyzer(*this, "spectrum_analyzer"),
 		m_duart_midi(*this, "duart_midi"),
 		m_io(*this, "IO%u", 1U),
-		m_io_turntables_digital(*this, "TURNTABLE_P%u_DIGITAL", 1U),
-		m_io_turntables_analog(*this, "TURNTABLE_P%u_ANALOG", 1U),
-		m_io_effects(*this, "EFFECT%u", 1U),
-		m_turntable_switch(*this, "TURNTABLES")
+		m_io_turntables(*this, "TURNTABLE_P%u", 1U),
+		m_io_effects(*this, "EFFECT%u", 1U)
 	{ }
 
 	void firebeat_bm3(machine_config &config);
@@ -671,10 +661,8 @@ private:
 	required_device<pc16552_device> m_duart_midi;
 
 	required_ioport_array<4> m_io;
-	required_ioport_array<2> m_io_turntables_digital;
-	required_ioport_array<2> m_io_turntables_analog;
+	required_ioport_array<2> m_io_turntables;
 	required_ioport_array<7> m_io_effects;
-	optional_ioport m_turntable_switch;
 
 	DECLARE_WRITE_LINE_MEMBER(floppy_irq_callback);
 };
@@ -773,23 +761,12 @@ void firebeat_state::firebeat(machine_config &config)
 	ymz280b_device &ymz(YMZ280B(config, "ymz", 16934400));
 	ymz.irq_handler().set(FUNC(firebeat_state::sound_irq_callback));
 	ymz.set_addrmap(0, &firebeat_state::ymz280b_map);
-	ymz.add_route(1, "lspeaker", 0.5);
-	ymz.add_route(0, "rspeaker", 0.5);
+	ymz.add_route(1, "lspeaker", 1.0);
+	ymz.add_route(0, "rspeaker", 1.0);
 
-	// On the main PCB
 	PC16552D(config, "duart_com", 0);
+	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
 	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
-	auto& duart_chan0(NS16550(config, "duart_com:chan0", XTAL(19'660'800)));
-	auto& rs232_chan0(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
-	rs232_chan0.rxd_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::rx_w));
-	rs232_chan0.dcd_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::dcd_w));
-	rs232_chan0.dsr_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::dsr_w));
-	rs232_chan0.ri_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::ri_w));
-	rs232_chan0.cts_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::cts_w));
-	duart_chan0.out_tx_callback().set("rs232_network", FUNC(rs232_port_device::write_txd));
-	duart_chan0.out_dtr_callback().set("rs232_network", FUNC(rs232_port_device::write_dtr));
-	duart_chan0.out_rts_callback().set("rs232_network", FUNC(rs232_port_device::write_rts));
-	duart_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::comm_uart_interrupt));
 }
 
 void firebeat_state::firebeat_map(address_map &map)
@@ -1191,11 +1168,6 @@ WRITE_LINE_MEMBER(firebeat_state::ata_interrupt)
 	m_maincpu->set_input_line(INPUT_LINE_IRQ4, state);
 }
 
-WRITE_LINE_MEMBER(firebeat_state::comm_uart_interrupt)
-{
-	m_maincpu->set_input_line(INPUT_LINE_IRQ2, state);
-}
-
 WRITE_LINE_MEMBER(firebeat_state::gcu_interrupt)
 {
 	m_maincpu->set_input_line(INPUT_LINE_IRQ0, state);
@@ -1465,7 +1437,7 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &firebeat_bm3_state::firebeat_bm3_map);
 
-	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_spu_devices, "hdd", nullptr, true);
+	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "hdd", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_bm3_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_bm3_state::spu_ata_dmarq));
 	m_spuata->slot(0).set_fixed(true);
@@ -1482,13 +1454,7 @@ void firebeat_bm3_state::firebeat_bm3(machine_config &config)
 
 	PC16552D(config, m_duart_midi, 0);
 	NS16550(config, "duart_midi:chan0", XTAL(24'000'000));
-
-	auto &midi_chan1(NS16550(config, "duart_midi:chan1", XTAL(24'000'000)));
-	midi_chan1.out_int_callback().set(FUNC(firebeat_bm3_state::midi_st224_irq_callback));
-	midi_chan1.out_tx_callback().set("mdout", FUNC(midi_port_device::write_txd));
-
-	auto &mdout(MIDI_PORT(config, "mdout"));
-	midiout_slot(mdout);
+	NS16550(config, "duart_midi:chan1", XTAL(24'000'000)).out_int_callback().set(FUNC(firebeat_bm3_state::midi_st224_irq_callback));
 
 	// Effects audio channel, routed to ST-224's audio input
 	m_rf5c400->add_route(2, "lspeaker", 0.5);
@@ -1531,10 +1497,10 @@ uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
 		case 1: return m_io[1]->read() | 0x0100;
 		case 2: return m_io[2]->read() | 0x0100;
 		case 3: return m_io[3]->read() | 0x0100;
-		case 5: return (((m_turntable_switch->read() & 0x0f) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[0]->read() >> 8) | 0x0100;
-		case 6: return (((m_turntable_switch->read() & 0x0f) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[0]->read() & 0xff) | 0x0100;
-		case 7: return (((m_turntable_switch->read() & 0xf0) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[1]->read() >> 8) | 0x0100;
-		case 8: return (((m_turntable_switch->read() & 0xf0) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[1]->read() & 0xff) | 0x0100;
+		case 5: return (m_io_turntables[0]->read() >> 8) | 0x0100;
+		case 6: return (m_io_turntables[0]->read() & 0xff) | 0x0100;
+		case 7: return (m_io_turntables[1]->read() >> 8) | 0x0100;
+		case 8: return (m_io_turntables[1]->read() & 0xff) | 0x0100;
 		case 9: return m_io_effects[0]->read() | 0x0100;
 		case 10: return m_io_effects[1]->read() | 0x0100;
 		case 11: return m_io_effects[2]->read() | 0x0100;
@@ -1575,10 +1541,10 @@ void firebeat_popn_state::firebeat_popn(machine_config &config)
 {
 	firebeat_spu_base(config);
 
-	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_spu_devices, "cdrom", nullptr, true);
+	ATA_INTERFACE(config, m_spuata).options(firebeat_ata_devices, "dvdrom", nullptr, true);
 	m_spuata->irq_handler().set(FUNC(firebeat_popn_state::spu_ata_interrupt));
 	m_spuata->dmarq_handler().set(FUNC(firebeat_popn_state::spu_ata_dmarq));
-	m_spuata->slot(0).set_option_machine_config("cdrom", dvdrom_config);
+	m_spuata->slot(0).set_option_machine_config("dvdrom", dvdrom_config);
 	m_spuata->slot(0).set_fixed(true);
 
 	// 500 hz works best for pop'n music.
@@ -1862,47 +1828,29 @@ void firebeat_kbm_state::firebeat_kbm(machine_config &config)
 	ymz280b_device &ymz(YMZ280B(config, "ymz", 16934400));
 	ymz.irq_handler().set(FUNC(firebeat_kbm_state::sound_irq_callback));
 	ymz.set_addrmap(0, &firebeat_kbm_state::ymz280b_map);
-	ymz.add_route(1, "lspeaker", 0.5);
-	ymz.add_route(0, "rspeaker", 0.5);
+	ymz.add_route(1, "lspeaker", 1.0);
+	ymz.add_route(0, "rspeaker", 1.0);
 
 	// On the main PCB
 	PC16552D(config, "duart_com", 0);
+	NS16550(config, "duart_com:chan0", XTAL(19'660'800));
 	NS16550(config, "duart_com:chan1", XTAL(19'660'800));
-	auto& duart_chan0(NS16550(config, "duart_com:chan0", XTAL(19'660'800)));
-	auto& rs232_chan0(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
-	rs232_chan0.rxd_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::rx_w));
-	rs232_chan0.dcd_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::dcd_w));
-	rs232_chan0.dsr_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::dsr_w));
-	rs232_chan0.ri_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::ri_w));
-	rs232_chan0.cts_handler().set("duart_com:chan0", FUNC(ins8250_uart_device::cts_w));
-	duart_chan0.out_tx_callback().set("rs232_network", FUNC(rs232_port_device::write_txd));
-	duart_chan0.out_dtr_callback().set("rs232_network", FUNC(rs232_port_device::write_dtr));
-	duart_chan0.out_rts_callback().set("rs232_network", FUNC(rs232_port_device::write_rts));
-	duart_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::comm_uart_interrupt));
 
 	// On the extend board
 	PC16552D(config, m_duart_midi, 0);
 	auto &midi_chan1(NS16550(config, "duart_midi:chan1", XTAL(24'000'000)));
-	midi_chan1.out_int_callback().set(FUNC(firebeat_kbm_state::midi_keyboard_left_irq_callback));
-	// midi_chan1.out_tx_callback().set("mdout", FUNC(midi_port_device::write_txd));
 	MIDI_KBD(config, m_kbd[0], 31250).tx_callback().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
+	midi_chan1.out_int_callback().set(FUNC(firebeat_kbm_state::midi_keyboard_left_irq_callback));
 
 	auto &midi_chan0(NS16550(config, "duart_midi:chan0", XTAL(24'000'000)));
-	midi_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::midi_keyboard_right_irq_callback));
-	// midi_chan0.out_tx_callback().set("mdout", FUNC(midi_port_device::write_txd));
 	MIDI_KBD(config, m_kbd[1], 31250).tx_callback().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
-
-	// MIDI_PORT(config, "mdin_a", midiin_slot, "midikbd").rxd_handler().set(midi_chan1, FUNC(ins8250_uart_device::rx_w));
-	// MIDI_PORT(config, "mdin_b", midiin_slot, "midikbd").rxd_handler().set(midi_chan0, FUNC(ins8250_uart_device::rx_w));
-
-	// auto &mdout(MIDI_PORT(config, "mdout"));
-	// midiout_slot(mdout);
+	midi_chan0.out_int_callback().set(FUNC(firebeat_kbm_state::midi_keyboard_right_irq_callback));
 
 	// Synth card
 	auto &xt446(XT446(config, "xt446"));
 	midi_chan1.out_tx_callback().set(xt446, FUNC(xt446_device::midi_w));
-	xt446.add_route(0, "lspeaker", 0.5);
-	xt446.add_route(1, "rspeaker", 0.5);
+	xt446.add_route(0, "lspeaker", 1.0);
+	xt446.add_route(1, "rspeaker", 1.0);
 }
 
 void firebeat_kbm_state::firebeat_kbm_map(address_map &map)
@@ -2238,15 +2186,6 @@ static INPUT_PORTS_START(bm3)
 	PORT_INCLUDE( firebeat )
 	PORT_INCLUDE( firebeat_spu )
 
-	PORT_START("TURNTABLES")
-	PORT_CONFNAME(0x0f, 0x01, "P1 Turntable")
-	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)")
-	PORT_CONFSETTING( 0x01, "Digital Input (LR2/Sim)")
-
-	PORT_CONFNAME(0xf0, 0x10, "P2 Turntable")
-	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)")
-	PORT_CONFSETTING( 0x10, "Digital Input (LR2/Sim)")
-
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE) PORT_NAME(DEF_STR(Test))              // Test
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service")                // Service
@@ -2280,17 +2219,11 @@ static INPUT_PORTS_START(bm3)
 	PORT_START("IO4")
 	PORT_BIT( 0xffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
-	PORT_START( "TURNTABLE_P1_ANALOG" )
-	PORT_BIT( 0x3ff, 0x00, IPT_POSITIONAL ) PORT_PLAYER(1) PORT_NAME("1P Turntable (Analog)") PORT_MINMAX(0x00,0x3ff) PORT_WRAPS PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
+	PORT_START("TURNTABLE_P1")
+	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(1) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
 
-	PORT_START( "TURNTABLE_P1_DIGITAL" )
-	PORT_BIT( 0x3ff, 0x00, IPT_DIAL ) PORT_PLAYER(1) PORT_NAME("1P Turntable (Digital)") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
-
-	PORT_START( "TURNTABLE_P2_ANALOG" )
-	PORT_BIT( 0x3ff, 0x00, IPT_POSITIONAL ) PORT_PLAYER(2) PORT_NAME("2P Turntable (Analog)") PORT_MINMAX(0x00,0x3ff) PORT_WRAPS PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
-
-	PORT_START( "TURNTABLE_P2_DIGITAL" )
-	PORT_BIT( 0x3ff, 0x00, IPT_DIAL ) PORT_PLAYER(2) PORT_NAME("2P Turntable (Digital)") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
+	PORT_START("TURNTABLE_P2")
+	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(2) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
 
 	PORT_START("EFFECT1")
 	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 1") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
@@ -2442,8 +2375,8 @@ ROM_START( popn4 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gq986jaa01", 0, SHA1(e5368ac029b0bdf29943ae66677b5521ae1176e1) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE( "gq986jaa02", 0, SHA1(53367d3d5f91422fe386c42716492a0ae4332390) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE( "gq986jaa02", 0, SHA1(c34ac216b3e0bef1d1813119469364c6403feaa4) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(4a5c946c) SHA1(9de6085d45c39ba91934cea3abaa37e1203888c7))
@@ -2462,8 +2395,8 @@ ROM_START( popn5 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a04jaa01", 0, SHA1(87136ddad1d786b4d5f04381fcbf679ab666e6c9) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "a04jaa02", 0, SHA1(49a017dde76f84829f6e99a678524c40665c3bfd) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "a04jaa02", 0, SHA1(058167a6ac910183a701920021cfbc0933428e97) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(adeba6fc) SHA1(a2266696bb0a68e2b70a07d580a3b471e72fa587))
@@ -2482,8 +2415,8 @@ ROM_START( popn6 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqa16jaa01", 0, SHA1(7a7e475d06c74a273f821fdfde0743b33d566e4c) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE( "gqa16jaa02", 0, SHA1(e39067300e9440ff19cb98c1abc234fa3d5b26d1) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE( "gqa16jaa02", 0, SHA1(18abf1a9dbf61faebd44c8dc1d6decbaaca826a2) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(9935427c) SHA1(f7095ea6360ca61d1e2914cf184e50e50777a168))
@@ -2502,8 +2435,8 @@ ROM_START( popn7 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "b00jab01", 0, SHA1(259c733ca4d30281205b46b7bf8d60c9d01aa818) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "b00jaa02", 0, SHA1(c8ce2f8ee6aeeedef9c110a59e68fcec7b669ad6) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "b00jaa02", 0, SHA1(43201334acb20f529baa50c24494b7f0a4bf3d0d) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(fce30919) SHA1(9f875f5fe6ab6591ec024afc0a91966befa73ede))
@@ -2522,14 +2455,34 @@ ROM_START( popn8 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gqb30jaa01", 0, SHA1(0ff3e40e3717ce23337b3a2438bdaca01cba9e30) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "gqb30jaa02", 0, SHA1(f067d502c23efe0267aada5706f5bc7a54605942) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gqb30jaa02", 0, SHA1(69d26af2bd85a5a510049fd2f6e36bcabee81fd1) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(1a91f33a) SHA1(510b5cbacb218e5588f3b725733e095b7914dcdb))
 ROM_END
 
 ROM_START( popnanm )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
+
+	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD("gq987_gc987_forever", 0x00, 0xc8, CRC(ddd976b6) SHA1(91b49585886b8b1618401ca43ec3bde09896b782)) // Modified to set the period to 00/00 for forever license mode
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa01", 0, SHA1(ee1f9cf480c01ef356451cec30e5303d6c433758) )
+
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa02", 0, SHA1(47f90cc940af50c8d91751ec27b45070a95d4d58) )
+
+	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
+	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(b08b454d) SHA1(33fc12ab148a379925b7b77016efba747f3b13cc))
+ROM_END
+
+ROM_START( popnanma )
 	ROM_REGION32_BE(0x80000, "user1", 0)
 	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
 
@@ -2542,14 +2495,34 @@ ROM_START( popnanm )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gq987jaa01", 0, SHA1(ee1f9cf480c01ef356451cec30e5303d6c433758) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "gq987jaa02", 0, SHA1(d72515bac3fcd9f28c39fa1402292009734df678) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gq987jaa02", 0, SHA1(47f90cc940af50c8d91751ec27b45070a95d4d58) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(b08b454d) SHA1(33fc12ab148a379925b7b77016efba747f3b13cc))
 ROM_END
 
 ROM_START( popnanm2 )
+	ROM_REGION32_BE(0x80000, "user1", 0)
+	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
+
+	ROM_REGION(0xc8, "user2", ROMREGION_ERASE00)    // Security dongle
+	ROM_LOAD("gca02ja_gca02jb_gea02ja_forever", 0x00, 0xc8, CRC(63b22ee0) SHA1(60f384140ea80e886e45a56a37811d86133674a4)) // Modified to set the period to 00/00 for forever license mode
+
+	ROM_REGION(0x80000, "audiocpu", 0)          // SPU 68K program
+	ROM_LOAD16_WORD_SWAP("a02jaa04.3q", 0x00000, 0x80000, CRC(8c6000dd) SHA1(94ab2a66879839411eac6c673b25143d15836683))
+
+	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
+	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
+
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gea02jaa02", 0, SHA1(b482d0898cafeafcb020d81d40bd8915c0440f1e) )
+
+	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
+	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(90fcfeab) SHA1(f96e27e661259dc9e7f25a99bee9ffd6584fc1b8))
+ROM_END
+
+ROM_START( popnanm2a )
 	ROM_REGION32_BE(0x80000, "user1", 0)
 	ROM_LOAD16_WORD_SWAP("a02jaa03.21e", 0x00000, 0x80000, CRC(43ecc093) SHA1(637df5b546cf7409dd4752dc471674fe2a046599))
 
@@ -2562,8 +2535,8 @@ ROM_START( popnanm2 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gea02jaa01", 0, SHA1(e81203b6812336c4d00476377193340031ef11b1) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "gea02jaa02", 0, SHA1(7212e399779f37a5dcb8317a8f635a3b3f620aa9) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "gea02jaa02", 0, SHA1(b482d0898cafeafcb020d81d40bd8915c0440f1e) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(90fcfeab) SHA1(f96e27e661259dc9e7f25a99bee9ffd6584fc1b8))
@@ -2582,8 +2555,8 @@ ROM_START( popnmt )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "976jaa01", 0, SHA1(622a9350107e9fb17609ea1a234ca35489915da7) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(3881bb1e4deb829ba272c541cb7d203924571f3b) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(8a5fda9d98fbf7c9d702bf650fb131a89925eb2b) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(a51bdc10) SHA1(99b759d9a575129abec556d381f3a041453d7136))
@@ -2603,8 +2576,8 @@ ROM_START( popnmt2 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "976jba01", 0, SHA1(f8a70ca0718dc222cebbef238b5954494503d315) )
 
-	DISK_REGION( "spu_ata:0:cdrom" ) // data DVD-ROM
-	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(3881bb1e4deb829ba272c541cb7d203924571f3b) )
+	DISK_REGION( "spu_ata:0:dvdrom" ) // data DVD-ROM
+	DISK_IMAGE_READONLY( "976jaa02", 0, SHA1(8a5fda9d98fbf7c9d702bf650fb131a89925eb2b) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
 	ROM_LOAD("rtc", 0x0000, 0x1038, CRC(a51bdc10) SHA1(99b759d9a575129abec556d381f3a041453d7136))
@@ -2623,7 +2596,7 @@ ROM_START( bm3 )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gc97201", 0, SHA1(216ced68f2082bf891dc3e89fb0663f559cc4915) )
 
-	DISK_REGION( "spu_ata:0:hdd:image" ) // HDD
+	DISK_REGION( "spu_ata:0:hdd" ) // HDD
 	DISK_IMAGE_READONLY( "gc97202", 0, SHA1(84049bab473d29eca3c6d536956ef20ae410967d) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
@@ -2643,7 +2616,7 @@ ROM_START( bm3core )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a05jca01", 0, SHA1(b89eced8a1325b087e3f875d1a643bebe9bad5c0) )
 
-	DISK_REGION( "spu_ata:0:hdd:image" ) // HDD
+	DISK_REGION( "spu_ata:0:hdd" ) // HDD
 	DISK_IMAGE_READONLY( "a05jca02", 0, SHA1(1de7db35d20bbf728732f6a24c19315f9f4ad469) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
@@ -2663,7 +2636,7 @@ ROM_START( bm36th )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "a21jca01", 0, SHA1(d1b888379cc0b2c2ab58fa2c5be49258043c3ea1) )
 
-	DISK_REGION( "spu_ata:0:hdd:image" ) // HDD
+	DISK_REGION( "spu_ata:0:hdd" ) // HDD
 	DISK_IMAGE_READONLY( "a21jca02", 0, SHA1(8fa11848af40966e42b6304e37de92be5c1fe3dc) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
@@ -2683,7 +2656,7 @@ ROM_START( bm37th )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcb07jca01", 0, SHA1(f906379bdebee314e2ca97c7756259c8c25897fd) )
 
-	DISK_REGION( "spu_ata:0:hdd:image" ) // HDD
+	DISK_REGION( "spu_ata:0:hdd" ) // HDD
 	DISK_IMAGE_READONLY( "gcb07jca02", 0, SHA1(6b8e17635825a6a43dc8d2721fe2eb0e0f39e940) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
@@ -2703,7 +2676,7 @@ ROM_START( bm3final )
 	DISK_REGION( "ata:0:cdrom" ) // program CD-ROM
 	DISK_IMAGE_READONLY( "gcc01jca01", 0, SHA1(3e7af83670d791591ad838823422959987f7aab9) )
 
-	DISK_REGION( "spu_ata:0:hdd:image" ) // HDD
+	DISK_REGION( "spu_ata:0:hdd" ) // HDD
 	DISK_IMAGE_READONLY( "gcc01jca02", 0, SHA1(823e29bab11cb67069d822f5ffb2b90b9d3368d2) )
 
 	ROM_REGION(0x1038, "rtc", ROMREGION_ERASE00)    // Default unlocked RTC
@@ -2726,16 +2699,17 @@ GAMEL( 2000, kbh,    kbm, firebeat_kbm, kbm, firebeat_kbm_state, init_kbm_overse
 GAMEL( 2000, kbm2nd, 0,   firebeat_kbm, kbm, firebeat_kbm_state, init_kbm_jp, ROT270, "Konami", "Keyboardmania 2nd Mix", MACHINE_IMPERFECT_SOUND, layout_firebeat )
 GAMEL( 2001, kbm3rd, 0,   firebeat_kbm, kbm, firebeat_kbm_state, init_kbm_jp, ROT270, "Konami", "Keyboardmania 3rd Mix", MACHINE_IMPERFECT_SOUND, layout_firebeat )
 
-// Requires DVD CHD support. Once DVD CHD support is implemented then MACHINE_NOT_WORKING can be removed
-GAME( 2000, popn4,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 4", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2000, popn5,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 5", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2001, popn6,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 6", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2001, popn7,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 7", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2002, popn8,    0,      firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 8", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2000, popnmt,   0,      firebeat_popn, popn, firebeat_popn_state, init_popn_rental, ROT0, "Konami", "Pop'n Music Mickey Tunes", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2000, popnmt2,  popnmt, firebeat_popn, popn, firebeat_popn_state, init_popn_rental, ROT0, "Konami", "Pop'n Music Mickey Tunes!", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2000, popnanm,  0,      firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music Animelo", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2001, popnanm2, 0,      firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music Animelo 2", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popn4,     0,        firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 4", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popn5,     0,        firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 5", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, popn6,     0,        firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 6", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, popn7,     0,        firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 7", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, popn8,     0,        firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music 8", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popnmt,    0,        firebeat_popn, popn, firebeat_popn_state, init_popn_rental, ROT0, "Konami", "Pop'n Music Mickey Tunes", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popnmt2,   popnmt,   firebeat_popn, popn, firebeat_popn_state, init_popn_rental, ROT0, "Konami", "Pop'n Music Mickey Tunes!", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popnanm,   0,        firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music Animelo", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, popnanma,  popnanm,  firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music Animelo (license expired)", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, popnanm2,  0,        firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music Animelo 2", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, popnanm2a, popnanm2, firebeat_popn, popn, firebeat_popn_state, init_popn_jp, ROT0, "Konami", "Pop'n Music Animelo 2 (license expired)", MACHINE_IMPERFECT_SOUND )
 
 // Requires ST-224 emulation for optional toggleable external effects, but otherwise is fully playable
 GAME( 2000, bm3,      0, firebeat_bm3, bm3, firebeat_bm3_state, init_bm3, ROT0, "Konami", "Beatmania III", MACHINE_IMPERFECT_SOUND )

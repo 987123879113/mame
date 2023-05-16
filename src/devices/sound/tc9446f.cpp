@@ -6,12 +6,7 @@
 
 #include "emu.h"
 #include "tc9446f.h"
-
-#define MINIMP3_ONLY_MP3
-#define MINIMP3_NO_STDIO
-#define MINIMP3_IMPLEMENTATION
-#include "minimp3/minimp3.h"
-#include "minimp3/minimp3_ex.h"
+#include "sound/mp3_audio.h"
 
 #define LOG_GENERAL  (1 << 0)
 #define VERBOSE      (LOG_GENERAL)
@@ -29,24 +24,31 @@ tc9446f_device::tc9446f_device(const machine_config &mconfig, const char *tag, d
 	device_sound_interface(mconfig, *this)
 	, cb_mpeg_frame_sync(*this), cb_demand(*this)
 	, stream(nullptr), stream_flags(STREAM_SYNCHRONOUS)
-	, mp3data_count(0), decoded_frame_count(0), decoded_samples(0), sample_count(0), samples_idx(0)
+	, mp3data_count(0), sample_count(0), samples_idx(0)
 {
 }
 
 void tc9446f_device::device_start()
 {
-	current_rate = 44100;
-	stream = stream_alloc(0, 2, current_rate, stream_flags);
+	stream = stream_alloc(0, 2, 44100, stream_flags);
+
+	mp3dec = std::make_unique<mp3_audio>(reinterpret_cast<const uint8_t *>(&mp3data[0]));
 
 	cb_mpeg_frame_sync.resolve();
 	cb_demand.resolve();
 
+	save_item(NAME(mp3data));
+	save_item(NAME(samples));
 	save_item(NAME(m_mode_select));
 	save_item(NAME(m_miack));
 	save_item(NAME(m_indata));
 	save_item(NAME(m_inbits));
-	save_item(NAME(mp3data));
 	save_item(NAME(mp3data_count));
+	save_item(NAME(sample_count));
+	save_item(NAME(samples_idx));
+	save_item(NAME(frame_channels));
+
+	mp3dec->register_save(*this);
 }
 
 void tc9446f_device::device_reset()
@@ -57,15 +59,8 @@ void tc9446f_device::device_reset()
 	m_cmd_target_addr = -1;
 	m_cmd_word_count = -1;
 	m_cmd_cur_word = 0;
-	mp3data_count = 0;
 
-	mp3_decoder_state = DECODER_STREAM_SEARCHING;
-	mp3_offset = mp3_offset_last = 0;
-
-	mp3data_count = 0;
-
-	current_rate = 44100;
-	stream->set_sample_rate(current_rate);
+	stream->set_sample_rate(44100);
 
 	reset_playback();
 }
@@ -177,52 +172,6 @@ void tc9446f_device::audio_w(uint8_t byte)
 	}
 
 	mp3data[mp3data_count++] = byte;
-	stream_update();
-}
-
-int tc9446f_device::mp3_find_frame(int offset)
-{
-	auto mp3 = static_cast<const uint8_t*>(&mp3data[offset]);
-	int ffb = 0, pfb = 0;
-	auto r = mp3d_find_frame(mp3, mp3data_count, &ffb, &pfb);
-
-	if (r == mp3data_count)
-		return -1;
-
-	return r;
-}
-
-void tc9446f_device::stream_update()
-{
-	if (mp3_decoder_state == DECODER_STREAM_SEARCHING) {
-		cb_demand(0);
-
-		int frame_offset = mp3_find_frame(mp3_offset);
-
-		bool found_frame_header = frame_offset != -1;
-		if (found_frame_header) {
-			if (frame_offset > 0) {
-				std::copy(mp3data.begin() + frame_offset, mp3data.end(), mp3data.begin());
-				mp3data_count -= frame_offset;
-			}
-
-			mp3_offset = mp3_offset_last = 0;
-			mp3_decoder_state = DECODER_STREAM_BUFFER_FILL;
-			//printf("Found DECODER_STREAM_BUFFER_FILL @ %d %04x\n", frame_offset, mp3data_count);
-		}
-		else if (mp3data_count >= mp3data.size()) {
-			std::copy(mp3data.begin() + 1, mp3data.end(), mp3data.begin());
-			mp3data_count--;
-		}
-	}
-	else if (mp3_decoder_state == DECODER_STREAM_BUFFER_FILL) {
-		// Don't start streaming until the buffer has a few more frames
-		if (mp3data_count >= mp3data.size()) {
-			//printf("Found DECODER_STREAM_BUFFER\n");
-			mp3_decoder_state = DECODER_STREAM_BUFFER;
-			fill_buffer();
-		}
-	}
 
 	cb_demand(mp3data_count < mp3data.size());
 }
@@ -231,34 +180,27 @@ void tc9446f_device::fill_buffer()
 {
 	cb_mpeg_frame_sync(0);
 
-	if (mp3_decoder_state != DECODER_STREAM_BUFFER) {
+	int pos = 0, frame_sample_rate = 0;
+	bool decoded_frame = mp3dec->decode_buffer(pos, mp3data_count, &samples[0], sample_count, frame_sample_rate, frame_channels);
+	samples_idx = 0;
+
+	if (!decoded_frame || sample_count == 0) {
+		// Frame decode failed
+		if (mp3data_count >= mp3data.size()) {
+			std::copy(mp3data.begin() + 1, mp3data.end(), mp3data.begin());
+			mp3data_count--;
+		}
+
 		cb_demand(mp3data_count < mp3data.size());
 		return;
 	}
 
-	memset(&mp3_info, 0, sizeof(mp3dec_frame_info_t));
-	sample_count = mp3dec_decode_frame(&mp3_dec, static_cast<const uint8_t*>(&mp3data[0]), mp3data_count, static_cast<mp3d_sample_t*>(&samples[0]), &mp3_info);
-	samples_idx = 0;
+	std::copy(mp3data.begin() + pos, mp3data.end(), mp3data.begin());
+	mp3data_count -= pos;
 
-	if (sample_count == 0) {
-		// Frame decode failed
-		reset_playback();
-		return;
-	}
+	stream->set_sample_rate(frame_sample_rate);
 
-	//printf("Decoded %d samples from %d bytes\n", sample_count, mp3_info.frame_bytes);
-
-	std::copy(mp3data.begin() + mp3_info.frame_bytes, mp3data.end(), mp3data.begin());
-	mp3data_count -= mp3_info.frame_bytes;
-
-	decoded_frame_count++;
 	cb_mpeg_frame_sync(1);
-
-	if (mp3_info.hz != current_rate) {
-		// TODO: How would real hardware handle this?
-		current_rate = mp3_info.hz;
-		stream->set_sample_rate(current_rate * m_clock_scale);
-	}
 
 	cb_demand(mp3data_count < mp3data.size());
 }
@@ -266,7 +208,7 @@ void tc9446f_device::fill_buffer()
 void tc9446f_device::append_buffer(std::vector<write_stream_view>& outputs, int& pos, int scount)
 {
 	int s1 = scount - pos;
-	int bytes_per_sample = mp3_info.channels > 2 ? 2 : mp3_info.channels; // More than 2 channels is unsupported here
+	int bytes_per_sample = std::min(frame_channels, 2); // More than 2 channels is unsupported here
 
 	if (s1 > sample_count)
 		s1 = sample_count;
@@ -276,7 +218,6 @@ void tc9446f_device::append_buffer(std::vector<write_stream_view>& outputs, int&
 		outputs[1].put_int(pos, samples[samples_idx * bytes_per_sample + (bytes_per_sample >> 1)], 32768);
 
 		samples_idx++;
-		decoded_samples++;
 		pos++;
 
 		if (samples_idx >= sample_count) {
@@ -291,16 +232,11 @@ void tc9446f_device::reset_playback()
 	std::fill(mp3data.begin(), mp3data.end(), 0);
 	std::fill(samples.begin(), samples.end(), 0);
 
+	mp3dec->clear();
 	mp3data_count = 0;
 	sample_count = 0;
-	decoded_frame_count = 0;
-	decoded_samples = 0;
 	samples_idx = 0;
-
-	mp3_decoder_state = DECODER_STREAM_SEARCHING;
-	mp3_offset = mp3_offset_last = 0;
-
-	mp3dec_init(&mp3_dec);
+	frame_channels = 2;
 
 	cb_demand(mp3data_count < mp3data.size());
 }

@@ -660,6 +660,7 @@ User data note:
 #include "machine/ram.h"
 #include "machine/ticket.h"
 #include "machine/timer.h"
+#include "sound/lc82310.h"
 #include "sound/spu.h"
 #include "video/psx.h"
 
@@ -681,6 +682,7 @@ public:
 		, m_io_system(*this, "SYSTEM")
 		, m_exio(*this, "exio")
 		, m_exio_analog(*this, "EXIO_ANALOG%u", 1U)
+		, m_exio_lightgun(*this, "EXIO_LIGHTGUN%u", 1)
 		, m_mgexio_hopper(*this, "mgexio_hopper%u", 1U)
 		, m_mgexio_outputs(*this, "MGEXIO_OUTPUT%u", 0U)
 		, m_mgexio_sensor(*this, "MGEXIO_SENSOR")
@@ -743,6 +745,8 @@ private:
 	void i2c_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void i2c_update();
 
+	template <int N> uint16_t exio_lightgun_io_r();
+
 	TIMER_DEVICE_CALLBACK_MEMBER(io_update_interrupt_callback);
 	DECLARE_WRITE_LINE_MEMBER(cdrom_interrupt);
 	DECLARE_WRITE_LINE_MEMBER(cdrom_dmarq);
@@ -768,6 +772,7 @@ private:
 
 	// EXIO
 	optional_ioport_array<8> m_exio_analog;
+	optional_ioport_array<4> m_exio_lightgun;
 
 	// MGEXIO
 	template <int N> void mgexio_output_w(offs_t offset, uint16_t data);
@@ -853,31 +858,7 @@ public:
 	void ns10_taiko5(machine_config &config);
 	void ns10_taiko6(machine_config &config);
 
-	void init_ballpom();
-	void init_chocovdr();
-	void init_gahaha();
-	void init_gahaha2();
-	void init_gamshara();
-	void init_gjspace();
-	void init_gunbalina();
-	void init_keroro();
-	void init_knpuzzle();
-	void init_konotako();
-	void init_medalnt();
-	void init_medalnt2();
-	void init_mrdrilrg();
-	void init_nflclsfb();
-	void init_pacmball();
-	void init_panikuru();
-	void init_puzzball();
-	void init_sekaikh();
-	void init_startrgn();
-	void init_sugorotic();
-	void init_taiko2();
-	void init_taiko3();
-	void init_taiko4();
-	void init_taiko5();
-	void init_taiko6();
+	void memn_driver_init();
 
 protected:
 	virtual void machine_start() override;
@@ -890,8 +871,6 @@ protected:
 
 	void namcos10_nand_k9f2808u0b(machine_config &config, int nand_count);
 	void namcos10_nand_k9f5608u0d(machine_config &config, int nand_count);
-
-	void memn_driver_init();
 
 	void pio_dma_read(uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size);
 	void pio_dma_write(uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size);
@@ -929,6 +908,7 @@ public:
 		: namcos10_memn_state(mconfig, type, tag)
 		, m_ram(*this, "maincpu:ram")
 		, m_memp3_mcu(*this, "memp3_mcu")
+		, m_lc82310(*this, "mp3_decoder")
 		, m_mcu_ram(*this, "mcu_ram")
 		, m_p3_analog(*this, "P3_ANALOG%u", 1U)
 	{ }
@@ -936,10 +916,6 @@ public:
 	void ns10_g13jnr(machine_config &config);
 	void ns10_nicetsuk(machine_config &config);
 	void ns10_squizchs(machine_config &config);
-
-	void init_g13jnr();
-	void init_nicetsuk();
-	void init_squizchs();
 
 protected:
 	virtual void machine_start() override;
@@ -952,26 +928,55 @@ private:
 	void namcos10_memp3_map(address_map &map);
 	void mcu_map(address_map &map);
 
+	template <int Port> uint8_t port_read(offs_t offset);
+	template <int Port> void port_write(offs_t offset, uint8_t data);
+
 	void firmware_write_w(uint16_t data);
 
 	void ram_bank_w(uint16_t data);
 
 	uint16_t unk_status1_r();
 
-	uint16_t unk_status2_r();
-	void mcu_int5_w(uint16_t data);
+	uint16_t subcomm_busy_r();
+	void subcomm_int_w(uint16_t data);
 
 	uint16_t ram_r(offs_t offset);
 	void ram_w(offs_t offset, uint16_t data);
 
-	uint16_t io_analog_r(offs_t offset);
+	void subcomm_ack_w(uint16_t data);
+
+	uint16_t mp3_unk_r();
+	void mp3_unk_w(uint16_t data);
+
+	uint16_t mp3_unk2_r();
+	void mp3_unk2_w(uint16_t data);
+
+	uint16_t mp3_unk3_r();
+	void mp3_unk3_w(uint16_t data);
+
+	uint16_t decode_pld_ver_r();
+	uint16_t dram_pld_ver_r();
+	uint16_t nand_pld_ver_r();
+
+	uint16_t mp3_stream_status_r();
+	void mp3_stream_status_w(uint16_t data);
+
+	void mp3_data_w(uint16_t data);
 
 	required_device<ram_device> m_ram;
 	required_device<tmp95c061_device> m_memp3_mcu;
+	required_device<lc82310_device> m_lc82310;
 	required_shared_ptr<uint16_t> m_mcu_ram;
 	optional_ioport_array<4> m_p3_analog;
 
 	uint16_t m_mcu_ram_bank;
+	bool m_subcomm_busy;
+
+	uint16_t m_mp3_unk_val, m_mp3_unk2_val, m_mp3_unk3_val;
+	uint8_t m_mp3_port7_data;
+	uint8_t m_mp3_porta_data;
+	bool m_mp3_stream_available;
+	bool m_mp3_received_byte;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -1108,7 +1113,7 @@ void namcos10_state::namcos10_map_inner(address_map &map)
 	map(0xf500000, 0xf5fffff).ram().share("share3");
 
 	map(0xfb20000, 0xfb20003).nopw(); // written to when DMA are finished? maybe some kind of IRQ?
-	map(0xfb60000, 0xfb60003).noprw(); // ?
+	map(0xfb60000, 0xfb60003).noprw(); // watchdog
 	map(0xfba0000, 0xfba0001).r(FUNC(namcos10_state::io_system_r));
 	map(0xfba0002, 0xfba0003).rw(FUNC(namcos10_state::exio_ident_r), FUNC(namcos10_state::exio_ident_w));
 	map(0xfba0004, 0xfba0007).portr("IN1");
@@ -1284,8 +1289,6 @@ void namcos10_state::namcos10_exio(machine_config &config)
 
 void namcos10_state::namcos10_map_exio_inner(address_map &map)
 {
-	// TODO: Base registers are probably similar between EXIO and MGEXIO, fill in registers and rename if possible
-	// TODO: Figure out what the commented out registers are actually used for
 	map(0x06000, 0x0ffff).rw(m_exio, FUNC(namcos10_exio_device::ram_r), FUNC(namcos10_exio_device::ram_w));
 	map(0x10000, 0x10003).rw(m_exio, FUNC(namcos10_exio_device::ctrl_r), FUNC(namcos10_exio_device::ctrl_w));
 	map(0x18000, 0x18003).rw(m_exio, FUNC(namcos10_exio_device::bus_req_r), FUNC(namcos10_exio_device::bus_req_w));
@@ -1295,8 +1298,16 @@ void namcos10_state::namcos10_map_exio_inner(address_map &map)
 	// map(0x48000, 0x48003).nopw();
 	map(0x50000, 0x50003).portr("EXIO_IN1");
 	map(0x58000, 0x58003).portr("EXIO_IN2");
-	// map(0xc0000, 0xc0003).nopw();
-	// map(0xc8000, 0xc8003).nopw();
+	map(0x80000, 0x80003).r(FUNC(namcos10_state::exio_lightgun_io_r<0>));
+	map(0x88000, 0x88003).r(FUNC(namcos10_state::exio_lightgun_io_r<1>));
+	map(0x90000, 0x90003).r(FUNC(namcos10_state::exio_lightgun_io_r<2>));
+	map(0x98000, 0x98003).r(FUNC(namcos10_state::exio_lightgun_io_r<3>));
+	map(0xa0000, 0xa0003).r(FUNC(namcos10_state::exio_lightgun_io_r<4>));
+	map(0xa8000, 0xa8003).r(FUNC(namcos10_state::exio_lightgun_io_r<5>));
+	map(0xb0000, 0xb0003).r(FUNC(namcos10_state::exio_lightgun_io_r<6>));
+	map(0xb8000, 0xb8003).r(FUNC(namcos10_state::exio_lightgun_io_r<7>));
+	// map(0xc0000, 0xc0003).nopw(); // related to updating P1 lightgun I/O? 0 written here before reading values
+	// map(0xc8000, 0xc8003).nopw(); // same as 0xc0000, except for P2
 }
 
 void namcos10_state::namcos10_map_exio(address_map &map)
@@ -1304,6 +1315,20 @@ void namcos10_state::namcos10_map_exio(address_map &map)
 	map(0x1fe00000, 0x1fffffff).m(FUNC(namcos10_state::namcos10_map_exio_inner));
 	map(0x9fe00000, 0x9fffffff).m(FUNC(namcos10_state::namcos10_map_exio_inner));
 	map(0xbfe00000, 0xbfffffff).m(FUNC(namcos10_state::namcos10_map_exio_inner));
+}
+
+template <int N>
+uint16_t namcos10_state::exio_lightgun_io_r()
+{
+	const auto val = m_exio_lightgun[N / 2].read_safe(0);
+	const auto offset = N & 1;
+
+	switch (offset) {
+		default: case 0:
+			return BIT(val, 0, 6);
+		case 1:
+			return BIT(val, 6, 16);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -1686,6 +1711,10 @@ uint16_t namcos10_memn_state::nand_data_r()
 
 void namcos10_memn_state::nand_data_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
+	// Hardware testing has shown that you can only write to specific parts of the NANDs.
+	// For NAND 0, it's not possible to write to any block besides block 1 which stores the EEP data for games.
+	// NAND 1 and beyond are untested, and it's unknown if block 1 on NAND 1 and beyond are writeable.
+
 	if (!m_nand[m_nand_device_idx])
 		return;
 
@@ -1758,6 +1787,9 @@ void namcos10_memn_state::namcos10_memn_map_inner(address_map &map)
 	map(0xf460000, 0xf460001).w(FUNC(namcos10_memn_state::nand_bank_w));
 	map(0xf470000, 0xf470001).rw(FUNC(namcos10_memn_state::ctrl_reg_r), FUNC(namcos10_memn_state::ctrl_reg_w));
 	//map(0xf480000, 0xf480001).w(); // 0xffff is written here after a nand write/erase?
+
+	map(0xfe40000, 0xfe40003).noprw();
+	map(0xfe48000, 0xfe48003).noprw();
 }
 
 void namcos10_memn_state::namcos10_memn_map(address_map &map)
@@ -1794,155 +1826,6 @@ void namcos10_memn_state::memn_driver_init()
 	nand_copy(nand_base, (uint16_t *)(bios + 0x0020000), 0x120, 0x1f00);
 }
 
-void namcos10_memn_state::init_ballpom()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0xa, 0xb, 0x8, 0x9, 0x5, 0x4, 0x6, 0x7, 0x1, 0x3, 0x0, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_chocovdr()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0x9, 0x8, 0xa, 0xb, 0x4, 0x7, 0x6, 0x5, 0x0, 0x3, 0x2, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_gahaha()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xe, 0xc, 0xf, 0xa, 0x8, 0xb, 0x9, 0x6, 0x7, 0x4, 0x5, 0x0, 0x3, 0x2, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_gahaha2()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x9, 0x8, 0xb, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x3, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_gamshara()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xf, 0xe, 0x8, 0x9, 0xb, 0xa, 0x5, 0x7, 0x4, 0x6, 0x0, 0x1, 0x2, 0x3); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_gjspace()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0x8, 0xa, 0x6, 0x5, 0x7, 0xe, 0x4, 0xf, 0xd, 0x9, 0x1, 0x0, 0x2, 0xb, 0xc, 0x3); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_gunbalina()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xf, 0xe, 0x8, 0x9, 0xb, 0xa, 0x5, 0x7, 0x4, 0x6, 0x1, 0x0, 0x2, 0x3); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_keroro()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0xa, 0x8, 0xb, 0x9, 0x4, 0x5, 0x7, 0x6, 0x2, 0x1, 0x0, 0x3); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_knpuzzle()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0xa, 0x8, 0xb, 0x9, 0x4, 0x5, 0x6, 0x7, 0x1, 0x3, 0x0, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_konotako()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0x8, 0x9, 0xb, 0xa, 0x5, 0x4, 0x7, 0x6, 0x0, 0x1, 0x3, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_medalnt()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xf, 0xc, 0xe, 0x8, 0x9, 0xa, 0xb, 0x5, 0x4, 0x6, 0x7, 0x2, 0x3, 0x0, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_medalnt2()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xf, 0xc, 0xe, 0xa, 0x8, 0xb, 0x9, 0x4, 0x7, 0x6, 0x5, 0x1, 0x3, 0x0, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_mrdrilrg()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x9, 0x8, 0xb, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x3, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_nflclsfb()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0xb, 0x8, 0xa, 0x4, 0x5, 0x6, 0x7, 0x0, 0x3, 0x2, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_pacmball()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xf, 0xc, 0xe, 0x8, 0xb, 0xa, 0x9, 0x4, 0x5, 0x7, 0x6, 0x0, 0x3, 0x2, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_panikuru()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0x8, 0x9, 0xa, 0xb, 0x4, 0x7, 0x6, 0x5, 0x1, 0x0, 0x3, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_puzzball()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xc, 0xf, 0xe, 0xd, 0x8, 0x9, 0xa, 0xb, 0x4, 0x5, 0x7, 0x6, 0x1, 0x0, 0x2, 0x3); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_sekaikh()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0x9, 0xb, 0x8, 0xa, 0x6, 0x5, 0x4, 0x7, 0x2, 0x3, 0x0, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_startrgn()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0xb, 0x8, 0xa, 0x4, 0x5, 0x6, 0x7, 0x0, 0x3, 0x2, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_sugorotic()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0x9, 0xb, 0x8, 0xa, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x2, 0x3); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_taiko2()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xc, 0xd, 0xe, 0xf, 0x9, 0x8, 0xb, 0xa, 0x6, 0x4, 0x7, 0x5, 0x2, 0x3, 0x0, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_taiko3()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x9, 0x8, 0xb, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x3, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_taiko4()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0x8, 0xb, 0xa, 0x5, 0x4, 0x6, 0x7, 0x2, 0x3, 0x0, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_taiko5()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0xa, 0x8, 0xb, 0x9, 0x4, 0x5, 0x7, 0x6, 0x2, 0x1, 0x0, 0x3); };
-	memn_driver_init();
-}
-
-void namcos10_memn_state::init_taiko6()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0x9, 0xb, 0x8, 0xa, 0x5, 0x4, 0x7, 0x6, 0x2, 0x1, 0x0, 0x3); };
-	memn_driver_init();
-}
 
 void namcos10_memn_state::namcos10_nand_k9f2808u0b(machine_config &config, int nand_count)
 {
@@ -1960,23 +1843,27 @@ void namcos10_memn_state::namcos10_nand_k9f5608u0d(machine_config &config, int n
 	}
 }
 
+// nasty, but makes code more terse
+inline int gf2_reduce(uint64_t num) { return ns10_type2_decrypter_device::gf2_reduce(num); }
+
 void namcos10_memn_state::ns10_ballpom(machine_config &config)
 {
 	namcos10_memn_base(config);
 	namcos10_mgexio(config);
 	namcos10_nand_k9f2808u0b(config, 2);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0xa, 0xb, 0x8, 0x9, 0x5, 0x4, 0x6, 0x7, 0x1, 0x3, 0x0, 0x2); };
+
 	/* decrypter device (CPLD in hardware?) */
 	// BALLPOM_DECRYPTER(config, m_decrypter, 0);
 }
-
-// nasty, but makes code more terse
-inline int gf2_reduce(uint64_t num) { return ns10_type2_decrypter_device::gf2_reduce(num); }
 
 void namcos10_memn_state::ns10_chocovdr(machine_config &config)
 {
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 5);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0x9, 0x8, 0xa, 0xb, 0x4, 0x7, 0x6, 0x5, 0x0, 0x3, 0x2, 0x1); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2004,6 +1891,8 @@ void namcos10_memn_state::ns10_gahaha(machine_config &config)
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 3);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xe, 0xc, 0xf, 0xa, 0x8, 0xb, 0x9, 0x6, 0x7, 0x4, 0x5, 0x0, 0x3, 0x2, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000010a08200ULL, 0x00000000001b0204ULL, 0x00004ba503024016ULL, 0x0000000000000004ULL,
@@ -2029,6 +1918,8 @@ void namcos10_memn_state::ns10_gahaha2(machine_config &config)
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 3);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x9, 0x8, 0xb, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x3, 0x2); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000080064001ULL, 0x000000000a000104ULL, 0x0000018220912000ULL, 0x0000000001822010ULL,
@@ -2053,6 +1944,8 @@ void namcos10_memn_state::ns10_gamshara(machine_config &config)
 {
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 2);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xf, 0xe, 0x8, 0x9, 0xb, 0xa, 0x5, 0x7, 0x4, 0x6, 0x0, 0x1, 0x2, 0x3); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2089,6 +1982,8 @@ void namcos10_memn_state::ns10_gjspace(machine_config &config)
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 4);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0x8, 0xa, 0x6, 0x5, 0x7, 0xe, 0x4, 0xf, 0xd, 0x9, 0x1, 0x0, 0x2, 0xb, 0xc, 0x3); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000000000240ULL, 0x0000d617eb0f1ab1ULL, 0x00000000451111c0ULL, 0x00000000013b1f44ULL,
@@ -2124,6 +2019,8 @@ void namcos10_memn_state::ns10_keroro(machine_config &config)
 	namcos10_mgexio(config);
 	namcos10_nand_k9f5608u0d(config, 2);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0xa, 0x8, 0xb, 0x9, 0x4, 0x5, 0x7, 0x6, 0x2, 0x1, 0x0, 0x3); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000000000024ULL, 0x0000000000000884ULL, 0x00000000000e0a00ULL, 0x0000000000000040ULL,
@@ -2156,6 +2053,8 @@ void namcos10_memn_state::ns10_knpuzzle(machine_config &config)
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 3);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0xa, 0x8, 0xb, 0x9, 0x4, 0x5, 0x6, 0x7, 0x1, 0x3, 0x0, 0x2); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x00000000c0a4208cULL, 0x00000000204100a8ULL, 0x000000000c0306a0ULL, 0x000000000819e944ULL,
@@ -2180,6 +2079,8 @@ void namcos10_memn_state::ns10_konotako(machine_config &config)
 {
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 2);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0x8, 0x9, 0xb, 0xa, 0x5, 0x4, 0x7, 0x6, 0x0, 0x1, 0x3, 0x2); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2207,6 +2108,8 @@ void namcos10_memn_state::ns10_medalnt(machine_config &config)
 	namcos10_exfinalio(config);
 	namcos10_nand_k9f2808u0b(config, 2);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xf, 0xc, 0xe, 0x8, 0x9, 0xa, 0xb, 0x5, 0x4, 0x6, 0x7, 0x2, 0x3, 0x0, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000080601000ULL, 0x0000000000006020ULL, 0x0000000000004840ULL, 0x0000000000000201ULL,
@@ -2233,6 +2136,8 @@ void namcos10_memn_state::ns10_medalnt2(machine_config &config)
 	namcos10_exfinalio(config);
 	namcos10_nand_k9f5608u0d(config, 2);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xf, 0xc, 0xe, 0xa, 0x8, 0xb, 0x9, 0x4, 0x7, 0x6, 0x5, 0x1, 0x3, 0x0, 0x2); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000000000202ULL, 0x0000242000120110ULL, 0x0000000001624608ULL, 0x0000000000001820ULL,
@@ -2257,6 +2162,8 @@ void namcos10_memn_state::ns10_mrdrilrg(machine_config &config)
 {
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 3);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x9, 0x8, 0xb, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x3, 0x2); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2291,6 +2198,8 @@ void namcos10_memn_state::ns10_nflclsfb(machine_config &config)
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 4);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0xb, 0x8, 0xa, 0x4, 0x5, 0x6, 0x7, 0x0, 0x3, 0x2, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x000034886e281880ULL, 0x0000000012c5e7baULL, 0x0000000000000200ULL, 0x000000002900002aULL,
@@ -2317,6 +2226,8 @@ void namcos10_memn_state::ns10_pacmball(machine_config &config)
 	namcos10_mgexio(config);
 	namcos10_nand_k9f2808u0b(config, 2);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xf, 0xc, 0xe, 0x8, 0xb, 0xa, 0x9, 0x4, 0x5, 0x7, 0x6, 0x0, 0x3, 0x2, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000000008028ULL, 0x0000000000000400ULL, 0x00000000a9100004ULL, 0x0000000028004200ULL,
@@ -2341,6 +2252,8 @@ void namcos10_memn_state::ns10_panikuru(machine_config &config)
 {
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 3);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0x8, 0x9, 0xa, 0xb, 0x4, 0x7, 0x6, 0x5, 0x1, 0x0, 0x3, 0x2); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2371,7 +2284,10 @@ void namcos10_memn_state::ns10_panikuru(machine_config &config)
 void namcos10_memn_state::ns10_ptblank3(machine_config &config)
 {
 	namcos10_memn_base(config);
+	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 2);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xf, 0xe, 0x8, 0x9, 0xb, 0xa, 0x5, 0x7, 0x4, 0x6, 0x1, 0x0, 0x2, 0x3); };
 
 	// NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, logic);
 }
@@ -2381,6 +2297,8 @@ void namcos10_memn_state::ns10_puzzball(machine_config &config)
 	namcos10_memn_base(config);
 	namcos10_mgexio(config);
 	namcos10_nand_k9f2808u0b(config, 2);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xc, 0xf, 0xe, 0xd, 0x8, 0x9, 0xa, 0xb, 0x4, 0x5, 0x7, 0x6, 0x1, 0x0, 0x2, 0x3); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2408,6 +2326,8 @@ void namcos10_memn_state::ns10_sekaikh(machine_config &config)
 	namcos10_mgexio(config);
 	namcos10_nand_k9f2808u0b(config, 2);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0x9, 0xb, 0x8, 0xa, 0x6, 0x5, 0x4, 0x7, 0x2, 0x3, 0x0, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000000000510ULL, 0x0000000000004000ULL, 0x0000000000000406ULL, 0x0000000000000400ULL,
@@ -2433,6 +2353,8 @@ void namcos10_memn_state::ns10_startrgn(machine_config &config)
 {
 	namcos10_memn_base(config);
 	namcos10_nand_k9f2808u0b(config, 2);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0xb, 0x8, 0xa, 0x4, 0x5, 0x6, 0x7, 0x0, 0x3, 0x2, 0x1); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2460,6 +2382,8 @@ void namcos10_memn_state::ns10_sugorotic(machine_config &config)
 	namcos10_mgexio(config);
 	namcos10_nand_k9f2808u0b(config, 2);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xd, 0xc, 0xe, 0xf, 0x9, 0xb, 0x8, 0xa, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x2, 0x3); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000061402200010ULL, 0x0000000000b2a150ULL, 0x0000000080280021ULL, 0x0000000000000880ULL,
@@ -2486,6 +2410,8 @@ void namcos10_memn_state::ns10_taiko2(machine_config &config)
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 3);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xc, 0xd, 0xe, 0xf, 0x9, 0x8, 0xb, 0xa, 0x6, 0x4, 0x7, 0x5, 0x2, 0x3, 0x0, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000004011401ULL, 0x000000008c208806ULL, 0x000000008c200406ULL, 0x0000004a08002208ULL,
@@ -2511,6 +2437,8 @@ void namcos10_memn_state::ns10_taiko3(machine_config &config)
 	namcos10_memn_base(config);
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 3);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x9, 0x8, 0xb, 0x4, 0x5, 0x6, 0x7, 0x0, 0x1, 0x3, 0x2); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2541,6 +2469,8 @@ void namcos10_memn_state::ns10_taiko4(machine_config &config)
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 3);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0x8, 0xb, 0xa, 0x5, 0x4, 0x6, 0x7, 0x2, 0x3, 0x0, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000042c82001ULL, 0x0000000000000200ULL, 0x000000000910405cULL, 0x0000000000000c00ULL,
@@ -2566,6 +2496,8 @@ void namcos10_memn_state::ns10_taiko5(machine_config &config)
 	namcos10_memn_base(config);
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 3);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xf, 0xc, 0xd, 0xa, 0x8, 0xb, 0x9, 0x4, 0x5, 0x7, 0x6, 0x2, 0x1, 0x0, 0x3); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2597,6 +2529,8 @@ void namcos10_memn_state::ns10_taiko6(machine_config &config)
 	namcos10_memn_base(config);
 	namcos10_exio(config);
 	namcos10_nand_k9f2808u0b(config, 3);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0x9, 0xb, 0x8, 0xa, 0x5, 0x4, 0x7, 0x6, 0x2, 0x1, 0x0, 0x3); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2649,37 +2583,28 @@ void namcos10_memp3_state::ram_w(offs_t offset, uint16_t data)
 	m_mcu_ram[m_mcu_ram_bank * 0x10000 + offset] = data;
 }
 
-uint16_t namcos10_memp3_state::unk_status2_r()
+uint16_t namcos10_memp3_state::subcomm_busy_r()
 {
-	// Some kind of status flag.
-	// Game code loops until this is non-zero before writing to data to f30000c/320000.
-	// Possibly related to MP3 decoder?
-	return 1;
+	// Before writing a new command this register is checked to make sure the
+	// previous command has already been finished processing
+	return !m_subcomm_busy;
 }
 
-void namcos10_memp3_state::mcu_int5_w(uint16_t data)
+void namcos10_memp3_state::subcomm_int_w(uint16_t data)
 {
-	// MP3 decoder commands will only be processed when INT5 is triggered.
-	// 0 gets written to this register (only?) after the MP3 decoder commands are
-	// written into the MCU's memory so I believe it's responsible for making the
-	// INT5 get triggered.
+	// MP3 decoder commands will only be processed when INT5 is triggered
 	m_memp3_mcu->set_input_line(TLCS900_INT5, ASSERT_LINE);
-}
-
-uint16_t namcos10_memp3_state::io_analog_r(offs_t offset)
-{
-	return m_p3_analog[offset].read_safe(0);
+	m_subcomm_busy = true;
 }
 
 void namcos10_memp3_state::namcos10_memp3_map_inner(address_map &map)
 {
 	map(0xf300000, 0xf300001).w(FUNC(namcos10_memp3_state::firmware_write_w));
 	// 1f300004 unk
-	map(0xf300006, 0xf300007).rw(FUNC(namcos10_memp3_state::unk_status2_r), FUNC(namcos10_memp3_state::mcu_int5_w));
+	map(0xf300006, 0xf300007).rw(FUNC(namcos10_memp3_state::subcomm_busy_r), FUNC(namcos10_memp3_state::subcomm_int_w));
 	map(0xf30000c, 0xf30000d).w(FUNC(namcos10_memp3_state::ram_bank_w));
-	map(0xf30000e, 0xf30000f).r(FUNC(namcos10_memp3_state::unk_status1_r));
+	map(0xf30000e, 0xf30000f).r(FUNC(namcos10_memp3_state::unk_status1_r)); // similar to 0xf300006, only used when writing firmware?
 	map(0xf320000, 0xf33ffff).rw(FUNC(namcos10_memp3_state::ram_r), FUNC(namcos10_memp3_state::ram_w));
-	map(0xf33fff0, 0xf33fff7).r(FUNC(namcos10_memp3_state::io_analog_r));
 }
 
 void namcos10_memp3_state::namcos10_memp3_map(address_map &map)
@@ -2693,9 +2618,143 @@ void namcos10_memp3_state::namcos10_memp3_map(address_map &map)
 
 void namcos10_memp3_state::mcu_map(address_map &map)
 {
-	map(0x000000, 0x7fffff).ram().mirror(0x800000).share(m_mcu_ram);
+	map(0x100000, 0x100001).rw(FUNC(namcos10_memp3_state::mp3_unk_r), FUNC(namcos10_memp3_state::mp3_unk_w));
+	map(0x100002, 0x100003).portr("MEMP3_DIPSW");
+	map(0x100004, 0x100005).rw(FUNC(namcos10_memp3_state::mp3_unk2_r), FUNC(namcos10_memp3_state::mp3_unk2_w));
+	map(0x100008, 0x100009).w(FUNC(namcos10_memp3_state::subcomm_ack_w));
+	map(0x10000e, 0x10000f).r(FUNC(namcos10_memp3_state::decode_pld_ver_r));
+	map(0x100010, 0x100011).rw(FUNC(namcos10_memp3_state::mp3_unk3_r), FUNC(namcos10_memp3_state::mp3_unk3_w));
+	map(0x10001e, 0x10002f).r(FUNC(namcos10_memp3_state::dram_pld_ver_r));
+	map(0x10002e, 0x10002f).r(FUNC(namcos10_memp3_state::nand_pld_ver_r));
+	map(0x100030, 0x100031).w(FUNC(namcos10_memp3_state::mp3_data_w));
+	map(0x100032, 0x100033).rw(FUNC(namcos10_memp3_state::mp3_stream_status_r), FUNC(namcos10_memp3_state::mp3_stream_status_w));
+	map(0x800000, 0xffffff).ram().share(m_mcu_ram);
 }
 
+uint16_t namcos10_memp3_state::decode_pld_ver_r()
+{
+	// DECODE PLD version, only seems to be read when sub CPU is in debug mode
+	return 1;
+}
+
+uint16_t namcos10_memp3_state::dram_pld_ver_r()
+{
+	// DRAM-C PLD version, only seems to be read when sub CPU is in debug mode
+	return 1;
+}
+
+uint16_t namcos10_memp3_state::nand_pld_ver_r()
+{
+	// NAND-C PLD version, only seems to be read when sub CPU is in debug mode
+	return 1;
+}
+
+uint16_t namcos10_memp3_state::mp3_stream_status_r()
+{
+	// The debug messages when debug mode are enabled checks this register
+	// and if it's 0 then it prints "MUTE:ON" and if it's 1 it prints "MUTE:OFF"
+	return m_mp3_stream_available;
+}
+
+void namcos10_memp3_state::mp3_stream_status_w(uint16_t data)
+{
+	// This gets set to 0 and then 1 every time a new MP3 stream is started
+	bool is_available = BIT(data, 0);
+
+	if (m_mp3_stream_available && !is_available)
+		m_lc82310->reset_playback();
+
+	m_mp3_stream_available = is_available;
+}
+
+void namcos10_memp3_state::mp3_data_w(uint16_t data)
+{
+	m_lc82310->dimpg_w(data & 0xff);
+	m_mp3_received_byte = true;
+}
+
+void namcos10_memp3_state::subcomm_ack_w(uint16_t data)
+{
+	m_subcomm_busy = false;
+	m_memp3_mcu->set_input_line(TLCS900_INT5, CLEAR_LINE);
+}
+
+uint16_t namcos10_memp3_state::mp3_unk_r()
+{
+	// Seems to be related to timer 3, something to do with the "L" LEDs maybe?
+	// When the timer 3 value has ticked 10 times, set to 1 if value is 0 else shift value by 1
+	// mp3_unk_w(mp3_unk_r() ? mp3_unk_r() << 1 : 1)
+	return m_mp3_unk_val;
+}
+
+void namcos10_memp3_state::mp3_unk_w(uint16_t data)
+{
+	m_mp3_unk_val = data;
+}
+
+uint16_t namcos10_memp3_state::mp3_unk2_r()
+{
+	// The following are how the sub CPU program handles the bits.
+	// It's unclear what writing to these registers actually does outside of the sub CPU.
+	// Only available in g13jnr and nicetsuk, maybe some kind of debug controls?
+	// bit 0 = Start playback
+	// bit 1 = Stop playback
+	// bit 2 = Fade out
+	// bit 3 = Fade in
+	// bit 4 = Decrease volume by 1
+	// bit 5 = Increase volume by 1
+	// bit 6 = Mute/Unmute (uses 0x100032)
+	// bit 7 = Print state from MP3 decoder + state byte from sub CPU to the sub CPU's serial output
+	return m_mp3_unk2_val;
+}
+
+void namcos10_memp3_state::mp3_unk2_w(uint16_t data)
+{
+	m_mp3_unk2_val = data;
+}
+
+uint16_t namcos10_memp3_state::mp3_unk3_r()
+{
+	// When the timer 3 value has ticked 10 times: mp3_unk3_w(3 - mp3_unk3_r())
+	return m_mp3_unk3_val;
+}
+
+void namcos10_memp3_state::mp3_unk3_w(uint16_t data)
+{
+	m_mp3_unk3_val = data;
+}
+
+template <int Port>
+void namcos10_memp3_state::port_write(offs_t offset, uint8_t data)
+{
+	if (Port == 7) {
+		m_lc82310->zcsctl_w(BIT(data, 3));
+		m_lc82310->dictl_w(BIT(data, 1));
+		m_lc82310->ckctl_w(BIT(data, 2));
+		m_mp3_port7_data = data;
+	} else if (Port == 10) {
+		// bit 2 is toggled off/on after MP3 byte is written
+		// bit 3 is set to 0 before writing data and then set to 1 after writing data
+		m_mp3_porta_data = data;
+	}
+}
+
+template <int Port>
+uint8_t namcos10_memp3_state::port_read(offs_t offset)
+{
+	uint8_t r = 0;
+
+	if (Port == 7) {
+		r = (m_mp3_port7_data & ~1) | m_lc82310->doctl_r();
+	} else if (Port == 10) { // Port A
+		r = m_mp3_porta_data;
+	} else if (Port == 11) { // Port B
+		r = !m_mp3_received_byte && m_lc82310->demand_r();
+		m_mp3_received_byte = false;
+	}
+
+	return r;
+}
 
 void namcos10_memp3_state::namcos10_memp3_base(machine_config &config)
 {
@@ -2705,11 +2764,44 @@ void namcos10_memp3_state::namcos10_memp3_base(machine_config &config)
 	m_maincpu->subdevice<psxdma_device>("dma")->install_write_handler(5, psxdma_device::write_delegate(&namcos10_memp3_state::pio_dma_read, this));
 	m_maincpu->set_addrmap(AS_PROGRAM, &namcos10_memp3_state::namcos10_memp3_map);
 
-	TMP95C061(config, m_memp3_mcu, XTAL(16'934'400));
+	TMP95C061(config, m_memp3_mcu, XTAL(101'491'200) / 2); // Measured
 	m_memp3_mcu->set_addrmap(AS_PROGRAM, &namcos10_memp3_state::mcu_map);
-	// Port 7 is used for communicating with the MP3 decoder chip
 
-	// LC82310 16.9344MHz
+	m_memp3_mcu->port1_read().set(FUNC(namcos10_memp3_state::port_read<1>));
+	m_memp3_mcu->port5_read().set(FUNC(namcos10_memp3_state::port_read<5>));
+	m_memp3_mcu->port7_read().set(FUNC(namcos10_memp3_state::port_read<7>));
+	m_memp3_mcu->port8_read().set(FUNC(namcos10_memp3_state::port_read<8>));
+	m_memp3_mcu->port9_read().set(FUNC(namcos10_memp3_state::port_read<9>));
+	m_memp3_mcu->porta_read().set(FUNC(namcos10_memp3_state::port_read<10>));
+	m_memp3_mcu->portb_read().set(FUNC(namcos10_memp3_state::port_read<11>));
+	m_memp3_mcu->port1_write().set(FUNC(namcos10_memp3_state::port_write<1>));
+	m_memp3_mcu->port2_write().set(FUNC(namcos10_memp3_state::port_write<2>));
+	m_memp3_mcu->port5_write().set(FUNC(namcos10_memp3_state::port_write<5>));
+	m_memp3_mcu->port6_write().set(FUNC(namcos10_memp3_state::port_write<6>));
+	m_memp3_mcu->port7_write().set(FUNC(namcos10_memp3_state::port_write<7>));
+	m_memp3_mcu->port8_write().set(FUNC(namcos10_memp3_state::port_write<8>));
+	m_memp3_mcu->porta_write().set(FUNC(namcos10_memp3_state::port_write<10>));
+	m_memp3_mcu->portb_write().set(FUNC(namcos10_memp3_state::port_write<11>));
+
+	m_memp3_mcu->an_read<0>().set([this] () {
+		return m_p3_analog[0].read_safe(0);
+	});
+
+	m_memp3_mcu->an_read<1>().set([this] () {
+		return m_p3_analog[1].read_safe(0);
+	});
+
+	m_memp3_mcu->an_read<2>().set([this] () {
+		return m_p3_analog[2].read_safe(0);
+	});
+
+	m_memp3_mcu->an_read<3>().set([this] () {
+		return m_p3_analog[3].read_safe(0);
+	});
+
+	LC82310(config, m_lc82310, XTAL(16'934'400));
+	m_lc82310->add_route(0, "lspeaker", 1.0);
+	m_lc82310->add_route(1, "rspeaker", 1.0);
 }
 
 void namcos10_memp3_state::machine_start()
@@ -2717,39 +2809,41 @@ void namcos10_memp3_state::machine_start()
 	namcos10_memn_state::machine_start();
 
 	save_item(NAME(m_mcu_ram_bank));
+	save_item(NAME(m_mp3_unk_val));
+	save_item(NAME(m_mp3_unk2_val));
+	save_item(NAME(m_mp3_unk3_val));
+	save_item(NAME(m_mp3_port7_data));
+	save_item(NAME(m_mp3_porta_data));
+	save_item(NAME(m_mp3_stream_available));
+	save_item(NAME(m_mp3_received_byte));
+	save_item(NAME(m_subcomm_busy));
 }
 
 void namcos10_memp3_state::machine_reset()
 {
 	namcos10_memn_state::machine_reset();
 
+	std::fill(m_mcu_ram.begin(), m_mcu_ram.end(), 0);
+
 	m_mcu_ram_bank = 0;
+	m_mp3_unk_val = m_mp3_unk3_val = 0;
+	m_mp3_unk2_val = 0xffff;
+	m_mp3_port7_data = 0;
+	m_mp3_porta_data = 0;
+	m_mp3_stream_available = false;
+	m_mp3_received_byte = false;
+
+	m_subcomm_busy = false;
 
 	m_memp3_mcu->suspend(SUSPEND_REASON_HALT, 1);
-}
-
-void namcos10_memp3_state::init_g13jnr()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0xb, 0x8, 0xa, 0x6, 0x7, 0x4, 0x5, 0x1, 0x3, 0x0, 0x2); };
-	memn_driver_init();
-}
-
-void namcos10_memp3_state::init_nicetsuk()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xc, 0xf, 0xe, 0xd, 0xa, 0x8, 0xb, 0x9, 0x5, 0x4, 0x6, 0x7, 0x2, 0x3, 0x0, 0x1); };
-	memn_driver_init();
-}
-
-void namcos10_memp3_state::init_squizchs()
-{
-	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x8, 0xb, 0x9, 0x6, 0x4, 0x7, 0x5, 0x0, 0x1, 0x3, 0x2); };
-	memn_driver_init();
 }
 
 void namcos10_memp3_state::ns10_g13jnr(machine_config &config)
 {
 	namcos10_memp3_base(config);
 	namcos10_nand_k9f2808u0b(config, 6);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xd, 0xc, 0xf, 0x9, 0xb, 0x8, 0xa, 0x6, 0x7, 0x4, 0x5, 0x1, 0x3, 0x0, 0x2); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2776,6 +2870,8 @@ void namcos10_memp3_state::ns10_nicetsuk(machine_config &config)
 	namcos10_memp3_base(config);
 	namcos10_nand_k9f2808u0b(config, 8);
 
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xc, 0xf, 0xe, 0xd, 0xa, 0x8, 0xb, 0x9, 0x5, 0x4, 0x6, 0x7, 0x2, 0x3, 0x0, 0x1); };
+
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
 			0x0000000000000022ULL, 0x0000000000008082ULL, 0x0000808400d10000ULL, 0x0000000000000088ULL,
@@ -2800,6 +2896,8 @@ void namcos10_memp3_state::ns10_squizchs(machine_config &config)
 {
 	namcos10_memp3_base(config);
 	namcos10_nand_k9f2808u0b(config, 14);
+
+	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xe, 0xc, 0xf, 0xd, 0xa, 0x8, 0xb, 0x9, 0x6, 0x4, 0x7, 0x5, 0x0, 0x1, 0x3, 0x2); };
 
 	NS10_TYPE2_DECRYPTER(config, m_decrypter, 0, ns10_type2_decrypter_device::ns10_crypto_logic{
 		{
@@ -2881,6 +2979,18 @@ static INPUT_PORTS_START( namcos10 )
 
 	PORT_START("EXIO_IN2")
 	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( memp3 )
+	PORT_START("MEMP3_DIPSW")
+	PORT_BIT( 0xfff0, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_DIPUNKNOWN_DIPLOC( 0x0001, IP_ACTIVE_LOW, "MEMP3_SW1:1" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x0002, IP_ACTIVE_LOW, "MEMP3_SW1:2" )
+	PORT_DIPUNKNOWN_DIPLOC( 0x0004, IP_ACTIVE_LOW, "MEMP3_SW1:3" )
+	PORT_DIPNAME( 0x0008, 0x0008, "Debug Mode" ) PORT_DIPLOCATION("MEMP3_SW1:4")
+	PORT_DIPSETTING( 0x0008, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x0000, DEF_STR( On ) )
 
 INPUT_PORTS_END
 
@@ -3035,6 +3145,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( g13jnr )
 	PORT_INCLUDE(namcos10)
+	PORT_INCLUDE(memp3)
 
 	PORT_MODIFY("IN1")
 	PORT_BIT( 0x071f0043, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -3057,10 +3168,10 @@ static INPUT_PORTS_START( g13jnr )
 	PORT_DIPSETTING( 0x00, DEF_STR( On ) )
 
 	PORT_START("P3_ANALOG1")
-	PORT_BIT( 0xffff, 0x7fff, IPT_LIGHTGUN_Y ) PORT_CROSSHAIR(Y, -1.0, 0.0, 0) PORT_MINMAX(0x0000,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(100) PORT_PLAYER(1) PORT_REVERSE
+	PORT_BIT( 0x3ff, 0, IPT_LIGHTGUN_Y ) PORT_CROSSHAIR(Y, -1.0, 0.0, 0) PORT_MINMAX(0x000,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(50) PORT_PLAYER(1) PORT_REVERSE
 
 	PORT_START("P3_ANALOG2")
-	PORT_BIT( 0xffff, 0x7fff, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_MINMAX(0x0000,0xffff) PORT_SENSITIVITY(100) PORT_KEYDELTA(100) PORT_PLAYER(1)
+	PORT_BIT( 0x3ff, 0, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_MINMAX(0x000,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(50) PORT_PLAYER(1)
 
 INPUT_PORTS_END
 
@@ -3132,6 +3243,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( nicetsuk )
 	PORT_INCLUDE(namcos10)
+	PORT_INCLUDE(memp3)
 
 	PORT_MODIFY("IN1")
 	PORT_BIT( 0x0ff9ef40, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -3151,6 +3263,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( squizchs )
 	PORT_INCLUDE(namcos10)
+	PORT_INCLUDE(memp3)
 
 	PORT_MODIFY("IN1")
 	PORT_BIT( 0x0fff7070, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -3164,6 +3277,28 @@ static INPUT_PORTS_START( squizchs )
 	PORT_BIT( 0x00000200, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(2)
 	PORT_BIT( 0x00000400, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(2)
 	PORT_BIT( 0x00000800, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
+
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( ptblank3 )
+	PORT_INCLUDE(namcos10)
+
+	PORT_MODIFY("IN1")
+	PORT_BIT( 0x0fff6f6f, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x00000010, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1)
+	PORT_BIT( 0x00001000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
+
+	PORT_START("EXIO_LIGHTGUN1") // P1 X
+	PORT_BIT( 0x3fffff, 0xa0, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_MINMAX(0x000,0x13f) PORT_SENSITIVITY(100) PORT_KEYDELTA(5) PORT_PLAYER(1)
+
+	PORT_START("EXIO_LIGHTGUN2") // P1 Y
+	PORT_BIT( 0x3fffff, 0x78, IPT_LIGHTGUN_Y ) PORT_CROSSHAIR(Y, 1.0, 0.0, 0) PORT_MINMAX(0x000,0xef) PORT_SENSITIVITY(50) PORT_KEYDELTA(5) PORT_PLAYER(1)
+
+	PORT_START("EXIO_LIGHTGUN3") // P2 X
+	PORT_BIT( 0x3fffff, 0xa0, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_MINMAX(0x000,0x13f) PORT_SENSITIVITY(100) PORT_KEYDELTA(5) PORT_PLAYER(2)
+
+	PORT_START("EXIO_LIGHTGUN4") // P2 Y
+	PORT_BIT( 0x3fffff, 0x78, IPT_LIGHTGUN_Y ) PORT_CROSSHAIR(Y, 1.0, 0.0, 0) PORT_MINMAX(0x000,0xef) PORT_SENSITIVITY(50) PORT_KEYDELTA(5) PORT_PLAYER(2)
 
 INPUT_PORTS_END
 
@@ -3325,6 +3460,9 @@ ROM_START( gunbalina )
 
 	ROM_REGION32_LE( 0x1080000, "nand0", 0 )
 	ROM_LOAD( "gnn1a.8e", 0x0000000, 0x1080000, CRC(981b03d4) SHA1(1c55458f1b2964afe2cf4e9d84548c0699808e9f) )
+	ROM_LOAD( "ptblank3_prog.bin", 0x00029400, 0x002de3f0, CRC(1612383d) SHA1(e2f339444fe01a4f51ee784692c6d7f989080dc7) ) // Program code is unencrypted but scrambled
+	ROM_CONTINUE( 0x1056c00, 0x25200 )
+	ROM_COPY( "nand0", 0x84000, 0x1052a00, 0x4200 ) // relocate block 0x20
 
 	ROM_REGION32_LE( 0x1080000, "nand1", 0 )
 	ROM_LOAD( "gnn1a.8d", 0x0000000, 0x1080000, CRC(6cd343e0) SHA1(dcec44abae1504025895f42fe574549e5010f7d5) )
@@ -3464,6 +3602,8 @@ ROM_START( ptblank3 )
 
 	ROM_REGION32_LE( 0x1080000, "nand0", 0 )
 	ROM_LOAD( "gnn2vera_0.8e", 0x0000000, 0x1080000, CRC(3777ef6b) SHA1(44dce83f75d10f843db0feef4c2a738442434246) )
+	ROM_LOAD( "ptblank3_prog.bin", 0x00029400, 0x002de3f0, CRC(1612383d) SHA1(e2f339444fe01a4f51ee784692c6d7f989080dc7) ) // Program code is unencrypted but scrambled
+	ROM_CONTINUE(0x1056c00, 0x25200)
 
 	ROM_REGION32_LE( 0x1080000, "nand1", 0 )
 	ROM_LOAD( "gnn2vera_1.8d", 0x0000000, 0x1080000, CRC(82d2cfb5) SHA1(4b5e713a55e74a7b32b1b9b5811892df2df86256) )
@@ -3720,44 +3860,44 @@ ROM_END
 
 
 // MEM(M)
-GAME( 2000, mrdrilr2,  0,        ns10_mrdrilr2,  mrdrilr2,     namcos10_memm_state, init_mrdrilr2,  ROT0, "Namco", "Mr. Driller 2 (World, DR22 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2000, mrdrilr2j, mrdrilr2, ns10_mrdrilr2,  mrdrilr2,     namcos10_memm_state, init_mrdrilr2,  ROT0, "Namco", "Mr. Driller 2 (Japan, DR21 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2000, mrdrilr2u, mrdrilr2, ns10_mrdrilr2,  mrdrilr2,     namcos10_memm_state, init_mrdrilr2,  ROT0, "Namco", "Mr. Driller 2 (US, DR23 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, mrdrilr2,  0,        ns10_mrdrilr2,  mrdrilr2,     namcos10_memm_state,  init_mrdrilr2,    ROT0, "Namco", "Mr. Driller 2 (World, DR22 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, mrdrilr2j, mrdrilr2, ns10_mrdrilr2,  mrdrilr2,     namcos10_memm_state,  init_mrdrilr2,    ROT0, "Namco", "Mr. Driller 2 (Japan, DR21 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, mrdrilr2u, mrdrilr2, ns10_mrdrilr2,  mrdrilr2,     namcos10_memm_state,  init_mrdrilr2,    ROT0, "Namco", "Mr. Driller 2 (US, DR23 Ver.A)", MACHINE_IMPERFECT_SOUND )
 
 // MEM(N)
-GAME( 2000, gahaha,    0,        ns10_gahaha,    gahaha,       namcos10_memn_state, init_gahaha,    ROT0, "Namco / Metro", "GAHAHA Ippatsudou (World, GID2 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2000, ptblank3,  0,        ns10_ptblank3,  namcos10,     namcos10_memn_state, init_gunbalina, ROT0, "Namco", "Point Blank 3 (World, GNN2 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION ) // needs to hookup gun IO
-GAME( 2000, gunbalina, ptblank3, ns10_ptblank3,  namcos10,     namcos10_memn_state, init_gunbalina, ROT0, "Namco", "Gunbalina (Japan, GNN1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION )
-GAME( 2001, gahaha2,   0,        ns10_gahaha2,   gahaha,       namcos10_memn_state, init_gahaha2,   ROT0, "Namco / Metro", "GAHAHA Ippatsudou 2 (Japan, GIS1 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2001, gjspace,   0,        ns10_gjspace,   gjspace,      namcos10_memn_state, init_gjspace,   ROT0, "Namco / Metro", "GekiToride-Jong Space (10011 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2001, kd2001,    0,        ns10_kd2001,    namcos10,     namcos10_memn_state, empty_init,     ROT0, "Namco", "Knock Down 2001 (Japan, KD11 Ver. B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION )
-GAME( 2001, knpuzzle,  0,        ns10_knpuzzle,  namcos10,     namcos10_memn_state, init_knpuzzle,  ROT0, "Namco", "Kotoba no Puzzle Mojipittan (Japan, KPM1 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2001, mrdrilrg,  0,        ns10_mrdrilrg,  mrdrilr2,     namcos10_memn_state, init_mrdrilrg,  ROT0, "Namco", "Mr. Driller G (Japan, DRG1 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2002, chocovdr,  0,        ns10_chocovdr,  namcos10,     namcos10_memn_state, init_chocovdr,  ROT0, "Namco", "Uchuu Daisakusen: Chocovader Contactee (Japan, CVC1 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2002, gamshara,  0,        ns10_gamshara,  gamshara,     namcos10_memn_state, init_gamshara,  ROT0, "Mitchell", "Gamshara (20020912A / 10021 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2002, gamsharao, gamshara, ns10_gamshara,  gamshara,     namcos10_memn_state, init_gamshara,  ROT0, "Mitchell", "Gamshara (20020716A / 10021 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2002, panikuru,  0,        ns10_panikuru,  namcos10,     namcos10_memn_state, init_panikuru,  ROT0, "Namco", "Panikuru Panekuru (Japan, PPA1 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2002, puzzball,  0,        ns10_puzzball,  mgexio_medal, namcos10_memn_state, init_puzzball,  ROT0, "Namco", "Puzz Ball (Japan, PZB1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2002, startrgn,  0,        ns10_startrgn,  startrgn,     namcos10_memn_state, init_startrgn,  ROT0, "Namco", "Star Trigon (Japan, STT1 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2002, sugorotc,  0,        ns10_sugorotic, mgexio_medal, namcos10_memn_state, init_sugorotic, ROT0, "Namco", "Sugorotic JAPAN (STJ1 Ver.C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2003, konotako,  0,        ns10_konotako,  konotako,     namcos10_memn_state, init_konotako,  ROT0, "Mitchell", "Kono e Tako (10021 Ver.A)", MACHINE_IMPERFECT_SOUND )
-GAME( 2003, nflclsfb,  0,        ns10_nflclsfb,  nflclsfb,     namcos10_memn_state, init_nflclsfb,  ROT0, "Namco / Metro", "NFL Classic Football (US, NCF3 Ver.A.)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND )
-GAME( 2003, pacmball,  0,        ns10_pacmball,  mgexio_medal, namcos10_memn_state, init_pacmball,  ROT0, "Namco", "Pacman BALL (PMB2 Ver.A.)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2004, sekaikh,   0,        ns10_sekaikh,   mgexio_medal, namcos10_memn_state, init_sekaikh,   ROT0, "Namco", "Sekai Kaseki Hakken (Japan, SKH1 Ver.B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND )
-GAME( 2004, sekaikha,  sekaikh,  ns10_sekaikh,   mgexio_medal, namcos10_memn_state, init_sekaikh,   ROT0, "Namco", "Sekai Kaseki Hakken (Japan, SKH1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND )
-GAME( 2005, ballpom,   0,        ns10_ballpom,   mgexio_medal, namcos10_memn_state, init_ballpom,   ROT0, "Namco", "Ball Pom Line", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND ) // ROM VER. B0 FEB 09 2005 15:29:02 in test mode, boots but requires MGEXIO to proceed
-GAME( 2005, medalnt,   0,        ns10_medalnt,   namcos10,     namcos10_memn_state, init_medalnt,   ROT0, "Namco", "Medal no Tatsujin Doki! Ooatari-Darake no Sugoroku Matsuri (MTL1 SPR0B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2006, keroro,    0,        ns10_keroro,    mgexio_medal, namcos10_memn_state, init_keroro,    ROT0, "Namco / Banpresto", "Keroro Gunsou: Pekopon Shinryaku Shirei...De Arimasu! (KRG1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND ) // ケロロ軍曹　地球侵略指令…であります！
-GAME( 2007, gegemdb,   0,        ns10_gegemdb,   mgexio_medal, namcos10_memn_state, empty_init,     ROT0, "Namco", "Gegege no Kitaro Yokai Yokocho Matsuri de Battle Ja (GYM1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION ) // ゲゲゲの鬼太郎　妖怪横丁まつりでバトルじゃ
-GAME( 2007, medalnt2,  0,        ns10_medalnt2,  namcos10,     namcos10_memn_state, init_medalnt2,  ROT0, "Namco", "Medal no Tatsujin 2 Atsumare! Go! Go! Sugoroku Sentai Don Ranger Five (MTA1 STMPR0A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND ) // メダルの達人2 あつまれ!ゴー!ゴー!双六戦隊ドンレンジャーファイブ MTA100-1-ST-MPR0-A00 2007/01/30 19:51:54
+GAME( 2000, gahaha,    0,        ns10_gahaha,    gahaha,       namcos10_memn_state,  memn_driver_init, ROT0, "Namco / Metro", "GAHAHA Ippatsudou (World, GID2 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2000, ptblank3,  0,        ns10_ptblank3,  ptblank3,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Point Blank 3 (World, GNN2 Ver.A)", MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION )
+GAME( 2000, gunbalina, ptblank3, ns10_ptblank3,  ptblank3,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Gunbalina (Japan, GNN1 Ver.A)", MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION )
+GAME( 2001, gahaha2,   0,        ns10_gahaha2,   gahaha,       namcos10_memn_state,  memn_driver_init, ROT0, "Namco / Metro", "GAHAHA Ippatsudou 2 (Japan, GIS1 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, gjspace,   0,        ns10_gjspace,   gjspace,      namcos10_memn_state,  memn_driver_init, ROT0, "Namco / Metro", "GekiToride-Jong Space (10011 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, kd2001,    0,        ns10_kd2001,    namcos10,     namcos10_memn_state,  empty_init,       ROT0, "Namco", "Knock Down 2001 (Japan, KD11 Ver. B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION )
+GAME( 2001, knpuzzle,  0,        ns10_knpuzzle,  namcos10,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Kotoba no Puzzle Mojipittan (Japan, KPM1 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2001, mrdrilrg,  0,        ns10_mrdrilrg,  mrdrilr2,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Mr. Driller G (Japan, DRG1 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, chocovdr,  0,        ns10_chocovdr,  namcos10,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Uchuu Daisakusen: Chocovader Contactee (Japan, CVC1 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, gamshara,  0,        ns10_gamshara,  gamshara,     namcos10_memn_state,  memn_driver_init, ROT0, "Mitchell", "Gamshara (20020912A / 10021 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, gamsharao, gamshara, ns10_gamshara,  gamshara,     namcos10_memn_state,  memn_driver_init, ROT0, "Mitchell", "Gamshara (20020716A / 10021 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, panikuru,  0,        ns10_panikuru,  namcos10,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Panikuru Panekuru (Japan, PPA1 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, puzzball,  0,        ns10_puzzball,  mgexio_medal, namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Puzz Ball (Japan, PZB1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2002, startrgn,  0,        ns10_startrgn,  startrgn,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Star Trigon (Japan, STT1 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, sugorotc,  0,        ns10_sugorotic, mgexio_medal, namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Sugorotic JAPAN (STJ1 Ver.C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2003, konotako,  0,        ns10_konotako,  konotako,     namcos10_memn_state,  memn_driver_init, ROT0, "Mitchell", "Kono e Tako (10021 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2003, nflclsfb,  0,        ns10_nflclsfb,  nflclsfb,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco / Metro", "NFL Classic Football (US, NCF3 Ver.A.)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND )
+GAME( 2003, pacmball,  0,        ns10_pacmball,  mgexio_medal, namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Pacman BALL (PMB2 Ver.A.)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2004, sekaikh,   0,        ns10_sekaikh,   mgexio_medal, namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Sekai Kaseki Hakken (Japan, SKH1 Ver.B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND )
+GAME( 2004, sekaikha,  sekaikh,  ns10_sekaikh,   mgexio_medal, namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Sekai Kaseki Hakken (Japan, SKH1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND )
+GAME( 2005, ballpom,   0,        ns10_ballpom,   mgexio_medal, namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Ball Pom Line", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_SOUND ) // ROM VER. B0 FEB 09 2005 15:29:02 in test mode, boots but requires MGEXIO to proceed
+GAME( 2005, medalnt,   0,        ns10_medalnt,   namcos10,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Medal no Tatsujin Doki! Ooatari-Darake no Sugoroku Matsuri (MTL1 SPR0B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2006, keroro,    0,        ns10_keroro,    mgexio_medal, namcos10_memn_state,  memn_driver_init, ROT0, "Namco / Banpresto", "Keroro Gunsou: Pekopon Shinryaku Shirei...De Arimasu! (KRG1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND ) // ケロロ軍曹　地球侵略指令…であります！
+GAME( 2007, gegemdb,   0,        ns10_gegemdb,   mgexio_medal, namcos10_memn_state,  empty_init,       ROT0, "Namco", "Gegege no Kitaro Yokai Yokocho Matsuri de Battle Ja (GYM1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_UNEMULATED_PROTECTION ) // ゲゲゲの鬼太郎　妖怪横丁まつりでバトルじゃ
+GAME( 2007, medalnt2,  0,        ns10_medalnt2,  namcos10,     namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Medal no Tatsujin 2 Atsumare! Go! Go! Sugoroku Sentai Don Ranger Five (MTA1 STMPR0A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND ) // メダルの達人2 あつまれ!ゴー!ゴー!双六戦隊ドンレンジャーファイブ MTA100-1-ST-MPR0-A00 2007/01/30 19:51:54
 
-GAME( 2001, taiko2,    0,        ns10_taiko2,    taiko,        namcos10_memn_state, init_taiko2,    ROT0, "Namco", "Taiko no Tatsujin 2 (Japan, TK21 Ver.C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2002, taiko3,    0,        ns10_taiko3,    taiko,        namcos10_memn_state, init_taiko3,    ROT0, "Namco", "Taiko no Tatsujin 3 (Japan, TK31 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2002, taiko4,    0,        ns10_taiko4,    taiko,        namcos10_memn_state, init_taiko4,    ROT0, "Namco", "Taiko no Tatsujin 4 (Japan, TK41 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2003, taiko5,    0,        ns10_taiko5,    taiko,        namcos10_memn_state, init_taiko5,    ROT0, "Namco", "Taiko no Tatsujin 5 (Japan, TK51 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2004, taiko6,    0,        ns10_taiko6,    taiko,        namcos10_memn_state, init_taiko6,    ROT0, "Namco", "Taiko no Tatsujin 6 (Japan, TK61 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2001, taiko2,    0,        ns10_taiko2,    taiko,        namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Taiko no Tatsujin 2 (Japan, TK21 Ver.C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2002, taiko3,    0,        ns10_taiko3,    taiko,        namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Taiko no Tatsujin 3 (Japan, TK31 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2002, taiko4,    0,        ns10_taiko4,    taiko,        namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Taiko no Tatsujin 4 (Japan, TK41 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2003, taiko5,    0,        ns10_taiko5,    taiko,        namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Taiko no Tatsujin 5 (Japan, TK51 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2004, taiko6,    0,        ns10_taiko6,    taiko,        namcos10_memn_state,  memn_driver_init, ROT0, "Namco", "Taiko no Tatsujin 6 (Japan, TK61 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
 
 // MEM(P3)
-GAME( 2001, g13jnr,    0,        ns10_g13jnr,    g13jnr,       namcos10_memp3_state, init_g13jnr,   ROT0, "Eighting / Raizing / Namco", "Golgo 13: Juusei no Requiem (Japan, GLT1 VER.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2002, nicetsuk,  0,        ns10_nicetsuk,  nicetsuk,     namcos10_memp3_state, init_nicetsuk, ROT0, "Namco / Metro", "Tsukkomi Yousei Gips Nice Tsukkomi (NTK1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 2003, squizchs,  0,        ns10_squizchs,  squizchs,     namcos10_memp3_state, init_squizchs, ROT0, "Namco", "Seishun-Quiz Colorful High School (CHS1 Ver.A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+GAME( 2001, g13jnr,    0,        ns10_g13jnr,    g13jnr,       namcos10_memp3_state, memn_driver_init, ROT0, "Eighting / Raizing / Namco", "Golgo 13: Juusei no Requiem (Japan, GLT1 VER.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2002, nicetsuk,  0,        ns10_nicetsuk,  nicetsuk,     namcos10_memp3_state, memn_driver_init, ROT0, "Namco / Metro", "Tsukkomi Yousei Gips Nice Tsukkomi (NTK1 Ver.A)", MACHINE_IMPERFECT_SOUND )
+GAME( 2003, squizchs,  0,        ns10_squizchs,  squizchs,     namcos10_memp3_state, memn_driver_init, ROT0, "Namco", "Seishun-Quiz Colorful High School (CHS1 Ver.A)", MACHINE_IMPERFECT_SOUND )

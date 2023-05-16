@@ -41,8 +41,8 @@ files {
 	MAME_DIR .. "src/devices/imagedev/cartrom.h",
 	MAME_DIR .. "src/devices/imagedev/cassette.cpp",
 	MAME_DIR .. "src/devices/imagedev/cassette.h",
-	MAME_DIR .. "src/devices/imagedev/chd_cd.cpp",
-	MAME_DIR .. "src/devices/imagedev/chd_cd.h",
+	MAME_DIR .. "src/devices/imagedev/cdromimg.cpp",
+	MAME_DIR .. "src/devices/imagedev/cdromimg.h",
 	MAME_DIR .. "src/devices/imagedev/diablo.cpp",
 	MAME_DIR .. "src/devices/imagedev/diablo.h",
 	MAME_DIR .. "src/devices/imagedev/flopdrv.cpp",
@@ -4500,6 +4500,18 @@ if (MACHINES["GEN_FIFO"]~=null) then
 	files {
 		MAME_DIR .. "src/devices/machine/gen_fifo.cpp",
 		MAME_DIR .. "src/devices/machine/gen_fifo.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/machine/opti82c861.h,MACHINES["OPTI82C861"] = true
+---------------------------------------------------
+
+if (MACHINES["OPTI82C861"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/machine/opti82c861.cpp",
+		MAME_DIR .. "src/devices/machine/opti82c861.h",
 	}
 end
 

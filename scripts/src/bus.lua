@@ -1686,6 +1686,8 @@ if (BUSES["ISA"]~=null) then
 		MAME_DIR .. "src/devices/bus/isa/hpblp.cpp",
 		MAME_DIR .. "src/devices/bus/isa/ibm_mfc.cpp",
 		MAME_DIR .. "src/devices/bus/isa/ibm_mfc.h",
+		MAME_DIR .. "src/devices/bus/isa/ibm_speech.cpp",
+		MAME_DIR .. "src/devices/bus/isa/ibm_speech.h",
 		MAME_DIR .. "src/devices/bus/isa/ide.cpp",
 		MAME_DIR .. "src/devices/bus/isa/ide.h",
 		MAME_DIR .. "src/devices/bus/isa/lbaenhancer.cpp",
@@ -1840,6 +1842,8 @@ if (BUSES["MSX_CTRL"]~=null) then
 		MAME_DIR .. "src/devices/bus/msx/ctrl/towns6b.h",
 		MAME_DIR .. "src/devices/bus/msx/ctrl/townspad.cpp",
 		MAME_DIR .. "src/devices/bus/msx/ctrl/townspad.h",
+		MAME_DIR .. "src/devices/bus/msx/ctrl/vaus.cpp",
+		MAME_DIR .. "src/devices/bus/msx/ctrl/vaus.h",
 		MAME_DIR .. "src/devices/bus/msx/ctrl/xe1ap.cpp",
 		MAME_DIR .. "src/devices/bus/msx/ctrl/xe1ap.h",
 	}
@@ -2617,6 +2621,21 @@ if (BUSES["WANGPC"]~=null) then
 		MAME_DIR .. "src/devices/bus/wangpc/tig.h",
 		MAME_DIR .. "src/devices/bus/wangpc/wdc.cpp",
 		MAME_DIR .. "src/devices/bus/wangpc/wdc.h",
+	}
+end
+
+
+---------------------------------------------------
+--
+--@src/devices/bus/wysekbd/wysekbd.h,BUSES["WYSEKBD"] = true
+---------------------------------------------------
+
+if (BUSES["WYSEKBD"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/bus/wysekbd/wysegakb.cpp",
+		MAME_DIR .. "src/devices/bus/wysekbd/wysegakb.h",
+		MAME_DIR .. "src/devices/bus/wysekbd/wysekbd.cpp",
+		MAME_DIR .. "src/devices/bus/wysekbd/wysekbd.h",
 	}
 end
 
@@ -4317,20 +4336,6 @@ end
 
 ---------------------------------------------------
 --
---@src/devices/bus/sgikbd/sgikbd.h,BUSES["SGIKBD"] = true
----------------------------------------------------
-
-if (BUSES["SGIKBD"]~=null) then
-	files {
-		MAME_DIR .. "src/devices/bus/sgikbd/hlekbd.cpp",
-		MAME_DIR .. "src/devices/bus/sgikbd/hlekbd.h",
-		MAME_DIR .. "src/devices/bus/sgikbd/sgikbd.cpp",
-		MAME_DIR .. "src/devices/bus/sgikbd/sgikbd.h",
-	}
-end
-
----------------------------------------------------
---
 --@src/devices/bus/sunkbd/sunkbd.h,BUSES["SUNKBD"] = true
 ---------------------------------------------------
 
@@ -5221,5 +5226,23 @@ if (BUSES["NABU_KEYBOARD"]~=null) then
 		MAME_DIR .. "src/devices/bus/nabupc/keyboard/hlekeyboard.h",
 		MAME_DIR .. "src/devices/bus/nabupc/keyboard/keyboard.cpp",
 		MAME_DIR .. "src/devices/bus/nabupc/keyboard/keyboard.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/bus/mc68000/sysbus.h,BUSES["MC68000_SYSBUS"] = true
+---------------------------------------------------
+
+if (BUSES["MC68000_SYSBUS"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/bus/mc68000/sysbus.cpp",
+		MAME_DIR .. "src/devices/bus/mc68000/sysbus.h",
+		MAME_DIR .. "src/devices/bus/mc68000/cards.cpp",
+		MAME_DIR .. "src/devices/bus/mc68000/cards.h",
+		MAME_DIR .. "src/devices/bus/mc68000/floppy.cpp",
+		MAME_DIR .. "src/devices/bus/mc68000/floppy.h",
+		MAME_DIR .. "src/devices/bus/mc68000/ram.cpp",
+		MAME_DIR .. "src/devices/bus/mc68000/ram.h",
 	}
 end
