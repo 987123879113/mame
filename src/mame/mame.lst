@@ -23613,7 +23613,6 @@ winspikej                       // 1997.07 GX705 (Japan)
 @source:konami/konamim2.cpp
 btltryst                        // GX636 (c) 1998
 evilngt                         // GX810 (c) 1998
-evilngte                        // GX810 (c) 1998
 heatof11                        // GX703 (c) 1998
 hellngt                         // GX810 (c) 1998
 polystar                        // GX623 (c) 1997
@@ -28651,6 +28650,7 @@ comebaby                        // (c) 2000 ExPotato
 @source:misc/compucranes.cpp
 mastcrane                       // (c) 199? Compumatic
 mastcranea                      // (c) 199? Compumatic
+mastcraneb                      // (c) 199? Compumatic
 
 @source:misc/coolpool.cpp
 9ballsht                        // (c) 1993 E-Scape EnterMedia + "marketed by Bundra Games"
@@ -30263,6 +30263,9 @@ mcatadvj                        // (c) 1993 Wintechno
 nost                            // (c) 1993 Face
 nostj                           // (c) 1993 Face
 nostk                           // (c) 1993 Face
+
+@source:misc/mcm70.cpp
+mcm70                           // MCM/70
 
 @source:misc/megaphx.cpp
 hamboy                          // (c) 1990 Dinamic / Inder
@@ -37723,6 +37726,11 @@ psionp350                       //
 psionp464                       //
 psionxp                         //
 
+@source:psion/psion3.cpp
+pocketbk                        // 1992 Acorn Pocket Book
+psion3                          // 1991 Psion Series 3
+psion3s                         // 1994 Psion Series 3s
+
 @source:psion/psion3a.cpp
 pocketbk2                       // 1994 Acorn Pocket Book II
 psion3a                         // 1993 Psion Series 3a
@@ -37732,7 +37740,12 @@ psion3c                         // 1996 Psion Series 3c
 psion3mx                        // 1998 Psion Series 3mx
 
 @source:psion/psion5.cpp
-psion5mx                        //
+psion5mx                        // 1999 Psion Series 5mx
+
+@source:psion/psionhc.cpp
+psionhc100                      // 1991 Psion HC 100
+psionhc110                      // 1991 Psion HC 110
+psionhc120                      // 1991 Psion HC 120
 
 @source:psion/siena.cpp
 siena                           // 1996 Psion Siena
@@ -45382,6 +45395,7 @@ psr70                           // 1985 PSR-70
 psr110                          // 1993
 psr150                          // 1992
 psr180                          // 1994
+psr190                          // 1996
 psr75                           // 1992
 psr76                           // 1994
 psr78                           // 1996
