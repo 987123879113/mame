@@ -4,7 +4,7 @@
     ATI Rage PCI/AGP SVGA
 
     This implementation targets the mach64 VT and 3D Rage chips.  Rage 128 has similar registers
-	but they're mapped differently.
+    but they're mapped differently.
 
     mach64 VT = mach64 with video decoding.  Uses a Rage-compatible register layout, as opposed to earlier mach64.
     mach64 GT = Rage I (mach64 acceleration and VGA with 3D polygons and MPEG-1 decode)
@@ -29,7 +29,6 @@
 #include "screen.h"
 #include "atirage.h"
 
-#define LOG_GENERAL     (1U << 0)
 #define LOG_REGISTERS   (1U << 1)
 #define LOG_CRTC        (1U << 2)
 #define LOG_DAC         (1U << 3)
@@ -233,7 +232,7 @@ u8 atirage_device::regs_0_read(offs_t offset)
 
 		case CRTC_DAC_BASE + 1:
 			{
-				u8 result;
+				u8 result = 0;
 				switch (m_dac_state)
 				{
 					case 0: // red
@@ -267,18 +266,6 @@ u8 atirage_device::regs_0_read(offs_t offset)
 
 		case CLOCK_CNTL + 2:
 			return m_pll_regs[(m_regs0[CLOCK_CNTL+1] >> 2) & 0xf] << 16;
-
-		case GP_IO:           // monitor sense - either 3-line Apple or EDID
-			return read_gpio() & 0xff;
-
-		case GP_IO + 1:
-			return (read_gpio() & 0xff00) >> 8;
-
-		case GP_IO + 2:
-			return (read_gpio() & 0xff0000) >> 16;
-
-		case GP_IO + 3:
-			return read_gpio() >> 24;
 	}
 
 	return m_regs0[offset];
@@ -336,7 +323,7 @@ void atirage_device::regs_0_write(offs_t offset, u8 data)
 
 		case CRTC_DAC_BASE + 3:
 			m_dac_state = 0;
-			m_dac_rindex = data >> 24;
+			m_dac_rindex = data;
 			break;
 
 		case CRTC_OFF_PITCH:
@@ -356,7 +343,23 @@ void atirage_device::regs_0_write(offs_t offset, u8 data)
 		case GP_IO + 1:
 		case GP_IO + 2:
 		case GP_IO + 3:
-			write_gpio(*(u32 *)&m_regs0[GP_IO]);
+			{
+				u16 old_data = *(u16 *)&m_regs0[GP_IO];
+				const u16 ddr = *(u16 *)&m_regs0[GP_IO+2];
+
+				old_data &= ddr;                // 0 bits are input
+
+				// send the data to an external handler
+				// AND the pullups by the inverse of DDR, so bits set to input get the pullup
+				write_gpio(old_data | (m_gpio_pullups & (ddr ^ 0xffff)));
+
+				// get the updated data from the port
+				u16 new_data = read_gpio();
+				new_data &= (ddr ^ 0xffff);     // AND against inverted DDR mask so 0 bits are output
+				new_data |= old_data;
+				m_regs0[GP_IO] = (new_data & 0xff);
+				m_regs0[GP_IO + 1] = (new_data >> 8) & 0xff;
+			}
 			break;
 	}
 }
@@ -400,17 +403,10 @@ void atirage_device::update_mode()
 	m_format = m_regs0[CRTC_GEN_CNTL+1] & 7;
 	LOGMASKED(LOG_CRTC, "Setting mode (%d x %d), total (%d x %d) format %d\n", m_hres, m_vres, m_htotal, m_vtotal, m_format);
 
-	int vclk_source = (m_pll_regs[PLL_VCLK_CNTL] & 3);
-	if ((vclk_source != 0) && (vclk_source != 3))
-	{
-		LOGMASKED(LOG_CRTC, "VCLK source (%d) is not VPLL, can't calculate dot clock\n", m_pll_regs[PLL_VCLK_CNTL] & 3);
-		return;
-	}
-
 	double vpll_frequency;
 	int clk_source = m_regs0[CLOCK_CNTL] & 3;
 
-	switch (vclk_source)
+	switch (m_pll_regs[PLL_VCLK_CNTL] & 3)
 	{
 		case 0: // CPUCLK (the PCI bus clock, not to exceed 33 MHz)
 			vpll_frequency = (33000000.0 * m_pll_regs[VCLK0_FB_DIV + clk_source]) / m_pll_regs[PLL_REF_DIV];
@@ -419,6 +415,10 @@ void atirage_device::update_mode()
 		case 3: // PLLVCLK
 			vpll_frequency = ((clock() * 2.0) * m_pll_regs[VCLK0_FB_DIV + clk_source]) / m_pll_regs[PLL_REF_DIV];
 			break;
+
+		default:
+			LOGMASKED(LOG_CRTC, "VCLK source (%d) is not VPLL, can't calculate dot clock\n", m_pll_regs[PLL_VCLK_CNTL] & 3);
+			return;
 	}
 	LOGMASKED(LOG_CRTC, "VPLL freq %f\n", vpll_frequency);
 
@@ -470,7 +470,7 @@ u32 atirage_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, c
 			break;
 
 		default:
-			LOGMASKED(LOG_GENERAL, "Unknown pixel format %d\n", m_format);
+			LOG("Unknown pixel format %d\n", m_format);
 			break;
 	}
 
