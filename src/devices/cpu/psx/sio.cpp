@@ -348,12 +348,12 @@ uint32_t psxsio0_device::read(offs_t offset, uint32_t mem_mask)
 	return data;
 }
 
-WRITE_LINE_MEMBER(psxsio0_device::write_rxd)
+void psxsio0_device::write_rxd(int state)
 {
 	m_rxd = state;
 }
 
-WRITE_LINE_MEMBER(psxsio0_device::write_dsr)
+void psxsio0_device::write_dsr(int state)
 {
 	if (state)
 	{
@@ -815,7 +815,7 @@ void psxsio1_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 	}
 }
 
-WRITE_LINE_MEMBER(psxsio1_device::write_rxd)
+void psxsio1_device::write_rxd(int state)
 {
 	if (!BIT(m_control, SIO_CONTROL_BIT_RXEN))
 		return;
@@ -848,7 +848,7 @@ WRITE_LINE_MEMBER(psxsio1_device::write_rxd)
 	}
 }
 
-WRITE_LINE_MEMBER(psxsio1_device::write_cts)
+void psxsio1_device::write_cts(int state)
 {
 	m_cts = !state;
 
@@ -858,7 +858,7 @@ WRITE_LINE_MEMBER(psxsio1_device::write_cts)
 	}
 }
 
-WRITE_LINE_MEMBER(psxsio1_device::write_dsr)
+void psxsio1_device::write_dsr(int state)
 {
 	auto doInt = !state && m_dsr != !state;
 

@@ -25,8 +25,8 @@ public:
 	virtual void device_reset() override;
 	virtual void device_resolve_objects() override;
 
-	DECLARE_WRITE_LINE_MEMBER(write_rxd);
-	DECLARE_WRITE_LINE_MEMBER(write_cts);
+	void write_rxd(int state);
+	void write_cts(int state);
 
 	uint32_t read(offs_t offset, uint32_t mem_mask);
 	void write(offs_t offset, uint32_t data, uint32_t mem_mask);

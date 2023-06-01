@@ -73,8 +73,8 @@ public:
 	void write(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t read(offs_t offset, uint32_t mem_mask = ~0);
 
-	DECLARE_WRITE_LINE_MEMBER(write_rxd);
-	DECLARE_WRITE_LINE_MEMBER(write_dsr);
+	void write_rxd(int state);
+	void write_dsr(int state);
 
 protected:
 	// device-level overrides
@@ -129,9 +129,9 @@ public:
 	virtual uint32_t read(offs_t offset, uint32_t mem_mask);
 	virtual void write(offs_t offset, uint32_t data, uint32_t mem_mask);
 
-	DECLARE_WRITE_LINE_MEMBER(write_rxd);
-	DECLARE_WRITE_LINE_MEMBER(write_cts);
-	DECLARE_WRITE_LINE_MEMBER(write_dsr);
+	void write_rxd(int state);
+	void write_cts(int state);
+	void write_dsr(int state);
 
 protected:
 	psxsio1_device(

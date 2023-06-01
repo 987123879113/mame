@@ -21,7 +21,7 @@ class k573rental_device : public device_t,
 public:
 	k573rental_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	virtual WRITE_LINE_MEMBER(input_txd) override { device_serial_interface::rx_w(state); }
+	virtual void input_txd(int state) override { device_serial_interface::rx_w(state); }
 
 protected:
 	virtual void device_start() override;

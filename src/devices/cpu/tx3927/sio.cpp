@@ -106,7 +106,7 @@ void tx3927_sio::transmit_clock(bool is_cts)
 	}
 }
 
-WRITE_LINE_MEMBER(tx3927_sio::write_rxd)
+void tx3927_sio::write_rxd(int state)
 {
 	if (!BIT(m_siflcr, SIFLCR_RSDE)) {
 		return;
@@ -167,7 +167,7 @@ WRITE_LINE_MEMBER(tx3927_sio::write_rxd)
 	}
 }
 
-WRITE_LINE_MEMBER(tx3927_sio::write_cts)
+void tx3927_sio::write_cts(int state)
 {
 	if (BIT(m_sidicr, SIDICR_STIE_CTSAC) && BIT(m_sidicr, SIDICR_CTSAC, 2) != 0) {
 		bool t;

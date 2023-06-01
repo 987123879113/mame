@@ -28,8 +28,8 @@ protected:
 	template <int N> TIMER_CALLBACK_MEMBER(update_timer);
 	emu_timer* m_timer[3];
 
-	template <int N> DECLARE_WRITE_LINE_MEMBER(ata_interrupt);
-	DECLARE_WRITE_LINE_MEMBER(ata_dmarq);
+	template <int N> void ata_interrupt(int state);
+	void ata_dmarq(int state);
 
 	void amap(address_map& map);
 

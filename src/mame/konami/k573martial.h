@@ -23,7 +23,7 @@ public:
 
 	virtual ioport_constructor device_input_ports() const override;
 
-	virtual WRITE_LINE_MEMBER(input_txd) override { device_serial_interface::rx_w(state); }
+	virtual void input_txd(int state) override { device_serial_interface::rx_w(state); }
 
 protected:
 	virtual void device_start() override;

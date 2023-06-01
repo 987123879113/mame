@@ -463,7 +463,7 @@ public:
 	void send_packet(uint8_t *data, int length);
 	int received_packet(uint8_t *buffer);
 
-	DECLARE_READ_LINE_MEMBER( jvs_sense_r );
+	int jvs_sense_r();
 
 private:
 	int output_buffer_size = 0;
@@ -477,7 +477,7 @@ sys573_jvs_host::sys573_jvs_host(const machine_config &mconfig, const char *tag,
 	output_buffer_size = 0;
 }
 
-READ_LINE_MEMBER( sys573_jvs_host::jvs_sense_r )
+int sys573_jvs_host::jvs_sense_r()
 {
 	return !get_address_set_line();
 }
@@ -635,47 +635,46 @@ public:
 	void init_hyperbbc();
 	void init_drmn();
 
-	DECLARE_READ_LINE_MEMBER( gunmania_tank_shutter_sensor );
-	DECLARE_READ_LINE_MEMBER( gunmania_cable_holder_sensor );
+	int gunmania_tank_shutter_sensor();
+	int gunmania_cable_holder_sensor();
 
-	DECLARE_READ_LINE_MEMBER( h8_d0_r );
-	DECLARE_READ_LINE_MEMBER( h8_d1_r );
-	DECLARE_READ_LINE_MEMBER( h8_d2_r );
-	DECLARE_READ_LINE_MEMBER( h8_d3_r );
+	int h8_d0_r();
+	int h8_d1_r();
+	int h8_d2_r();
+	int h8_d3_r();
 
-	template<int N> DECLARE_READ_LINE_MEMBER( pccard_cd_r );
+	template<int N> int pccard_cd_r();
 
-	DECLARE_WRITE_LINE_MEMBER( gtrfrks_lamps_b7 );
-	DECLARE_WRITE_LINE_MEMBER( gtrfrks_lamps_b6 );
-	DECLARE_WRITE_LINE_MEMBER( gtrfrks_lamps_b5 );
-	DECLARE_WRITE_LINE_MEMBER( gtrfrks_lamps_b4 );
-	DECLARE_WRITE_LINE_MEMBER( dmx_lamps_b0 );
-	DECLARE_WRITE_LINE_MEMBER( dmx_lamps_b1 );
-	DECLARE_WRITE_LINE_MEMBER( dmx_lamps_b2 );
-	DECLARE_WRITE_LINE_MEMBER( dmx_lamps_b3 );
-	DECLARE_WRITE_LINE_MEMBER( dmx_lamps_b4 );
-	DECLARE_WRITE_LINE_MEMBER( dmx_lamps_b5 );
-	DECLARE_WRITE_LINE_MEMBER( mamboagg_lamps_b3 );
-	DECLARE_WRITE_LINE_MEMBER( mamboagg_lamps_b4 );
-	DECLARE_WRITE_LINE_MEMBER( mamboagg_lamps_b5 );
-	DECLARE_WRITE_LINE_MEMBER( serial_lamp_reset );
-	DECLARE_WRITE_LINE_MEMBER( serial_lamp_data );
-	DECLARE_WRITE_LINE_MEMBER( stepchmp_lamp_clock );
-	DECLARE_WRITE_LINE_MEMBER( animechmp_lamp_clock );
-	DECLARE_WRITE_LINE_MEMBER( salarymc_lamp_clock );
-	DECLARE_WRITE_LINE_MEMBER( hyperbbc_lamp_red );
-	DECLARE_WRITE_LINE_MEMBER( hyperbbc_lamp_green );
-	DECLARE_WRITE_LINE_MEMBER( hyperbbc_lamp_blue );
-	DECLARE_WRITE_LINE_MEMBER( hyperbbc_lamp_start );
-	DECLARE_WRITE_LINE_MEMBER( hyperbbc_lamp_strobe1 );
-	DECLARE_WRITE_LINE_MEMBER( hyperbbc_lamp_strobe2 );
-	DECLARE_WRITE_LINE_MEMBER( hyperbbc_lamp_strobe3 );
+	void gtrfrks_lamps_b7(int state);
+	void gtrfrks_lamps_b6(int state);
+	void gtrfrks_lamps_b5(int state);
+	void gtrfrks_lamps_b4(int state);
+	void dmx_lamps_b0(int state);
+	void dmx_lamps_b1(int state);
+	void dmx_lamps_b2(int state);
+	void dmx_lamps_b3(int state);
+	void dmx_lamps_b4(int state);
+	void dmx_lamps_b5(int state);
+	void mamboagg_lamps_b3(int state);
+	void mamboagg_lamps_b4(int state);
+	void mamboagg_lamps_b5(int state);
+	void serial_lamp_reset(int state);
+	void serial_lamp_data(int state);
+	void stepchmp_lamp_clock(int state);
+	void animechmp_lamp_clock(int state);
+	void salarymc_lamp_clock(int state);
+	void hyperbbc_lamp_red(int state);
+	void hyperbbc_lamp_green(int state);
+	void hyperbbc_lamp_blue(int state);
+	void hyperbbc_lamp_start(int state);
+	void hyperbbc_lamp_strobe1(int state);
+	void hyperbbc_lamp_strobe2(int state);
+	void hyperbbc_lamp_strobe3(int state);
 
-	DECLARE_WRITE_LINE_MEMBER( toggle_serial );
+	void toggle_serial(int state);
+	void h8_clk_w(int state);
 
-	DECLARE_WRITE_LINE_MEMBER( h8_clk_w );
-
-	DECLARE_READ_LINE_MEMBER( jvs_rx_r );
+	int jvs_rx_r();
 
 protected:
 	using gx700pwfbf_output_delegate = delegate<void (offs_t, uint8_t)>;
@@ -715,7 +714,7 @@ private:
 	void gx700pwbk_io_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void gunmania_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	uint16_t gunmania_r(offs_t offset, uint16_t mem_mask = ~0);
-	DECLARE_WRITE_LINE_MEMBER( ata_interrupt );
+	void ata_interrupt(int state);
 
 	TIMER_CALLBACK_MEMBER( atapi_xfer_end );
 	void ddrsolo_output_callback(offs_t offset, uint8_t data);
@@ -726,7 +725,8 @@ private:
 
 	void cdrom_dma_read( uint32_t *ram, uint32_t n_address, int32_t n_size );
 	void cdrom_dma_write( uint32_t *ram, uint32_t n_address, int32_t n_size );
-	DECLARE_WRITE_LINE_MEMBER( sys573_vblank );
+
+	void sys573_vblank(int state);
 
 	void zi_cassette_install(device_t* device);
 	void stepchmp_cassette_install(device_t* device);
@@ -1070,7 +1070,7 @@ uint16_t ksys573_state::port_in2_jvs_r(offs_t offset, uint16_t mem_mask)
 	return data;
 }
 
-READ_LINE_MEMBER( ksys573_state::jvs_rx_r )
+int ksys573_state::jvs_rx_r()
 {
 	if (m_jvs_output_len_w <= 0) {
 		m_jvs_output_len_w = m_sys573_jvs_host->received_packet(m_jvs_output_buffer);
@@ -1119,7 +1119,7 @@ TIMER_CALLBACK_MEMBER( ksys573_state::atapi_xfer_end )
 	}
 }
 
-WRITE_LINE_MEMBER( ksys573_state::ata_interrupt )
+void ksys573_state::ata_interrupt(int state)
 {
 	m_psxirq->intin10( state );
 }
@@ -1168,7 +1168,7 @@ uint16_t ksys573_state::security_r(offs_t offset, uint16_t mem_mask)
 }
 
 template<int N>
-READ_LINE_MEMBER( ksys573_state::pccard_cd_r )
+int ksys573_state::pccard_cd_r()
 {
 	return m_pccard_cd[N];
 }
@@ -1226,7 +1226,7 @@ uint8_t ksys573_state::explus_speed_normal() {
 	return 0xaa;
 }
 
-WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
+void ksys573_state::sys573_vblank(int state)
 {
 	if( strcmp( machine().system().name, "ddrexplus" ) == 0 )
 	{
@@ -1251,7 +1251,7 @@ WRITE_LINE_MEMBER(ksys573_state::sys573_vblank)
 
 // H8 check at startup (JVS related)
 
-WRITE_LINE_MEMBER( ksys573_state::h8_clk_w )
+void ksys573_state::h8_clk_w(int state)
 {
 	if( m_h8_clk != state )
 	{
@@ -1267,22 +1267,22 @@ WRITE_LINE_MEMBER( ksys573_state::h8_clk_w )
 	}
 }
 
-READ_LINE_MEMBER( ksys573_state::h8_d0_r )
+int ksys573_state::h8_d0_r()
 {
 	return ( m_h8_response[ m_h8_index ] >> 0 ) & 1;
 }
 
-READ_LINE_MEMBER( ksys573_state::h8_d1_r )
+int ksys573_state::h8_d1_r()
 {
 	return ( m_h8_response[ m_h8_index ] >> 1 ) & 1;
 }
 
-READ_LINE_MEMBER( ksys573_state::h8_d2_r )
+int ksys573_state::h8_d2_r()
 {
 	return ( m_h8_response[ m_h8_index ] >> 2 ) & 1;
 }
 
-READ_LINE_MEMBER( ksys573_state::h8_d3_r )
+int ksys573_state::h8_d3_r()
 {
 	return ( m_h8_response[ m_h8_index ] >> 3 ) & 1;
 }
@@ -1665,22 +1665,22 @@ void ddr_state::init_ddr()
 
 /* Guitar freaks */
 
-WRITE_LINE_MEMBER( ksys573_state::gtrfrks_lamps_b7 )
+void ksys573_state::gtrfrks_lamps_b7(int state)
 {
 	output().set_value( "spot left", state );
 }
 
-WRITE_LINE_MEMBER( ksys573_state::gtrfrks_lamps_b6 )
+void ksys573_state::gtrfrks_lamps_b6(int state)
 {
 	output().set_value( "spot right", state );
 }
 
-WRITE_LINE_MEMBER( ksys573_state::gtrfrks_lamps_b5 )
+void ksys573_state::gtrfrks_lamps_b5(int state)
 {
 	m_lamps[0] = state ? 1 : 0; // start left
 }
 
-WRITE_LINE_MEMBER( ksys573_state::gtrfrks_lamps_b4 )
+void ksys573_state::gtrfrks_lamps_b4(int state)
 {
 	m_lamps[1] = state ? 1 : 0; // start right
 }
@@ -1931,38 +1931,38 @@ void ksys573_state::dmx_output_callback(offs_t offset, uint8_t data)
 	}
 }
 
-WRITE_LINE_MEMBER( ksys573_state::dmx_lamps_b0 )
+void ksys573_state::dmx_lamps_b0(int state)
 {
 	output().set_value( "left 2p", state );
 }
 
-WRITE_LINE_MEMBER( ksys573_state::dmx_lamps_b1 )
+void ksys573_state::dmx_lamps_b1(int state)
 {
 	m_lamps[1] = state ? 1 : 0; // start 1p
 }
 
-WRITE_LINE_MEMBER( ksys573_state::dmx_lamps_b2 )
+void ksys573_state::dmx_lamps_b2(int state)
 {
 	output().set_value( "right 2p", state );
 }
 
-WRITE_LINE_MEMBER( ksys573_state::dmx_lamps_b3 )
+void ksys573_state::dmx_lamps_b3(int state)
 {
 	output().set_value( "left 1p", state );
 }
 
-WRITE_LINE_MEMBER( ksys573_state::dmx_lamps_b4 )
+void ksys573_state::dmx_lamps_b4(int state)
 {
 	m_lamps[0] = state ? 1 : 0; // start 2p
 }
 
-WRITE_LINE_MEMBER( ksys573_state::dmx_lamps_b5 )
+void ksys573_state::dmx_lamps_b5(int state)
 {
 	output().set_value( "right 1p", state );
 }
 
 /* step champ */
-WRITE_LINE_MEMBER( ksys573_state::stepchmp_lamp_clock )
+void ksys573_state::stepchmp_lamp_clock(int state)
 {
 	if( state && !m_serial_lamp_clock )
 	{
@@ -1999,7 +1999,7 @@ void ksys573_state::stepchmp_cassette_install(device_t* device)
 }
 
 /* anime champ */
-WRITE_LINE_MEMBER( ksys573_state::animechmp_lamp_clock )
+void ksys573_state::animechmp_lamp_clock(int state)
 {
 	if( state && !m_serial_lamp_clock )
 	{
@@ -2049,7 +2049,7 @@ void ksys573_state::animechmp_cassette_install(device_t *device)
 }
 
 /* salary man champ */
-WRITE_LINE_MEMBER( ksys573_state::serial_lamp_reset )
+void ksys573_state::serial_lamp_reset(int state)
 {
 	if( state )
 	{
@@ -2058,12 +2058,12 @@ WRITE_LINE_MEMBER( ksys573_state::serial_lamp_reset )
 	}
 }
 
-WRITE_LINE_MEMBER( ksys573_state::serial_lamp_data )
+void ksys573_state::serial_lamp_data(int state)
 {
 	m_serial_lamp_data = state;
 }
 
-WRITE_LINE_MEMBER( ksys573_state::salarymc_lamp_clock )
+void ksys573_state::salarymc_lamp_clock(int state)
 {
 	if( state && !m_serial_lamp_clock )
 	{
@@ -2119,27 +2119,27 @@ void ksys573_state::init_serlamp()
 
 /* Hyper Bishi Bashi Champ */
 
-WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_red )
+void ksys573_state::hyperbbc_lamp_red(int state)
 {
 	m_hyperbbc_lamp_red = state;
 }
 
-WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_green )
+void ksys573_state::hyperbbc_lamp_green(int state)
 {
 	m_hyperbbc_lamp_green = state;
 }
 
-WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_blue )
+void ksys573_state::hyperbbc_lamp_blue(int state)
 {
 	m_hyperbbc_lamp_blue = state;
 }
 
-WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_start )
+void ksys573_state::hyperbbc_lamp_start(int state)
 {
 	m_hyperbbc_lamp_start = state;
 }
 
-WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_strobe1 )
+void ksys573_state::hyperbbc_lamp_strobe1(int state)
 {
 	if( state && !m_hyperbbc_lamp_strobe1 )
 	{
@@ -2152,7 +2152,7 @@ WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_strobe1 )
 	m_hyperbbc_lamp_strobe1 = state;
 }
 
-WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_strobe2 )
+void ksys573_state::hyperbbc_lamp_strobe2(int state)
 {
 	if( state && !m_hyperbbc_lamp_strobe2 )
 	{
@@ -2165,7 +2165,7 @@ WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_strobe2 )
 	m_hyperbbc_lamp_strobe2 = state;
 }
 
-WRITE_LINE_MEMBER( ksys573_state::hyperbbc_lamp_strobe3 )
+void ksys573_state::hyperbbc_lamp_strobe3(int state)
 {
 	if( state && !m_hyperbbc_lamp_strobe3 )
 	{
@@ -2251,17 +2251,17 @@ void ksys573_state::mamboagg_output_callback(offs_t offset, uint8_t data)
 	}
 }
 
-WRITE_LINE_MEMBER( ksys573_state::mamboagg_lamps_b3 )
+void ksys573_state::mamboagg_lamps_b3(int state)
 {
 	m_lamps[0] = state ? 1 : 0; // start 1p
 }
 
-WRITE_LINE_MEMBER( ksys573_state::mamboagg_lamps_b4 )
+void ksys573_state::mamboagg_lamps_b4(int state)
 {
 	output().set_value( "select right", state );
 }
 
-WRITE_LINE_MEMBER( ksys573_state::mamboagg_lamps_b5 )
+void ksys573_state::mamboagg_lamps_b5(int state)
 {
 	output().set_value( "select left", state );
 }
@@ -2457,7 +2457,7 @@ void ksys573_state::gunmania_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 	LOGIOBOARD( "gunmania_w %08x %08x %08x\n", offset, mem_mask, data );
 }
 
-READ_LINE_MEMBER( ksys573_state::gunmania_tank_shutter_sensor )
+int ksys573_state::gunmania_tank_shutter_sensor()
 {
 	if( m_tank_shutter_position == 0 )
 	{
@@ -2467,7 +2467,7 @@ READ_LINE_MEMBER( ksys573_state::gunmania_tank_shutter_sensor )
 	return 0;
 }
 
-READ_LINE_MEMBER( ksys573_state::gunmania_cable_holder_sensor )
+int ksys573_state::gunmania_cable_holder_sensor()
 {
 	return m_cable_holder_release;
 }
@@ -2713,7 +2713,7 @@ void ksys573_state::zi_cassette_install(device_t* device)
 	cassette.d7_handler().set(*this, FUNC(ksys573_state::toggle_serial));
 }
 
-WRITE_LINE_MEMBER( ksys573_state::toggle_serial )
+void ksys573_state::toggle_serial(int state)
 {
 	// This switches between the MSU and card reader devices on the network port of the security cart
 	auto duart_chan = subdevice<ns16550_device>("k573msu:duart_com_0:chan1");
