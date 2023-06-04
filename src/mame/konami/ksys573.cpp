@@ -4015,7 +4015,7 @@ ROM_START( ddrexpro )
 	ROM_REGION( 0x000008, "cassette:game:id", 0 )
 	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
 
-	DISK_REGION( "cdrom0" )
+	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "extremepro-version2-cd", 0, SHA1(078eb08b6e0c8047ba68ba5e05f5377e0e17bc85) )
 ROM_END
 
@@ -4028,7 +4028,7 @@ ROM_START( ddrexproc )
 	ROM_REGION( 0x000008, "cassette:game:id", 0 )
 	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
 
-	DISK_REGION( "cdrom0" )
+	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "extremepro-version2-clarity-cd", 0, SHA1(b13562f4be169048df4dfa624fe9f212bb924d97) )
 ROM_END
 
@@ -4041,10 +4041,10 @@ ROM_START( ddrexplus )
 	ROM_REGION( 0x000008, "cassette:game:id", 0 )
 	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
 
-	DISK_REGION( "cdrom0" )
+	DISK_REGION( "install" )
 	DISK_IMAGE_READONLY( "ddrexplus_install", 0, SHA1(d49e4a27dc36e6a9614490558a9a7ee7951caf3f) )
 
-	DISK_REGION( "cdrom1" )
+	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "ddrexplus_game", 0, SHA1(f58b0418b5fbe29eb1f84af42b55c53226c2e0ad) )
 ROM_END
 
@@ -4057,10 +4057,10 @@ ROM_START( ddrmegamix )
 	ROM_REGION( 0x000008, "cassette:game:id", 0 )
 	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
 
-	DISK_REGION( "cdrom0" )
+	DISK_REGION( "install" )
 	DISK_IMAGE_READONLY( "ddrmegamix_install", 0, SHA1(f988b1007a4e55174e87dc0e3398c124341a7f84) )
 
-	DISK_REGION( "cdrom1" )
+	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "ddrmegamix_game", 0, SHA1(f73938832820b116635661f03057bc150b80c3df) )
 ROM_END
 
@@ -4486,7 +4486,7 @@ ROM_START( ddr5ms )
 	ROM_REGION( 0x000008, "cassette:game:id", 0 )
 	ROM_LOAD( "gca27ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
 
-	DISK_REGION( "cdrom0" )
+	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "ddr5thsolo", 0, SHA1(c67f793d2f9a393dfb7f429976a638642f8e8f09) )
 ROM_END
 
