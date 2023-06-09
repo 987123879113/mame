@@ -384,8 +384,8 @@ psxsio1_device::psxsio1_device(
 	m_txd_handler(*this),
 	m_dtr_handler(*this),
 	m_rts_handler(*this),
-	m_cts(1),
-	m_dsr(1),
+	m_cts(0),
+	m_dsr(0),
 	m_rxd(1),
 	m_timer(nullptr)
 {
