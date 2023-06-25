@@ -55,7 +55,7 @@ protected:
 	virtual int sector_length() override { return ATAPI_BUFFER_LENGTH; }
 	virtual void process_buffer() override;
 	virtual void fill_buffer() override;
-	virtual bool is_ready() override { return false; }
+	virtual bool is_ready() override { return true; } // shambros requires this to be true?
 	virtual void signature() override;
 	virtual void process_command() override;
 	virtual void finished_command() override;

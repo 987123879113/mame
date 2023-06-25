@@ -41,6 +41,7 @@ enum
 	FM_WRITEPAGEATMEL,
 	FM_WRITEBUFFER1, // part 1 of write to buffer sequence
 	FM_WRITEBUFFER2, // part 2 of write to buffer sequence
+	FM_FAST_RESET,
 };
 
 
@@ -95,6 +96,7 @@ DEFINE_DEVICE_TYPE(AMD_29LV200T,          amd_29lv200t_device,          "amd_29l
 DEFINE_DEVICE_TYPE(FUJITSU_29F160TE,      fujitsu_29f160te_device,      "mbm29f160te",           "Fujitsu MBM29F160TE Flash")
 DEFINE_DEVICE_TYPE(FUJITSU_29F016A,       fujitsu_29f016a_device,       "mbm29f016a",            "Fujitsu MBM29F016A Flash")
 DEFINE_DEVICE_TYPE(FUJITSU_29DL164BD,     fujitsu_29dl164bd_device,     "mbm29dl164bd",          "Fujitsu MBM29DL164BD Flash")
+DEFINE_DEVICE_TYPE(FUJITSU_29DL164BD_16BIT, fujitsu_29dl164bd_16bit_device, "mbm29dl164bd_16bit", "Fujitsu MBM29DL164BD Flash (16-bit)")
 DEFINE_DEVICE_TYPE(FUJITSU_29LV002TC,     fujitsu_29lv002tc_device,     "mbm29lv002tc",          "Fujitsu MBM29LV002TC Flash")
 DEFINE_DEVICE_TYPE(FUJITSU_29LV800B,      fujitsu_29lv800b_device,      "mbm29lv800b",           "Fujitsu MBM29LV800B Flash")
 DEFINE_DEVICE_TYPE(INTEL_E28F400B,        intel_e28f400b_device,        "intel_e28f400b",        "Intel E28F400B Flash")
@@ -157,7 +159,8 @@ intelfsh_device::intelfsh_device(const machine_config &mconfig, device_type type
 		m_flash_mode(FM_NORMAL),
 		m_flash_master_lock(false),
 		m_timer(nullptr),
-		m_bank(0)
+		m_bank(0),
+		m_fast_mode(false)
 {
 	assert(bits == 8 || bits == 16);
 	assert(size != 0);
@@ -181,6 +184,9 @@ fujitsu_29f016a_device::fujitsu_29f016a_device(const machine_config &mconfig, co
 
 fujitsu_29dl164bd_device::fujitsu_29dl164bd_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, FUJITSU_29DL164BD, tag, owner, clock, 0x200000, MFG_FUJITSU, 0x35) { }
+
+fujitsu_29dl164bd_16bit_device::fujitsu_29dl164bd_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: intelfsh16_device(mconfig, FUJITSU_29DL164BD_16BIT, tag, owner, clock, 0x200000, MFG_FUJITSU, 0x225b) { m_sector_is_4k = true; }
 
 fujitsu_29lv002tc_device::fujitsu_29lv002tc_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, FUJITSU_29LV002TC, tag, owner, clock, 0x40000, MFG_FUJITSU, 0x40) { }
@@ -314,6 +320,7 @@ void intelfsh_device::device_start()
 	save_item( NAME(m_status) );
 	save_item( NAME(m_flash_mode) );
 	save_item( NAME(m_flash_master_lock) );
+	save_item( NAME(m_fast_mode) );
 	save_pointer( &m_data[0], "m_data", m_size);
 }
 
@@ -538,8 +545,11 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		case 0xff:  // reset chip mode
 			m_flash_mode = FM_NORMAL;
 			break;
-		case 0x90:  // read ID
-			m_flash_mode = FM_READID;
+		case 0x90:
+			if ( m_fast_mode && m_maker_id == MFG_FUJITSU ) // reset from fast mode (when fast mode is enabled)
+				m_flash_mode = FM_FAST_RESET;
+			else // read ID
+				m_flash_mode = FM_READID;
 			break;
 		case 0x40:
 		case 0x10:  // program
@@ -566,6 +576,12 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		case 0x70:  // read status
 			m_flash_mode = FM_READSTATUS;
 			break;
+		case 0xa0: // fast program (fast mode must be enabled)
+			if ( m_fast_mode && m_maker_id == MFG_FUJITSU )
+				m_flash_mode = FM_BYTEPROGRAM;
+			else
+				logerror( "%s: Unknown flash mode byte %x\n", machine().describe_context(), data & 0xff );
+			break;
 		case 0xaa:  // AMD ID select part 1
 			if( ( address & 0xfff ) == 0x555 )
 			{
@@ -581,10 +597,10 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 			if ( m_maker_id == MFG_INTEL && m_device_id >= 0x14 && m_device_id <= 0x16 )
 				m_flash_mode = FM_WRITEBUFFER1;
 			else
-				logerror( "Unknown flash mode byte %x\n", data & 0xff );
+				logerror( "%s: Unknown flash mode byte %x\n", machine().describe_context(), data & 0xff );
 			break;
 		default:
-			logerror( "Unknown flash mode byte %x\n", data & 0xff );
+			logerror( "%s: Unknown flash mode byte %x\n", machine().describe_context(), data & 0xff );
 			break;
 		}
 		break;
@@ -690,6 +706,12 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		else if(( address & m_addrmask ) == ( 0x5555 & m_addrmask ) && ( data & 0xff ) == 0xf0 && m_addrmask )
 		{
 			m_flash_mode = FM_NORMAL;
+		}
+		// Fast mode
+		else if( ( ( address & 0xfff ) == 0xaaa || ( address & 0xfff ) == 0x555 ) && ( data & 0xff ) == 0x20 )
+		{
+			m_flash_mode = FM_NORMAL;
+			m_fast_mode = true;
 		}
 		else
 		{
@@ -1064,6 +1086,13 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 	case FM_BANKSELECT:
 		m_bank = data & 0xff;
 		m_flash_mode = FM_NORMAL;
+		break;
+	case FM_FAST_RESET:
+		if ( ( data & 0xff ) == 0xf0 || ( data & 0xff ) == 0 ) {
+			m_fast_mode = false;
+			m_flash_mode = FM_NORMAL;
+		} else
+			logerror( "unexpected %08x=%02x in FM_FAST_RESET:\n", address, data & 0xff );
 		break;
 	}
 }
