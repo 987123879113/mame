@@ -138,7 +138,13 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 			for (int i = 0; i < tiles_w; i++) {
 				for (int k = 0; k < 16; k++) { // y
 					for (int j = 0; j < 16; j++) { // x
-						uint16_t *const d = &bitmap.pix(y + m * 16 + k, x + (i * 16) + j);
+						auto ty = y + m * 16 + k;
+						auto tx = x + (i * 16) + j;
+
+						if (!cliprect.contains(tx, ty)) // skip drawing pixels off screen
+							continue;
+
+						uint16_t *const d = &bitmap.pix(ty, tx);
 						const uint32_t o = char_offset + (m * (0x100 * tiles_w)) + (i * 0x100) + (k * 16) + j;
 
 						if (o < 0x10000 && palidx == 0) {
