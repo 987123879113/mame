@@ -105,8 +105,9 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 		return 0;
 
 	for (int offset = 0; offset < 0x4000; offset += 4) {
-		uint16_t x = m_ram_obj[offset];
-		uint16_t y = m_ram_obj[offset+1];
+		uint16_t x = m_ram_obj[offset] & 0x1ff;
+		uint16_t y = m_ram_obj[offset+1] & 0x1ff;
+		uint16_t transparency = BIT(m_ram_obj[offset+1], 10, 5);
 
 		uint8_t palidx = BIT(m_ram_obj[offset+2], 0, 6);
 		// uint8_t unk1 = BIT(m_ram_obj[offset+2], 6, 2);
@@ -117,10 +118,10 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 		// uint8_t yflip = BIT(m_ram_obj[offset+2], 15);
 
 		uint32_t char_offset = BIT(m_ram_obj[offset+3], 0, 14) * 0x100;
-		// bool is_unk_flag = BIT(m_ram_obj[offset+3], 14);
+		bool is_transparent = BIT(m_ram_obj[offset+3], 14);
 		bool is_last = BIT(m_ram_obj[offset+3], 15);
 
-		// printf("%04x: x[%04x] y[%04x] unk1[%02x] unk2[%02x] pal[%02x] w[%02x] h[%02x] xflip[%d] yflip[%d] char_offset[%08x] is_unk[%d] is_last[%d] | obj[%04x]\n", offset, x, y, unk1, unk2, palidx, tiles_w, tiles_h, xflip, yflip, char_offset, is_unk_flag, is_last, m_ram_obj[offset+2]);
+		// printf("%04x: x[%04x] y[%04x] unk1[%02x] unk2[%02x] pal[%02x] w[%02x] h[%02x] xflip[%d] yflip[%d] char_offset[%08x] trans[%d %04x] is_last[%d] | obj[%04x]\n", offset, x, y, unk1, unk2, palidx, tiles_w, tiles_h, xflip, yflip, char_offset, is_transparent, transparency, is_last, m_ram_obj[offset+2]);
 
 		if (is_last) {
 			// printf("\n");
@@ -141,14 +142,32 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 						const uint32_t o = char_offset + (m * (0x100 * tiles_w)) + (i * 0x100) + (k * 16) + j;
 
 						if (o < 0x10000 && palidx == 0) {
-							d[0] = 0x7fff;
+							// d[0] = 0x7fff;
 							continue;
 						}
 
 						auto v = m_flash->read_raw(o >> 1);
 						auto c = BIT(v, 8 * ((o & 1) ? 0 : 1), 8);
-						if (c != 0)
-							d[0] = m_ram_pal[palidx * 0x100 + c];
+						if (c != 0) {
+							if (is_transparent) {
+								double sr = ((d[0] >> 10) & 0x1f) / 31.0;
+								double sg = ((d[0] >>  5) & 0x1f) / 31.0;
+								double sb = ((d[0] >>  0) & 0x1f) / 31.0;
+								double r = ((m_ram_pal[palidx * 0x100 + c] >> 10) & 0x1f) / 31.0;
+								double g = ((m_ram_pal[palidx * 0x100 + c] >>  5) & 0x1f) / 31.0;
+								double b = ((m_ram_pal[palidx * 0x100 + c] >>  0) & 0x1f) / 31.0;
+								double alpha1 = transparency / 31.0;
+								double alpha2 = 1.0 - alpha1;
+
+								uint8_t nr = std::min<uint8_t>(((sr * alpha2) + (r * alpha1)) * 31, 31);
+								uint8_t ng = std::min<uint8_t>(((sg * alpha2) + (g * alpha1)) * 31, 31);
+								uint8_t nb = std::min<uint8_t>(((sb * alpha2) + (b * alpha1)) * 31, 31);
+
+								d[0] = (nr << 10) | (ng << 5) | nb;
+							} else {
+								d[0] = m_ram_pal[palidx * 0x100 + c];
+							}
+						}
 					}
 				}
 			}

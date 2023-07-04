@@ -33,13 +33,13 @@ void shambros_sound_device::write(offs_t offset, uint16_t data, uint16_t mem_mas
 			case 1:
 				m_voices[ch].addr_cur &= 0xffff0000000;
 				m_voices[ch].addr_cur |= uint64_t(data) << 12;
-				printf("voice[%d].addr_cur = %08llx, is_looped = %d\n", ch, m_voices[ch].addr_cur >> 12, m_voices[ch].is_looped);
+				//printf("voice[%d].addr_cur = %08llx, is_looped = %d\n", ch, m_voices[ch].addr_cur >> 12, m_voices[ch].is_looped);
 				break;
 			case 2:
 				m_voices[ch].addr_cur &= 0x0000ffff000;
 				m_voices[ch].addr_cur |= uint64_t(data & 0x7fff) << 28;
 				m_voices[ch].is_looped = BIT(data, 15) != 0;
-				printf("voice[%d].addr_cur = %08llx, is_looped = %d\n", ch, m_voices[ch].addr_cur >> 12, m_voices[ch].is_looped);
+				//printf("voice[%d].addr_cur = %08llx, is_looped = %d\n", ch, m_voices[ch].addr_cur >> 12, m_voices[ch].is_looped);
 				break;
 
 			case 3:
@@ -49,42 +49,42 @@ void shambros_sound_device::write(offs_t offset, uint16_t data, uint16_t mem_mas
 				0xd59 (3417) -> 32000 hz
 				*/
 				m_voices[ch].step = data;
-				printf("voice[%d].step = %08x\n", ch, m_voices[ch].step);
+				//printf("voice[%d].step = %08x\n", ch, m_voices[ch].step);
 				break;
 
 			case 4:
 				m_voices[ch].addr_loop &= 0xffff0000000;
 				m_voices[ch].addr_loop |= uint64_t(data) << 12;
-				printf("voice[%d].addr_loop = %08llx\n", ch, m_voices[ch].addr_loop >> 12);
+				//printf("voice[%d].addr_loop = %08llx\n", ch, m_voices[ch].addr_loop >> 12);
 				break;
 			case 5:
 				m_voices[ch].addr_loop &= 0x0000ffff000;
 				m_voices[ch].addr_loop |= uint64_t(data) << 28;
-				printf("voice[%d].addr_loop = %08llx\n", ch, m_voices[ch].addr_loop >> 12);
+				//printf("voice[%d].addr_loop = %08llx\n", ch, m_voices[ch].addr_loop >> 12);
 				break;
 
 			case 6:
 				m_voices[ch].addr_end &= 0xffff0000000;
 				m_voices[ch].addr_end |= uint64_t(data) << 12;
-				printf("voice[%d].addr_end = %08llx\n", ch, m_voices[ch].addr_end >> 12);
+				//printf("voice[%d].addr_end = %08llx\n", ch, m_voices[ch].addr_end >> 12);
 				break;
 			case 7:
 				m_voices[ch].addr_end &= 0x0000ffff000;
 				m_voices[ch].addr_end |= uint64_t(data) << 28;
-				printf("voice[%d].addr_end = %08llx\n", ch, m_voices[ch].addr_end >> 12);
+				//printf("voice[%d].addr_end = %08llx\n", ch, m_voices[ch].addr_end >> 12);
 				break;
 
 			case 0x0b:
 				m_voices[ch].vol_l = data;
-				printf("voice[%d].vol_l = %08x\n", ch, m_voices[ch].vol_l);
+				//printf("voice[%d].vol_l = %08x\n", ch, m_voices[ch].vol_l);
 				break;
 			case 0x0c:
 				m_voices[ch].vol_r = data;
-				printf("voice[%d].vol_r = %08x\n", ch, m_voices[ch].vol_r);
+				//printf("voice[%d].vol_r = %08x\n", ch, m_voices[ch].vol_r);
 				break;
 
 			default:
-				printf("Unknown register usage: channel %d, register %x, data %04x\n", ch, reg, data);
+				//printf("Unknown register usage: channel %d, register %x, data %04x\n", ch, reg, data);
 				break;
 		}
 	}
