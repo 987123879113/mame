@@ -1,36 +1,12 @@
 // license:BSD-3-Clause
 // copyright-holders:windyfairy
-/*
-    Video chip for Shamisen Brothers (Kato's PCB)
-
-    Internal object mapping has the following fields:
-    HPOS VPOS CHAR CH CL FL FD SZ PR GP -BLD-  STR
-    +08 pointer to string (if it's a string)
-    +0c hpos -> screen x
-    +0e vpos -> screen y
-    +10 char
-    +12 ch
-    +13 cl -> related to palette. palette index?
-    +14 fl -> flags. 0x40 = is a string
-    +15 fd -> ?
-    +16 sz -> tile size = (val+1) * 8
-    +17 pr -> priority?
-    +18 gp
-
-    What gets mapped in OBJ RAM is:
-    +00 hpos, max 0x1ff
-    +02 vpos, max 0x1ff
-    +04 tile size + flags
-        b_yya_xx
-        xx and yy are the bits used for the width and height of the tiles, (val+1) * 8 = tile size
-        a (0x08) and b (0x80) are flags for mirror? inversion? the calculation of hpos and vpos changes to (-basepos)+tilesize instead of just basepos+tilesize
-    +05 ? (TODO: research cl in internal data)
-    +06 combined palette + char? 0x4000 is a bit for some flag, 0x8000 is disabled?
-*/
-
 #include "emu.h"
 #include "shambros_v.h"
 #include "screen.h"
+
+// #define VERBOSE (LOG_GENERAL)
+// #define LOG_OUTPUT_STREAM std::cout
+#include "logmacro.h"
 
 DEFINE_DEVICE_TYPE(SHAMBROS_VIDEO, shambros_video_device, "shambros_video", "Shamisen Brothers Video")
 
@@ -45,16 +21,14 @@ shambros_video_device::shambros_video_device(const machine_config &mconfig, cons
 
 void shambros_video_device::device_start()
 {
+	save_item(NAME(m_flash_write_enable));
+	save_item(NAME(m_enabled));
 }
 
 void shambros_video_device::device_reset()
 {
 	m_flash_write_enable = false;
 	m_enabled = false;
-}
-
-void shambros_video_device::device_stop()
-{
 }
 
 void shambros_video_device::ram_map(address_map &map)
@@ -73,20 +47,16 @@ void shambros_video_device::data_w(offs_t offset, uint16_t data)
 {
 	if (m_flash_write_enable)
 		m_flash->write(offset, data);
-
-	// printf("%s data_w %08x %04x\n", machine().describe_context().c_str(), offset, data);
 }
 
 uint16_t shambros_video_device::data_r(offs_t offset)
 {
-	// printf("%s data_r %08x\n", machine().describe_context().c_str(), offset);
 	return m_flash->read(offset);
 }
 
 void shambros_video_device::flash_control_w(offs_t offset, uint16_t data)
 {
 	// This might be a control for the video stuff
-	// 0x810018 is used the same as how 0x500024/0x500026 are used
 	// If it's set to 1 then 0xa00000 addresses flash, and if it's 0 then it addresses RAM?
 	m_flash_write_enable = data != 0;
 }
@@ -110,69 +80,70 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 		uint16_t transparency = BIT(m_ram_obj[offset+1], 10, 5);
 
 		uint8_t palidx = BIT(m_ram_obj[offset+2], 0, 6);
-		// uint8_t unk1 = BIT(m_ram_obj[offset+2], 6, 2);
-		// uint8_t unk2 = BIT(m_ram_obj[offset+2], 8, 8) & 0x44; // only take the unknown bits
 		uint8_t tiles_w = BIT(m_ram_obj[offset+2], 8, 3) + 1;
 		uint8_t tiles_h = BIT(m_ram_obj[offset+2], 12, 3) + 1;
-		// uint8_t xflip = BIT(m_ram_obj[offset+2], 11); // these aren't confirmed and don't seem to actually be used, but I think they are flipped bit flags based on the code
-		// uint8_t yflip = BIT(m_ram_obj[offset+2], 15);
+		// Possibly something relating to rotation or scaling in these unknown registers?
+		uint8_t unk1 = BIT(m_ram_obj[offset+2], 6, 2);
+		uint8_t unk2 = BIT(m_ram_obj[offset+2], 8, 8) & 0x44; // only take the unknown bits
+		uint8_t xflip = BIT(m_ram_obj[offset+2], 11); // these aren't confirmed and don't seem to actually be used, but I think they are flipped bit flags based on the code
+		uint8_t yflip = BIT(m_ram_obj[offset+2], 15);
 
 		uint32_t char_offset = BIT(m_ram_obj[offset+3], 0, 14) * 0x100;
 		bool is_transparent = BIT(m_ram_obj[offset+3], 14);
 		bool is_last = BIT(m_ram_obj[offset+3], 15);
 
-		// printf("%04x: x[%04x] y[%04x] unk1[%02x] unk2[%02x] pal[%02x] w[%02x] h[%02x] xflip[%d] yflip[%d] char_offset[%08x] trans[%d %04x] is_last[%d] | obj[%04x]\n", offset, x, y, unk1, unk2, palidx, tiles_w, tiles_h, xflip, yflip, char_offset, is_transparent, transparency, is_last, m_ram_obj[offset+2]);
+		LOG("%04x: x[%04x] y[%04x] unk1[%02x] unk2[%02x] pal[%02x] w[%02x] h[%02x] xflip[%d] yflip[%d] char_offset[%08x] trans[%d %04x] is_last[%d] | obj[%04x]\n", offset, x, y, unk1, unk2, palidx, tiles_w, tiles_h, xflip, yflip, char_offset, is_transparent, transparency, is_last, m_ram_obj[offset+2]);
 
 		if (is_last) {
-			// printf("\n");
+			LOG("end of list\n");
 			break;
 		}
 
 		if (char_offset == 0) // HACK: skip blank tile
 			continue;
 
-		if (x > bitmap.width() || y > bitmap.height()) // RAM test?
+		if (!cliprect.contains(x, y))
 			continue;
 
 		for (int m = 0; m < tiles_h; m++) {
-			for (int i = 0; i < tiles_w; i++) {
-				for (int k = 0; k < 16; k++) { // y
+			for (int n = 0; n < tiles_w; n++) {
+				for (int i = 0; i < 16; i++) { // y
 					for (int j = 0; j < 16; j++) { // x
-						auto ty = y + m * 16 + k;
-						auto tx = x + (i * 16) + j;
+						const int ty = y + m * 16 + i;
+						const int tx = x + (n * 16) + j;
 
 						if (!cliprect.contains(tx, ty)) // skip drawing pixels off screen
 							continue;
 
-						uint16_t *const d = &bitmap.pix(ty, tx);
-						const uint32_t o = char_offset + (m * (0x100 * tiles_w)) + (i * 0x100) + (k * 16) + j;
+						uint16_t *const pix = &bitmap.pix(ty, tx);
+						const uint32_t offset = char_offset + (m * (0x100 * tiles_w)) + (n * 0x100) + (i * 16) + j;
 
-						if (o < 0x10000 && palidx == 0) {
+						if (offset < 0x10000 && palidx == 0) {
 							// special handling for what would've been ASCII characters
-							// d[0] = 0x7fff;
+							// d[0] = 0x7fff; // set to solid white block
 							continue;
 						}
 
-						auto v = m_flash->read_raw(o >> 1);
-						auto c = BIT(v, 8 * ((o & 1) ? 0 : 1), 8);
-						if (c != 0) {
+						const uint16_t val = m_flash->read_raw(offset / 2);
+						const int colidx = BIT(val, 8 * (1 - (offset & 1)), 8);
+						const uint16_t color = m_ram_pal[palidx * 0x100 + colidx];
+						if (colidx != 0) {
 							if (is_transparent) {
-								double sr = ((d[0] >> 10) & 0x1f) / 31.0;
-								double sg = ((d[0] >>  5) & 0x1f) / 31.0;
-								double sb = ((d[0] >>  0) & 0x1f) / 31.0;
-								double r = ((m_ram_pal[palidx * 0x100 + c] >> 10) & 0x1f) / 31.0;
-								double g = ((m_ram_pal[palidx * 0x100 + c] >>  5) & 0x1f) / 31.0;
-								double b = ((m_ram_pal[palidx * 0x100 + c] >>  0) & 0x1f) / 31.0;
-								double alpha1 = transparency / 31.0;
-								double alpha2 = 1.0 - alpha1;
+								const uint8_t sr = BIT(pix[0], 10, 5);
+								const uint8_t sg = BIT(pix[0], 5, 5);
+								const uint8_t sb = BIT(pix[0], 0, 5);
 
-								uint8_t nr = std::min<uint8_t>(((sr * alpha2) + (r * alpha1)) * 31, 31);
-								uint8_t ng = std::min<uint8_t>(((sg * alpha2) + (g * alpha1)) * 31, 31);
-								uint8_t nb = std::min<uint8_t>(((sb * alpha2) + (b * alpha1)) * 31, 31);
+								const uint8_t r = BIT(color, 10, 5);
+								const uint8_t g = BIT(color, 5, 5);
+								const uint8_t b = BIT(color, 0, 5);
 
-								d[0] = (nr << 10) | (ng << 5) | nb;
+								const uint8_t nr = std::min<uint8_t>(((sr * (31 - transparency)) + (r * transparency)) >> 5, 31);
+								const uint8_t ng = std::min<uint8_t>(((sg * (31 - transparency)) + (g * transparency)) >> 5, 31);
+								const uint8_t nb = std::min<uint8_t>(((sb * (31 - transparency)) + (b * transparency)) >> 5, 31);
+
+								pix[0] = (nr << 10) | (ng << 5) | nb;
 							} else {
-								d[0] = m_ram_pal[palidx * 0x100 + c];
+								pix[0] = color;
 							}
 						}
 					}

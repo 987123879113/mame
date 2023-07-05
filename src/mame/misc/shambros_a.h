@@ -1,7 +1,7 @@
 // license:BSD-3-Clause
 // copyright-holders:windyfairy
-#ifndef MAME_MISC_SHAMBROS_SOUND_H
-#define MAME_MISC_SHAMBROS_SOUND_H
+#ifndef MAME_MISC_SHAMBROS_A_H
+#define MAME_MISC_SHAMBROS_A_H
 
 #pragma once
 
@@ -18,11 +18,12 @@ public:
 	uint16_t read(offs_t offset, uint16_t mem_mask = ~0);
 	void write(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
-	uint16_t channel_state_r();
-	void channel_state_w(uint16_t data);
+	uint16_t voice_state_r();
+	void voice_state_w(uint16_t data);
 
 protected:
 	virtual void device_start() override;
+	virtual void device_reset() override;
 
 	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
 
@@ -32,7 +33,7 @@ private:
 	std::unique_ptr<uint8_t[]> m_ram;
 	uint16_t m_regs[128];
 
-	struct shambros_channel {
+	struct shambros_voice {
 		uint64_t addr_loop;
 		uint64_t addr_cur;
 		uint64_t addr_end;
@@ -43,7 +44,7 @@ private:
 		bool enabled;
 	};
 
-	shambros_channel m_voices[8];
+	shambros_voice m_voices[8];
 
 	sound_stream *m_stream;
 
@@ -52,4 +53,4 @@ private:
 
 DECLARE_DEVICE_TYPE(SHAMBROS_SOUND, shambros_sound_device)
 
-#endif // MAME_MISC_SHAMBROS_SOUND_H
+#endif // MAME_MISC_SHAMBROS_A_H

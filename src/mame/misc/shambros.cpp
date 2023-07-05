@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:
+// copyright-holders:windyfairy
 
 /*
 Kato's STV01 MainPCB Rev. C
@@ -15,15 +15,10 @@ A low quality picture of the PCB found on the internet shows:
 - multiple flash chips
 - 3 FPGAs (Actel A54SX08A + others?)
 - Mitsumi CD drive (FX5400W)
-
-INT2 does a lot, vblank?
-INT4 reads 0x600000, audio related?
-INT5 increments counter only
-INT6 relating to sound again? maybe DMAs?
 */
 
 #include "emu.h"
-#include "shambros_sound.h"
+#include "shambros_a.h"
 #include "shambros_v.h"
 
 #include "bus/ata/ataintf.h"
@@ -69,6 +64,8 @@ private:
 	void device_w(offs_t offset, uint16_t data);
 	uint16_t device_r(offs_t offset);
 
+	TIMER_DEVICE_CALLBACK_MEMBER(music_timer);
+
 	required_device<cpu_device> m_maincpu;
 	required_device<ata_interface_device> m_ata;
 	required_device_array<intelfsh16_device, 2> m_flash;
@@ -78,12 +75,12 @@ private:
 
 	uint16_t m_current_device;
 	bool m_current_device_write_enable;
-
-	TIMER_DEVICE_CALLBACK_MEMBER(internal_timer);
 };
 
 void shambros_state::machine_start()
 {
+	save_item(NAME(m_current_device));
+	save_item(NAME(m_current_device_write_enable));
 }
 
 void shambros_state::machine_reset()
@@ -97,15 +94,15 @@ uint32_t shambros_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 	return m_video->draw(screen, bitmap, cliprect);
 }
 
-TIMER_DEVICE_CALLBACK_MEMBER(shambros_state::internal_timer)
+TIMER_DEVICE_CALLBACK_MEMBER(shambros_state::music_timer)
 {
+	// IRQ 6 is responsible for incrementing the in-game song sync timer
+	// If the IRQ is too fast or too slow then it effects a lot of things: the marker places, the note placements, the timing judgements
 	m_maincpu->set_input_line(6, HOLD_LINE);
 }
 
 void shambros_state::device_select_w(uint16_t data)
 {
-	// printf("%s device_select_w %d\n", machine().describe_context().c_str(), data);
-
 	m_current_device = data;
 }
 
@@ -115,31 +112,22 @@ void shambros_state::device_write_enable_w(uint16_t data)
 	// This register seems to be written to when a write is involved, and set back to 0 when it's finished writing.
 	// When only a read is involved, only 0x500024 needs to be set.
 	// 0x500024 does not need to be set when a write is involved.
-	// Maybe
-	// printf("%s device_write_enable_w %d %04x\n", machine().describe_context().c_str(), m_current_device, data);
-
 	m_current_device_write_enable = data != 0;
 }
 
 void shambros_state::device_w(offs_t offset, uint16_t data)
 {
 	if (m_current_device >= 0 && m_current_device <= 2) {
-		// printf("PCM chip: %08x %08x %04x\n", offset * 2, (offset + (0x100000 * m_current_device)) * 2, data);
 		m_sound->write(offset + (0x100000 * m_current_device), data);
 	} else if (m_current_device == 3 && m_current_device_write_enable) {
 		m_flash[0]->write(offset, data);
 	} else if (m_current_device == 4 && m_current_device_write_enable) {
 		m_flash[1]->write(offset, data);
-	} else {
-		// printf("%s device_w %08x %04x\n", machine().describe_context().c_str(), offset, data);
 	}
-
-	// printf("%s device_w %d %08x %04x\n", machine().describe_context().c_str(), m_current_device, offset, data);
 }
 
 uint16_t shambros_state::device_r(offs_t offset)
 {
-	// printf("%s device_r %d %08x\n", machine().describe_context().c_str(), m_current_device, offset);
 	if (m_current_device >= 0 && m_current_device <= 2) {
 		return m_sound->read(offset + (0x100000 * m_current_device));
 	} else if (m_current_device == 3) {
@@ -157,35 +145,24 @@ void shambros_state::cpu_map(address_map &map)
 	map(0x200000, 0x223bff).ram(); // System memory?
 	map(0x23e000, 0x3fffff).ram();
 
-	// 500000 I/O
+	map(0x400000, 0x400001).noprw(); // Read every time IRQ2 is called but doesn't seem to be used?
+
 	map(0x500000, 0x500001).portr("IN1");
 	map(0x500002, 0x500003).portr("IN2");
-	// 500020 IRQ? Each bit is set when a channel on the PCM chip is active
-	map(0x500020, 0x500021).rw(m_sound, FUNC(shambros_sound_device::channel_state_r), FUNC(shambros_sound_device::channel_state_w));
-	// 500022 Number of banks available for sound chip? 3 is written here, PCM memory is 0x600000 so 0x200000*3?
+	map(0x500004, 0x500005).nopw(); // Lamps?
+	map(0x500006, 0x500007).nopw(); // Also lamps?
+	map(0x500020, 0x500021).rw(m_sound, FUNC(shambros_sound_device::voice_state_r), FUNC(shambros_sound_device::voice_state_w));
 	map(0x500024, 0x500025).w(FUNC(shambros_state::device_select_w));
 	map(0x500026, 0x500027).w(FUNC(shambros_state::device_write_enable_w));
 
-	map(0x600000, 0x60000f).ram(); // ?
-
-	// 700000 ATA, hooked up to FPGA?
 	map(0x70000c, 0x70000d).nopw(); // 2 is written here before CD-ROM commands are sent?
 	map(0x700010, 0x70001f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
-	// map(0x700020, 0x70002f).rw(m_ata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
 
 	map(0x800000, 0x80ffff).m(m_video, FUNC(shambros_video_device::ram_map));
 	map(0x810000, 0x81001f).m(m_video, FUNC(shambros_video_device::reg_map));
 
-	// Flash: Fujitsu chip, 16-bit width
-	// A00000 Graphics flash
 	map(0xa00000, 0xbfffff).rw(m_video, FUNC(shambros_video_device::data_r), FUNC(shambros_video_device::data_w));
-	// C00000 Sound flash + settings, controlled by m_current_device
 	map(0xc00000, 0xdfffff).rw(FUNC(shambros_state::device_r), FUNC(shambros_state::device_w));
-
-
-	map(0x400000, 0x400001).noprw();
-	map(0x500004, 0x500005).noprw();
-	map(0x500006, 0x500007).noprw();
 }
 
 
@@ -231,8 +208,7 @@ void shambros_state::shambros(machine_config &config)
 
 	PALETTE(config, "palette", palette_device::BGR_555);
 
-	ATA_INTERFACE(config, m_ata).options([] (device_slot_interface &device) { device.option_add("cdrom", CR589); }, "cdrom", nullptr, true);
-	m_ata->slot(0).set_fixed(true);
+	ATA_INTERFACE(config, m_ata).options(ata_devices, "cdrom", nullptr, true);
 
 	FUJITSU_29DL164BD_16BIT(config, m_flash[0]);
 	FUJITSU_29DL164BD_16BIT(config, m_flash[1]);
@@ -247,15 +223,15 @@ void shambros_state::shambros(machine_config &config)
 	m_sound->add_route(0, "lspeaker", 0.5);
 	m_sound->add_route(1, "rspeaker", 0.5);
 
-	TIMER(config, "internal_timer").configure_periodic(FUNC(shambros_state::internal_timer), attotime::from_usec(4000)); // what the fuck, this isn't right
+	TIMER(config, "music_timer").configure_periodic(FUNC(shambros_state::music_timer), attotime::from_hz(250));
 }
 
 
 ROM_START( shambros )
 	ROM_REGION(0x400000, "maincpu", 0)
-	// ROM_LOAD( "g112 v1.01.prg", 0x00000, 0x20000, NO_DUMP ) // actual size unknown
-	ROM_LOAD( "pgx.bin", 0x000000, 0x19ab2, CRC(37c8da72) SHA1(89ab2786901ba422af9af972104fb79d679c1df6) ) // extracted from CD
-	ROM_COPY( "maincpu", 0x000000, 0x223c00, 0x19ab2 )
+	ROM_LOAD( "g112 v1.01.prg", 0x00000, 0x20000, NO_DUMP ) // actual size unknown. contains the bootloader + system font, among other things
+	ROM_LOAD( "pgx.bin", 0x000000, 0x19ab2, CRC(37c8da72) SHA1(89ab2786901ba422af9af972104fb79d679c1df6) ) // extracted from CD, this is the main program the bootloader executes
+	ROM_COPY( "maincpu", 0x000000, 0x223c00, 0x19ab2 ) // copy it into the memory location that's expected for the program to be executed from
 
 	DISK_REGION( "ata:0:cdrom" )
 	DISK_IMAGE( "sb01-100", 0, SHA1(abd1d61871bcb4635acc691e35ec386823763ba2) )
