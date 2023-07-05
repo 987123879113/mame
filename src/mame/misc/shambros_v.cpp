@@ -148,6 +148,7 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 						const uint32_t o = char_offset + (m * (0x100 * tiles_w)) + (i * 0x100) + (k * 16) + j;
 
 						if (o < 0x10000 && palidx == 0) {
+							// special handling for what would've been ASCII characters
 							// d[0] = 0x7fff;
 							continue;
 						}

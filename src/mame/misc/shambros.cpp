@@ -99,7 +99,7 @@ uint32_t shambros_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 
 TIMER_DEVICE_CALLBACK_MEMBER(shambros_state::internal_timer)
 {
-	m_maincpu->pulse_input_line(M68K_IRQ_6, m_maincpu->minimum_quantum_time() * 2);
+	m_maincpu->set_input_line(6, HOLD_LINE);
 }
 
 void shambros_state::device_select_w(uint16_t data)
@@ -247,7 +247,7 @@ void shambros_state::shambros(machine_config &config)
 	m_sound->add_route(0, "lspeaker", 0.5);
 	m_sound->add_route(1, "rspeaker", 0.5);
 
-	TIMER(config, "internal_timer").configure_periodic(FUNC(shambros_state::internal_timer), attotime::from_usec(578)); // what the fuck, this isn't right
+	TIMER(config, "internal_timer").configure_periodic(FUNC(shambros_state::internal_timer), attotime::from_usec(4000)); // what the fuck, this isn't right
 }
 
 
