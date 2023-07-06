@@ -4,6 +4,7 @@
 #include "shambros_v.h"
 #include "screen.h"
 
+// #include <iostream>
 // #define VERBOSE (LOG_GENERAL)
 // #define LOG_OUTPUT_STREAM std::cout
 #include "logmacro.h"
@@ -99,8 +100,8 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 			break;
 		}
 
-		if (char_offset == 0) // HACK: skip blank tile
-			continue;
+		// if (char_offset == 0) // HACK: skip blank tile
+		// 	continue;
 
 		if (!cliprect.contains(x, y))
 			continue;
@@ -118,11 +119,11 @@ int shambros_video_device::draw(screen_device &screen, bitmap_ind16 &bitmap, con
 						uint16_t *const pix = &bitmap.pix(ty, tx);
 						const uint32_t offset = char_offset + (m * (0x100 * tiles_w)) + (n * 0x100) + (i * 16) + j;
 
-						if (offset < 0x10000 && palidx == 0) {
-							// special handling for what would've been ASCII characters
-							// d[0] = 0x7fff; // set to solid white block
-							continue;
-						}
+						// if (offset < 0x10000 && palidx == 0) {
+						// 	// special handling for what would've been ASCII characters
+						// 	// d[0] = 0x7fff; // set to solid white block
+						// 	continue;
+						// }
 
 						const uint16_t val = m_flash->read_raw(offset / 2);
 						const int colidx = BIT(val, 8 * (1 - (offset & 1)), 8);

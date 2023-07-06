@@ -230,6 +230,7 @@ void shambros_state::shambros(machine_config &config)
 ROM_START( shambros )
 	ROM_REGION(0x400000, "maincpu", 0)
 	ROM_LOAD( "g112 v1.01.prg", 0x00000, 0x20000, NO_DUMP ) // actual size unknown. contains the bootloader + system font, among other things
+	ROM_LOAD_OPTIONAL( "ascii16.pac", 0x020000, 0x1025c, CRC(f6fe3a43) SHA1(bd7ad57478f85d4f8a0614fc6c83f0a0e886b2ff) ) // custom hand crafted data
 	ROM_LOAD( "pgx.bin", 0x000000, 0x19ab2, CRC(37c8da72) SHA1(89ab2786901ba422af9af972104fb79d679c1df6) ) // extracted from CD, this is the main program the bootloader executes
 	ROM_COPY( "maincpu", 0x000000, 0x223c00, 0x19ab2 ) // copy it into the memory location that's expected for the program to be executed from
 
