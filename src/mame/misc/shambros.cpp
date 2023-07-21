@@ -45,6 +45,8 @@ public:
 		, m_video_flash(*this, "video_flash")
 		, m_video(*this, "video")
 		, m_sound(*this, "pcm_sound")
+		, m_prog_rom(*this, "prog_rom")
+		, m_prog_ram(*this, "prog_ram")
 	{}
 
 	void shambros(machine_config &config) ATTR_COLD;
@@ -72,6 +74,8 @@ private:
 	required_device<intelfsh16_device> m_video_flash;
 	required_device<shambros_video_device> m_video;
 	required_device<shambros_sound_device> m_sound;
+	required_shared_ptr<uint16_t> m_prog_rom;
+	required_shared_ptr<uint16_t> m_prog_ram;
 
 	uint16_t m_current_device;
 	bool m_current_device_write_enable;
@@ -81,6 +85,24 @@ void shambros_state::machine_start()
 {
 	save_item(NAME(m_current_device));
 	save_item(NAME(m_current_device_write_enable));
+
+	// HACK: Read program code from CD-ROM image into memory and then reset CPU to begin execution
+	// This is only required until the actual bootloader ROM file is dumped
+	constexpr int prog_start_lba = 1286;
+	constexpr int prog_lba_len = 52;
+	constexpr int prog_start_addr = 0x223c00 - 0x200000;
+	cdrom_image_device *cdrom = subdevice<cdrom_image_device>("ata:0:cdrom:image");
+	uint8_t *prog_ram_ptr = reinterpret_cast<uint8_t*>(&m_prog_ram[0]);
+	for (int i = 0; i < prog_lba_len; i++) {
+		uint8_t temp_buffer[2048];
+		cdrom->read_data(prog_start_lba + i, temp_buffer, cdrom_file::CD_TRACK_MODE1);
+
+		for (int j = 0; j < 2048; j++) {
+			prog_ram_ptr[BYTE_XOR_BE(prog_start_addr + (2048 * i) + j)] = temp_buffer[j];
+		}
+	}
+
+	memcpy(m_prog_rom, &prog_ram_ptr[prog_start_addr], 0x100); // Copy entry point, vectors, etc
 }
 
 void shambros_state::machine_reset()
@@ -141,9 +163,9 @@ uint16_t shambros_state::device_r(offs_t offset)
 
 void shambros_state::cpu_map(address_map &map)
 {
-	map(0x000000, 0x3fffff).rom();
-	map(0x200000, 0x223bff).ram(); // System memory?
-	map(0x23e000, 0x3fffff).ram();
+	map(0x000000, 0x01ffff).rom().share(m_prog_rom); // program code in ROM
+	map(0x020000, 0x1fffff).rom(); // data in ROM
+	map(0x200000, 0x3fffff).ram().share(m_prog_ram); // code loaded through the ROM's bootloader is loaded here
 
 	map(0x400000, 0x400001).noprw(); // Read every time IRQ2 is called but doesn't seem to be used?
 
@@ -229,10 +251,8 @@ void shambros_state::shambros(machine_config &config)
 
 ROM_START( shambros )
 	ROM_REGION(0x400000, "maincpu", 0)
-	ROM_LOAD( "g112 v1.01.prg", 0x00000, 0x20000, NO_DUMP ) // actual size unknown. contains the bootloader + system font, among other things
+	ROM_LOAD( "g112 v1.01.prg", 0x00000, 0x20000, NO_DUMP ) // actual size unknown. contains the bootloader + system font, maybe other things?
 	ROM_LOAD_OPTIONAL( "ascii16.pac", 0x020000, 0x1025c, CRC(f6fe3a43) SHA1(bd7ad57478f85d4f8a0614fc6c83f0a0e886b2ff) ) // custom hand crafted data
-	ROM_LOAD( "pgx.bin", 0x000000, 0x19ab2, CRC(37c8da72) SHA1(89ab2786901ba422af9af972104fb79d679c1df6) ) // extracted from CD, this is the main program the bootloader executes
-	ROM_COPY( "maincpu", 0x000000, 0x223c00, 0x19ab2 ) // copy it into the memory location that's expected for the program to be executed from
 
 	DISK_REGION( "ata:0:cdrom" )
 	DISK_IMAGE( "sb01-100", 0, SHA1(abd1d61871bcb4635acc691e35ec386823763ba2) )
