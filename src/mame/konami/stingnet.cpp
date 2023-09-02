@@ -106,12 +106,32 @@ public:
 
 	void stingnet(machine_config &config);
 
+	void init_stingnet();
+
 protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
 private:
-	required_device<ppc_device> m_maincpu;
+	enum
+	{
+		DS1991_STATE_NORMAL,
+		DS1991_STATE_READ_SUBKEY,
+	};
+
+	struct ibutton_subkey
+	{
+		uint8_t identifier[8];
+		uint8_t password[8];
+		uint8_t data[0x30];
+	};
+
+	struct ibutton
+	{
+		ibutton_subkey subkey[3];
+	};
+
+	required_device<ppc4xx_device> m_maincpu;
 	required_device<k057714_device> m_gcu;
 	required_device<ata_interface_device> m_ata;
 	required_device<pc16552_device> m_duart;
@@ -121,6 +141,10 @@ private:
 	required_device<ymz280b_device> m_ymz;
 	required_device<fujitsu_29f016a_device> m_sndflash;
 
+	void set_ibutton(uint8_t *data);
+	int ibutton_w(uint8_t data);
+	void security_w(uint8_t data);
+
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	void main_map(address_map &map);
@@ -129,7 +153,6 @@ private:
 	void gcu_interrupt(int state);
 	void ata_interrupt(int state);
 
-	u8 status_r();
 	u8 control_r();
 	void control_w(u8 data);
 
@@ -137,6 +160,13 @@ private:
 
 	u8 m_control;
 	bool m_ata_irq_pending;
+
+	ibutton m_ibutton;
+	int m_ibutton_state;
+	int m_ibutton_read_subkey_ptr;
+	bool m_ibutton_search_accel;
+	int m_ibutton_search_accel_idx;
+	uint8_t m_ibutton_subkey_data[0x40];
 };
 
 uint32_t stingnet_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
@@ -169,13 +199,6 @@ void stingnet_state::ata_interrupt(int state)
 	}
 }
 
-u8 stingnet_state::status_r()
-{
-	// bits 4-5 = battery state (0 = no voltage, 1 & 2 = low, 3 = OK)
-	// bit 6 = ready/*busy line from the sound flash
-	return 0x03 | (m_sndflash->is_ready() ? 0x04 : 0x00);
-}
-
 u8 stingnet_state::control_r()
 {
 	return m_control;
@@ -201,7 +224,6 @@ void stingnet_state::main_map(address_map &map)
 	map(0x70600000, 0x707fffff).rw(m_sndflash, FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write));
 	map(0x71000000, 0x71000003).portr("IN1").nopw();
 	map(0x71000004, 0x71000007).portr("IN2").nopw();
-	map(0x71000006, 0x71000006).r(FUNC(stingnet_state::status_r));
 	map(0x71000011, 0x71000011).rw(FUNC(stingnet_state::control_r), FUNC(stingnet_state::control_w));
 	map(0x72000000, 0x7200000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x72000010, 0x7200001f).rw(m_ata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
@@ -245,6 +267,10 @@ static INPUT_PORTS_START( stingnet )
 	PORT_BIT( 0x80000000, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Help")
 
 	PORT_START("IN2")
+	PORT_BIT( 0x0000f8ff, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x00000300, IP_ACTIVE_LOW, IPT_UNUSED ) // For flash
+	PORT_BIT( 0x00000400, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("sndflash", fujitsu_29f016a_device, is_ready)
+
 	PORT_DIPUNKNOWN_DIPLOC( 0x00010000, IP_ACTIVE_LOW, "DIP SW2:8" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x00020000, IP_ACTIVE_LOW, "DIP SW2:7" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x00040000, IP_ACTIVE_LOW, "DIP SW2:6" )
@@ -263,6 +289,147 @@ static INPUT_PORTS_START( stingnet )
 	PORT_DIPUNKNOWN_DIPLOC( 0x40000000, IP_ACTIVE_LOW, "DIP SW1:2" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x80000000, IP_ACTIVE_LOW, "DIP SW1:1" )
 INPUT_PORTS_END
+
+void stingnet_state::set_ibutton(uint8_t *data)
+{
+	for (int i = 0; i < 3; i++)
+	{
+		memcpy(m_ibutton.subkey[i].identifier, data + (64 * i), 8);
+		memcpy(m_ibutton.subkey[i].password, data + (64 * i) + 8, 8);
+		memcpy(m_ibutton.subkey[i].data, data + (64 * i) + 16, 48);
+	}
+}
+
+int stingnet_state::ibutton_w(uint8_t data)
+{
+	// TODO: This should be rewritten into two properly emulated devices
+	// that emulates the 1-wire bus and removed from Stingnet and Firebeat
+	int r = -1;
+
+	switch (m_ibutton_state)
+	{
+		case DS1991_STATE_NORMAL:
+		{
+			switch (data)
+			{
+				case 0x00:
+					if (m_ibutton_search_accel) {
+						if (m_ibutton_search_accel_idx == 0)
+							r = 1; // tells the game that there's a device in the first position
+						else
+							r = 0;
+
+						m_ibutton_search_accel_idx++;
+					}
+					break;
+
+				//
+				// DS2408B Serial 1-Wire Line Driver with Load Sensor
+				//
+				case 0xc1: // DS2480B reset
+				{
+					r = 0xcd;
+					break;
+				}
+				case 0xe1: // DS2480B set data mode
+				{
+					break;
+				}
+				case 0xe3: // DS2480B set command mode
+				{
+					break;
+				}
+				case 0xed: case 0xef: // Pulse
+				case 0xfd: case 0xff:
+				{
+					r = data;
+					break;
+				}
+				case 0xa1: case 0xb1: // search accel control
+				case 0xa5: case 0xb5:
+				case 0xa9: case 0xb9:
+				case 0xad: case 0xbd:
+				{
+					m_ibutton_search_accel = BIT(data, 4) == 1;
+					m_ibutton_search_accel_idx = 0;
+					break;
+				}
+
+				//
+				// DS1991 MultiKey iButton
+				//
+				case 0x66: // DS1991 Read SubKey
+				{
+					m_ibutton_state = DS1991_STATE_READ_SUBKEY;
+					m_ibutton_read_subkey_ptr = 0;
+					break;
+				}
+				case 0xcc: // DS1991 skip rom
+				{
+					r = 0xcc;
+					m_ibutton_state = DS1991_STATE_NORMAL;
+					break;
+				}
+				case 0xf0: // DS1991 search ROM
+				{
+					r = 0xf0;
+					m_ibutton_state = DS1991_STATE_NORMAL;
+					break;
+				}
+				default:
+				{
+					fatalerror("ibutton: unknown normal mode cmd %02X\n", data);
+				}
+			}
+			break;
+		}
+
+		case DS1991_STATE_READ_SUBKEY:
+		{
+			if (m_ibutton_read_subkey_ptr == 0) // Read SubKey, 2nd command byte
+			{
+				int subkey = (data >> 6) & 0x3;
+
+				r = data;
+
+				if (subkey < 3)
+				{
+					memcpy(&m_ibutton_subkey_data[0], m_ibutton.subkey[subkey].identifier, 8);
+					memcpy(&m_ibutton_subkey_data[8], m_ibutton.subkey[subkey].password, 8);
+					memcpy(&m_ibutton_subkey_data[16], m_ibutton.subkey[subkey].data, 48);
+				}
+				else
+				{
+					memset(&m_ibutton_subkey_data[0], 0, 64);
+				}
+			}
+			else if (m_ibutton_read_subkey_ptr == 1) // Read SubKey, 3rd command byte
+			{
+				r = data;
+			}
+			else
+			{
+				r = m_ibutton_subkey_data[m_ibutton_read_subkey_ptr-2];
+			}
+
+			m_ibutton_read_subkey_ptr++;
+
+			if (m_ibutton_read_subkey_ptr >= 0x42)
+				m_ibutton_state = DS1991_STATE_NORMAL;
+
+			break;
+		}
+	}
+
+	return r;
+}
+
+void stingnet_state::security_w(uint8_t data)
+{
+	int r = ibutton_w(data);
+	if (r >= 0)
+		m_maincpu->ppc4xx_spu_receive_byte(r);
+}
 
 void stingnet_state::machine_start()
 {
@@ -303,6 +470,19 @@ void stingnet_state::machine_reset()
 {
 	// assume VGA 640x480
 	m_gcu->set_pixclock(25.175_MHz_XTAL);
+
+	m_ibutton_state = DS1991_STATE_NORMAL;
+	m_ibutton_read_subkey_ptr = 0;
+	m_ibutton_search_accel = false;
+	m_ibutton_search_accel_idx = 0;
+}
+
+void stingnet_state::init_stingnet()
+{
+	uint8_t *rom = memregion("dongle")->base();
+	set_ibutton(rom);
+
+	m_maincpu->ppc4xx_spu_set_tx_handler(write8smo_delegate(*this, FUNC(stingnet_state::security_w)));
 }
 
 void stingnet_devices(device_slot_interface &device)
@@ -357,6 +537,9 @@ ROM_START( tropchnc )
 	ROM_REGION32_BE(0x80000, "program", 0) // PowerPC program ROMs
 	ROM_LOAD("839ssua01.bin", 0x000000, 0x080000, CRC(007ae177) SHA1(7ded12ee3c07ce1d607d1c9fba2c0e3a69dfb294))
 
+	ROM_REGION(0xc8, "dongle", 0) // Security dongle, hand created
+	ROM_LOAD( "gc968", 0x000000, 0x0000c8, BAD_DUMP CRC(32c08903) SHA1(e9018e1f40271237bfa1319d1c8f522e3befc229))
+
 	ROM_REGION(0x200000, "ymz280b", ROMREGION_ERASE00)  // YMZ280B samples
 
 	DISK_REGION("ata:0:cdrom")
@@ -365,4 +548,4 @@ ROM_END
 
 } // Anonymous namespace
 
-GAME(1999, tropchnc, 0, stingnet, stingnet, stingnet_state, empty_init, ROT90, "Konami", "Tropical Chance", MACHINE_NOT_WORKING)
+GAME(1999, tropchnc, 0, stingnet, stingnet, stingnet_state, init_stingnet, ROT90, "Konami", "Tropical Chance", MACHINE_NOT_WORKING)
