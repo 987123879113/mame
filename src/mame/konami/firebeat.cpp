@@ -14,7 +14,8 @@
         16.6666 MHz clock (near GCUs and VGA connectors)
         OSC 66.0000MHz
         IBM PowerPC 403GCX at 66MHz
-        (2x) Konami 0000057714 (2D object processor)
+        (2x) Konami 0000057714 GCU (2D object processor)
+        (8x) Fujitsu MB81F641642C 4 x 1 M x 16 BIT Synchronous Dynamic Ram (4x for each GCU)
         Yamaha YMZ280B (ADPCM sound chip)
         Epson RTC65271 RTC/NVRAM
         National Semiconductor PC16552DV (dual UART)
@@ -792,7 +793,7 @@ void firebeat_state::firebeat_map(address_map &map)
 	map(0x7dc00000, 0x7dc0000f).rw(m_duart_com, FUNC(pc16552_device::read), FUNC(pc16552_device::write));
 	map(0x7e000000, 0x7e00003f).rw("rtc", FUNC(rtc65271_device::rtc_r), FUNC(rtc65271_device::rtc_w));
 	map(0x7e000100, 0x7e00013f).rw("rtc", FUNC(rtc65271_device::xram_r), FUNC(rtc65271_device::xram_w));
-	map(0x7e800000, 0x7e8000ff).rw(m_gcu, FUNC(k057714_device::read), FUNC(k057714_device::write));
+	map(0x7e800000, 0x7e8000ff).m(m_gcu, FUNC(k057714_device::map));
 	map(0x7e800100, 0x7e8001ff).noprw(); // Secondary GCU, only used by Keyboardmania but is written to during the bootloader of other games
 	map(0x7fe00000, 0x7fe0000f).rw(m_ata, FUNC(ata_interface_device::cs0_swap_r), FUNC(ata_interface_device::cs0_swap_w));
 	map(0x7fe80000, 0x7fe8000f).rw(m_ata, FUNC(ata_interface_device::cs1_swap_r), FUNC(ata_interface_device::cs1_swap_w));
@@ -1853,7 +1854,7 @@ void firebeat_kbm_state::firebeat_kbm_map(address_map &map)
 	firebeat_map(map);
 	map(0x70000000, 0x70000fff).rw(FUNC(firebeat_kbm_state::midi_uart_r), FUNC(firebeat_kbm_state::midi_uart_w)).umask32(0xff000000);
 	map(0x70008000, 0x7000800f).r(FUNC(firebeat_kbm_state::keyboard_wheel_r));
-	map(0x7e800100, 0x7e8001ff).rw(m_gcu_sub, FUNC(k057714_device::read), FUNC(k057714_device::write));
+	map(0x7e800100, 0x7e8001ff).m(m_gcu_sub, FUNC(k057714_device::map));
 }
 
 uint8_t firebeat_kbm_state::keyboard_wheel_r(offs_t offset)

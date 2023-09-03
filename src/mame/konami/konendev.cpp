@@ -187,8 +187,8 @@ void konendev_state::main_map(address_map &map)
 	map(0x78a00004, 0x78a00007).portr("IN3"); // main door optic
 	map(0x78c00000, 0x78c003ff).rw("dpram", FUNC(cy7c131_device::right_r), FUNC(cy7c131_device::right_w));
 	map(0x78e00000, 0x78e00003).portr("IN0"); // buttons
-	map(0x79000000, 0x79000003).w(m_gcu, FUNC(k057714_device::fifo_w));
-	map(0x79800000, 0x798000ff).rw(m_gcu, FUNC(k057714_device::read), FUNC(k057714_device::write));
+	map(0x79000000, 0x79000001).w(m_gcu, FUNC(k057714_device::direct_w));
+	map(0x79800000, 0x798000ff).m(m_gcu, FUNC(k057714_device::map));
 	map(0x7a000000, 0x7a01ffff).ram().share("nvram0");
 	map(0x7a100000, 0x7a11ffff).ram().share("nvram1");
 	map(0x7e800000, 0x7effffff).rw("prgflash1", FUNC(fujitsu_29f016a_device::read), FUNC(fujitsu_29f016a_device::write)).umask32(0x000000ff);

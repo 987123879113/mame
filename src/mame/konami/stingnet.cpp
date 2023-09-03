@@ -205,7 +205,7 @@ void stingnet_state::main_map(address_map &map)
 	map(0x71000011, 0x71000011).rw(FUNC(stingnet_state::control_r), FUNC(stingnet_state::control_w));
 	map(0x72000000, 0x7200000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x72000010, 0x7200001f).rw(m_ata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
-	map(0x73000000, 0x730000ff).rw(m_gcu, FUNC(k057714_device::read), FUNC(k057714_device::write));
+	map(0x73000000, 0x730000ff).m(m_gcu, FUNC(k057714_device::map));
 	map(0x7ff00000, 0x7ff7ffff).mirror(0x00080000).rom().region("program", 0);
 }
 

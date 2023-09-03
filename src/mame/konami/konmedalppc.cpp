@@ -99,7 +99,7 @@ void konmedalppc_state::main_map(address_map &map)
 	map(0x70000000, 0x7000ffff).ram();
 	map(0x71100000, 0x7110001f).ram();
 	map(0x721001f0, 0x721001ff).rw(FUNC(konmedalppc_state::ata_r), FUNC(konmedalppc_state::ata_w));
-	map(0x73000000, 0x730000ff).rw(m_gcu, FUNC(k057714_device::read), FUNC(k057714_device::write));
+	map(0x73000000, 0x730000ff).m(m_gcu, FUNC(k057714_device::map));
 	map(0x7ff00000, 0x7ff7ffff).mirror(0x00080000).rom().region("program", 0);
 }
 

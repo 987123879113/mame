@@ -12,26 +12,29 @@ public:
 	// construction/destruction
 	k057714_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	void map(address_map &map);
+
 	auto irq_callback() { return m_irq.bind(); }
 
 	void set_pixclock(const XTAL &xtal);
 
 	int draw(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	uint32_t read(offs_t offset);
-	void write(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
-	void fifo_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	void direct_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	void vblank_w(int state);
 
 	struct framebuffer
 	{
 		uint32_t base;
-		int width;
-		int height;
-		int x;
-		int y;
-		int alpha;
+
+		uint16_t width, height;
+		uint16_t x, y;
+
+		bool enabled;
+
+		uint8_t brightness[2];
+		bool brightness_flags[2];
 	};
 
 protected:
@@ -42,7 +45,7 @@ protected:
 private:
 	enum {
 		VRAM_SIZE = 0x2000000,
-		VRAM_SIZE_HALF = 0x2000000 / 2
+		FB_PITCH = 1024,
 	};
 
 	void crtc_set_screen_params();
@@ -58,25 +61,24 @@ private:
 
 	std::unique_ptr<uint32_t[]> m_vram;
 	uint32_t m_vram_read_addr;
-	uint32_t m_vram_fifo0_addr;
-	uint32_t m_vram_fifo1_addr;
-	uint32_t m_vram_fifo0_mode;
-	uint32_t m_vram_fifo1_mode;
-	uint32_t m_command_fifo0[4];
-	uint32_t m_command_fifo0_ptr;
-	uint32_t m_command_fifo1[4];
-	uint32_t m_command_fifo1_ptr;
-	uint32_t m_ext_fifo_addr;
-	uint32_t m_ext_fifo_count;
-	uint32_t m_ext_fifo_line;
-	uint32_t m_ext_fifo_num_lines;
-	uint32_t m_ext_fifo_width;
+	uint32_t m_vram_fifo_addr[2];
+	uint32_t m_vram_fifo_mode[2];
+	uint32_t m_command_fifo[2][4];
+	uint32_t m_command_fifo_ptr[2];
 
-	framebuffer m_frame[4];
+	framebuffer m_display_window[4];
+	bool m_display_windows_disabled;
+
+	framebuffer m_window_direct;
+
 	uint32_t m_fb_origin_x;
 	uint32_t m_fb_origin_y;
-	uint32_t m_layer_select;
-	uint32_t m_reg_6c;
+	uint32_t m_priority;
+
+	uint16_t m_mixbuffer;
+	uint16_t m_bgcolor;
+	uint16_t m_direct_config;
+	uint16_t m_unk_reg;
 
 	uint32_t m_display_h_visarea;
 	uint32_t m_display_h_frontporch;

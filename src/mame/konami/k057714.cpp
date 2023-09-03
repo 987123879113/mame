@@ -1,7 +1,59 @@
 // license:BSD-3-Clause
 // copyright-holders:Ville Linde
+/*
+Konami 0000057714 "GCU" 2D Graphics Chip
 
-// Konami 0000057714 "GCU" 2D Graphics Chip
+
+TODO:
+- Firebeat games should show a colorful screen on boot but it's unclear exactly how that works.
+Might be related to bit 5 of reg 0x7a which is still unknown.
+Having that bit set allows for the code to bounce the window base offset around which causes the
+exact same glitchy effect as seen in real PCB videos.
+
+- [tropchnc] sets the visible area to 641x481 so there's a line of garbage visible at the bottom and right.
+firebeat and konendev games write 639x479 (or the appropriate visible area - 1) to the same registers.
+Programming error with tropchnc?
+
+
+Notes:
+- konendev games have a bunch of named functions using the GCU for reference
+- Tropical Chance has GCU priority, scaling, and sprite movement tests in the bootloader's test menu (must boot without CD inserted to access)
+
+
+All GCU-based games on all hardware I've seen so far have shared a common set of constants to reference specific features of the GCU.
+You can reference the list below to know what data you're working with easily.
+
+These are used generically as constants for the overall whole thing (surface, FIFO, etc) instead of a specific feature or functionality:
+0x42c020 - Primary Surface (m_display_window[0])
+0x42c021 - HW1 Surface (m_display_window[1])
+0x42c022 - HW2 Surface (m_display_window[2])
+0x42c023 - BG surface? (m_display_window[3])
+0x42c033 - Unknown surface
+0x42c029 - FIFO 0
+0x42c02a - FIFO 1
+
+These constants are used in specific contexts/features:
+0x42c024 - Used to reference bit 4 of priority register
+0x42c025 - Used to reference bit 0 of reg 0x0c
+0x42c026 - Used to reference bit 1 of reg 0x0c
+0x42c027 - Used to reference bit 2 of reg 0x0c
+0x42c028 - Used to reference bit 3 of reg 0x0c
+0x42c02b - Primary Surface brightness 1 (used when reading/writing reg 0x14 bits 2-6)
+0x42c02c - Primary Surface brightness 2 (used when reading/writing reg 0x14 bits 7-11)
+0x42c02d - HW1 Surface brightness 1
+0x42c02e - HW1 Surface brightness 2
+0x42c02f - HW2 Surface brightness 1
+0x42c030 - HW2 Surface brightness 2
+0x42c031 - Unknown surface brightness 1
+0x42c032 - Unknown surface brightness 2
+0x42c034 - Used to reference bit 0 of reg 0x1c. Gets set to open port for direct writes?
+0x42c035 - Used to reference bit 1 of reg 0x1c
+0x42c036 - Used to reference bit 2 of reg 0x1c
+0x42c037 - Used to reference bit 3 of reg 0x1c
+0x42c038 - Used to reference bit 4 of reg 0x1c
+0x42c039 - Used to reference bit 5 of reg 0x1c
+0x42c03a - Used to reference bit 6 of reg 0x1c
+*/
 
 #include "emu.h"
 #include "k057714.h"
@@ -14,8 +66,9 @@
 #define LOG_FIFO     (1U << 2)
 #define LOG_CMDEXEC  (1U << 3)
 #define LOG_DRAW     (1U << 4)
-// #define VERBOSE      (LOG_GENERAL | LOG_REGISTER | LOG_FIFO | LOG_CMDEXEC | LOG_DRAW)
-// #define LOG_OUTPUT_STREAM std::cout
+#define LOG_DISPLAY  (1U << 5)
+// #define VERBOSE      (LOG_GENERAL | LOG_REGISTER | LOG_FIFO | LOG_CMDEXEC | LOG_DRAW | LOG_DISPLAY)
+// #define VERBOSE      (LOG_GENERAL | LOG_REGISTER | LOG_CMDEXEC | LOG_DRAW | LOG_DISPLAY)
 
 #include "logmacro.h"
 
@@ -23,8 +76,9 @@
 #define LOGFIFO(...) LOGMASKED(LOG_FIFO, __VA_ARGS__)
 #define LOGCMDEXEC(...) LOGMASKED(LOG_CMDEXEC, __VA_ARGS__)
 #define LOGDRAW(...) LOGMASKED(LOG_DRAW, __VA_ARGS__)
+#define LOGDISPLAY(...) LOGMASKED(LOG_DISPLAY, __VA_ARGS__)
 
-DEFINE_DEVICE_TYPE(K057714, k057714_device, "k057714", "k057714_device GCU")
+DEFINE_DEVICE_TYPE(K057714, k057714_device, "k057714", "K057714 GCU")
 
 k057714_device::k057714_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, K057714, tag, owner, clock)
@@ -36,33 +90,17 @@ k057714_device::k057714_device(const machine_config &mconfig, const char *tag, d
 
 void k057714_device::device_start()
 {
-	m_vram = std::make_unique<uint32_t[]>(VRAM_SIZE/4);
+	m_vram = std::make_unique<uint32_t[]>(VRAM_SIZE / 4);
 
-	save_pointer(NAME(m_vram), VRAM_SIZE/4);
+	save_pointer(NAME(m_vram), VRAM_SIZE / 4);
 	save_item(NAME(m_vram_read_addr));
-	save_item(NAME(m_vram_fifo0_addr));
-	save_item(NAME(m_vram_fifo1_addr));
-	save_item(NAME(m_vram_fifo0_mode));
-	save_item(NAME(m_vram_fifo1_mode));
-	save_item(NAME(m_command_fifo0));
-	save_item(NAME(m_command_fifo0_ptr));
-	save_item(NAME(m_command_fifo1));
-	save_item(NAME(m_command_fifo1_ptr));
-	save_item(NAME(m_ext_fifo_addr));
-	save_item(NAME(m_ext_fifo_count));
-	save_item(NAME(m_ext_fifo_line));
-	save_item(NAME(m_ext_fifo_num_lines));
-	save_item(NAME(m_ext_fifo_width));
-	save_item(STRUCT_MEMBER(m_frame, base));
-	save_item(STRUCT_MEMBER(m_frame, width));
-	save_item(STRUCT_MEMBER(m_frame, height));
-	save_item(STRUCT_MEMBER(m_frame, x));
-	save_item(STRUCT_MEMBER(m_frame, y));
-	save_item(STRUCT_MEMBER(m_frame, alpha));
+	save_item(NAME(m_vram_fifo_addr));
+	save_item(NAME(m_vram_fifo_mode));
+	save_item(NAME(m_command_fifo));
+	save_item(NAME(m_command_fifo_ptr));
+	save_item(NAME(m_display_windows_disabled));
 	save_item(NAME(m_fb_origin_x));
 	save_item(NAME(m_fb_origin_y));
-	save_item(NAME(m_layer_select));
-	save_item(NAME(m_reg_6c));
 	save_item(NAME(m_display_h_visarea));
 	save_item(NAME(m_display_h_frontporch));
 	save_item(NAME(m_display_h_backporch));
@@ -72,23 +110,46 @@ void k057714_device::device_start()
 	save_item(NAME(m_display_v_backporch));
 	save_item(NAME(m_display_v_syncpulse));
 	save_item(NAME(m_pixclock));
+	save_item(NAME(m_irqctrl));
+	save_item(NAME(m_priority));
+	save_item(NAME(m_mixbuffer));
+	save_item(NAME(m_direct_config));
+	save_item(NAME(m_unk_reg));
+
+	save_item(STRUCT_MEMBER(m_display_window, enabled));
+	save_item(STRUCT_MEMBER(m_display_window, base));
+	save_item(STRUCT_MEMBER(m_display_window, width));
+	save_item(STRUCT_MEMBER(m_display_window, height));
+	save_item(STRUCT_MEMBER(m_display_window, x));
+	save_item(STRUCT_MEMBER(m_display_window, y));
+	save_item(STRUCT_MEMBER(m_display_window, brightness));
+	save_item(STRUCT_MEMBER(m_display_window, brightness_flags));
+
+	save_item(STRUCT_MEMBER(m_window_direct, enabled));
+	save_item(STRUCT_MEMBER(m_window_direct, base));
+	save_item(STRUCT_MEMBER(m_window_direct, width));
+	save_item(STRUCT_MEMBER(m_window_direct, height));
+	save_item(STRUCT_MEMBER(m_window_direct, x));
+	save_item(STRUCT_MEMBER(m_window_direct, y));
 }
 
 void k057714_device::device_reset()
 {
-	// Default display width/height are a guess.
-	// All Firebeat games except beatmania III, which uses 640x480, will set the
-	// display width/height through registers.
-	// The assumption here is that since beatmania III doesn't set the display width/height
-	// then the game is assuming that it's already at the correct settings upon boot.
+	/*
+	Default display width/height are a guess.
+	All Firebeat games except beatmania III, which uses 640x480, will set the
+	display width/height through registers.
+	The assumption here is that since beatmania III doesn't set the display width/height
+	then the game is assuming that it's already at the correct settings upon boot.
 
-	// Timing information taken from table found in all Firebeat games.
-	// table idx (h vis area, front porch, sync pulse, back porch, h total) (v vis area, front porch, sync pulse, back porch, v total)
-	// 0 (640, 16, 96, 48 = 800) (480, 10, 2, 33 = 525)
-	// 1 (512, 5, 96, 72 = 685) (384, 6, 4, 22 = 416)
-	// 2 (800, 40, 128, 88 = 1056) (600, 1, 4, 23 = 628)
-	// 3 (640, 20, 23, 165 = 848) (384, 6, 1, 27 = 418)
-	// 4 (640, 10, 21, 10 = 681) (480, 10, 2, 33 = 525)
+	Timing information taken from table found in all Firebeat games.
+	table idx (h vis area, front porch, sync pulse, back porch, h total) (v vis area, front porch, sync pulse, back porch, v total)
+	0 (640, 16, 96, 48 = 800) (480, 10, 2, 33 = 525)
+	1 (512, 5, 96, 72 = 685) (384, 6, 4, 22 = 416)
+	2 (800, 40, 128, 88 = 1056) (600, 1, 4, 23 = 628)
+	3 (640, 20, 23, 165 = 848) (384, 6, 1, 27 = 418)
+	4 (640, 10, 21, 10 = 681) (480, 10, 2, 33 = 525)
+	*/
 	m_display_h_visarea = 640;
 	m_display_h_frontporch = 16;
 	m_display_h_backporch = 48;
@@ -97,50 +158,326 @@ void k057714_device::device_reset()
 	m_display_v_frontporch = 10;
 	m_display_v_backporch = 33;
 	m_display_v_syncpulse = 2;
-	m_pixclock = 25'175'000; // 25.175_MHz_XTAL, default for Firebeat but maybe not other machiness. The value can be changed externally
+	m_pixclock = 25'175'000; // 25.175_MHz_XTAL, default for Firebeat but maybe not other machines. The value can be changed externally
 	crtc_set_screen_params();
 
 	m_vram_read_addr = 0;
-	m_command_fifo0_ptr = 0;
-	m_command_fifo1_ptr = 0;
-	m_vram_fifo0_addr = 0;
-	m_vram_fifo1_addr = 0;
+	std::fill(std::begin(m_vram_fifo_addr), std::end(m_vram_fifo_addr), 0);
+	std::fill(std::begin(m_vram_fifo_mode), std::end(m_vram_fifo_mode), 0);
+	std::fill(std::begin(m_command_fifo_ptr), std::end(m_command_fifo_ptr), 0);
+
+	for (int i = 0; i < std::size(m_command_fifo); i++)
+		std::fill(std::begin(m_command_fifo[i]), std::end(m_command_fifo[i]), 0);
+
+	m_irqctrl = 0;
+	m_mixbuffer = 0;
+	m_bgcolor = 0;
+	m_direct_config = 0;
+	m_unk_reg = 0;
+
+	m_display_windows_disabled = false;
 
 	m_fb_origin_x = 0;
 	m_fb_origin_y = 0;
 
-	m_reg_6c = 0;
-
-	for (auto & elem : m_frame)
+	for (auto & elem : m_display_window)
 	{
+		elem.enabled = false;
 		elem.base = 0;
-		elem.width = 0;
-		elem.height = 0;
-		elem.alpha = (16 << 7) | (16 << 2); // Set alpha 1 and 2 to 16 (100%) and blend mode to 0
+		elem.width = elem.height = 0;
+		elem.x = elem.y = 0;
+		std::fill(std::begin(elem.brightness), std::end(elem.brightness), 16);
+		std::fill(std::begin(elem.brightness_flags), std::end(elem.brightness_flags), false);
 	}
+
+	m_window_direct.enabled = false;
+	m_window_direct.base = 0;
+	m_window_direct.width = m_window_direct.height = 0;
+	m_window_direct.x = m_window_direct.y = 0;
 
 	memset(m_vram.get(), 0, VRAM_SIZE);
 }
 
 void k057714_device::device_stop()
 {
-#if DUMP_VRAM
-	char filename[200];
-	sprintf(filename, "%s_vram.bin", basetag());
-	printf("dumping %s\n", filename);
-	FILE *file = fopen(filename, "wb");
-	int i;
-
-	for (i=0; i < VRAM_SIZE/4; i++)
+	if (DUMP_VRAM)
 	{
-		fputc((m_vram[i] >> 24) & 0xff, file);
-		fputc((m_vram[i] >> 16) & 0xff, file);
-		fputc((m_vram[i] >> 8) & 0xff, file);
-		fputc((m_vram[i] >> 0) & 0xff, file);
-	}
+		const std::string filename = util::string_format("%s_vram.bin", basetag());
 
-	fclose(file);
-#endif
+		FILE *file = fopen(filename.c_str(), "wb");
+
+		if (!file)
+			fatalerror("couldn't open %s for writing\n", filename);
+
+		LOG("dumping %s\n", filename);
+
+		for (int i = 0; i < VRAM_SIZE / 4; i++)
+		{
+			fputc(BIT(m_vram[i], 24, 8), file);
+			fputc(BIT(m_vram[i], 16, 8), file);
+			fputc(BIT(m_vram[i], 8, 8), file);
+			fputc(BIT(m_vram[i], 0, 8), file);
+		}
+
+		fclose(file);
+	}
+}
+
+void k057714_device::map(address_map &map)
+{
+	map(0x00, 0x01).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x00 %02x\n", machine().describe_context(), data);
+		m_display_h_visarea = data + 1;
+		crtc_set_screen_params();
+	}));
+
+	map(0x02, 0x03).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x02 %02x\n", machine().describe_context(), data);
+		m_display_h_frontporch = BIT(data, 8, 8) + 1;
+		m_display_h_backporch = BIT(data, 0, 8) + 1;
+		crtc_set_screen_params();
+	}));
+
+	map(0x04, 0x05).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x04 %02x\n", machine().describe_context(), data);
+		m_display_v_visarea = data + 1;
+		crtc_set_screen_params();
+	}));
+
+	map(0x06, 0x07).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x06 %02x\n", machine().describe_context(), data);
+		m_display_v_frontporch = BIT(data, 8, 8) + 1;
+		m_display_v_backporch = BIT(data, 0, 8) + 1;
+		crtc_set_screen_params();
+	}));
+
+	map(0x08, 0x09).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x08 %02x\n", machine().describe_context(), data);
+		m_display_h_syncpulse = BIT(data, 8, 8) + 1;
+		m_display_v_syncpulse = BIT(data, 0, 8) + 1;
+		crtc_set_screen_params();
+	}));
+
+	map(0x0a, 0x0b).lw16(NAME([this] (uint16_t data) {
+		// Usage unknown but is set to 0x64 during initialization
+		LOGREGISTER("%s: reg 0x0a %02x\n", machine().describe_context(), data);
+	}));
+
+	map(0x0c, 0x0d).lw16(NAME([this] (uint16_t data) {
+		// Usage unknown but is set during initialization for some games
+		// konendev games set bit 2 to zero on initialization, bits are never set to 1
+		// tropchnc sets bits 0 and 1 to 0 on initialization, never sets anything to 1
+		LOGREGISTER("%s: reg 0x0c %02x\n", machine().describe_context(), data);
+	}));
+
+	map(0x0e, 0x0f).lw16(NAME([this] (uint16_t data) {
+		// Values are typically 1, 2, 2, 6, 2
+		const int val1 = BIT(data, 13);
+		const int val2 = BIT(data, 10, 3);
+		const int val3 = BIT(data, 8, 2);
+		const int val4 = BIT(data, 4, 4);
+		const int val5 = BIT(data, 1, 3);
+		const int val6 = BIT(data, 0); // Only value to get set separately in a second write after the previous values are set. Some kind of enable bit?
+		LOGREGISTER("%s: reg 0x0e: %04X %d %d %d %d %d %d\n", machine().describe_context(), data, val1, val2, val3, val4, val5, val6);
+		m_unk_reg = data;
+	}));
+
+	map(0x10, 0x11).lw16(NAME([this] (uint16_t data) {
+		// bit 1 also gets checked and seems IRQ-related but I'm not sure what it does
+		LOGREGISTER("%s: reg 0x10 set to %04x\n", machine().describe_context(), data);
+
+		if (!BIT(data, 0))
+			m_irq(CLEAR_LINE);
+
+		m_irqctrl = data;
+	}));
+
+	map(0x12, 0x13).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x12 %02x\n", machine().describe_context(), data);
+
+		m_priority = data;
+
+		for (int i = 0; i < 4; i++)
+			m_display_window[i].enabled = BIT(data, 3 - i) == 1;
+
+		m_display_windows_disabled = BIT(data, 4);
+	}));
+
+	map(0x14, 0x1b).lw16(NAME([this] (offs_t offset, uint16_t data) {
+		LOGREGISTER("%s: reg 0x14 %02x\n", machine().describe_context(), data);
+
+		/*
+		Called "brightness" in a few games
+		Some games animate one of the values instead of the other and it's inconsistent which,
+		and the flags can be false even if the brightness is meant to be adjusted,
+		so it's not an enable/disable flag.
+		*/
+		for (int i = 0; i < 2; i++)
+		{
+			m_display_window[offset].brightness[i] = BIT(data, i * 5 + 2, 5);
+			m_display_window[offset].brightness_flags[i] = BIT(data, i) == 1;
+		}
+	}));
+
+	map(0x1c, 0x1d).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x1c %02x\n", machine().describe_context(), data);
+
+		// set to 1 on "media bus" access
+		if (BIT(data, 0) && !BIT(m_direct_config, 0))
+		{
+			m_window_direct.x = 0;
+			m_window_direct.y = 0;
+		}
+
+		m_window_direct.enabled = BIT(data, 0);
+		m_direct_config = data;
+	}));
+
+	map(0x1e, 0x1f).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x1e %02x\n", machine().describe_context(), data);
+
+		/*
+		Set during "BG color init" in Keyboardmania's boot process.
+		A color in the normal format is written here.
+		Some Firebeat bootloaders set this to 0x1ce7 (#070707) but all games set it back to 0 after booting.
+		*/
+		m_bgcolor = data;
+	}));
+
+	map(0x20, 0x2f).lw32(NAME([this] (offs_t offset, uint32_t data) {
+		LOGREGISTER("%s: reg 0x%02x %02x\n", machine().describe_context(), 0x20 + offset * 2, data);
+		m_display_window[offset].x = BIT(data, 0, 16);
+		m_display_window[offset].y = BIT(data, 16, 16);
+	}));
+
+	map(0x30, 0x3f).lw16(NAME([this] (offs_t offset, uint16_t data) {
+		LOGREGISTER("%s: reg 0x%02x %02x\n", machine().describe_context(), 0x30 + offset * 2, data);
+		if (offset & 1)
+			m_display_window[offset >> 1].width = data;
+		else
+			m_display_window[offset >> 1].height = data;
+	}));
+
+	map(0x40, 0x4f).lw32(NAME([this] (offs_t offset, uint32_t data) {
+		LOGREGISTER("%s: reg 0x%02x %02x\n", machine().describe_context(), 0x40 + offset * 4, data);
+		m_display_window[offset].base = data;
+	}));
+
+	map(0x50, 0x53).lw32(NAME([this] (uint32_t data) {
+		LOGREGISTER("%s: reg 0x50 %02x\n", machine().describe_context(), data);
+		m_window_direct.x = BIT(data, 0, 16);
+		m_window_direct.y = BIT(data, 16, 16);
+	}));
+
+	map(0x54, 0x57).lw16(NAME([this] (offs_t offset, uint16_t data) {
+		LOGREGISTER("%s: reg 0x%02x %02x\n", machine().describe_context(), 0x54 + offset * 2, data);
+		if (offset & 1)
+			m_window_direct.width = data;
+		else
+			m_window_direct.height = data;
+	}));
+
+	map(0x58, 0x5b).lw32(NAME([this] (uint32_t data) {
+		LOGREGISTER("%s: reg 0x58 %02x\n", machine().describe_context(), data);
+		m_window_direct.base = data;
+	}));
+
+	map(0x5c, 0x5f).lw32(NAME([this] (uint32_t data) {
+		LOGFIFO("%s: reg 0x5c %02x\n", machine().describe_context(), data);
+		m_vram_read_addr = data >> 1;
+	}));
+
+	map(0x60, 0x67).lw32(NAME([this] (offs_t offset, uint32_t data) {
+		LOGFIFO("%s: reg 0x%02x %02x\n", machine().describe_context(), 0x60 + offset * 4, data);
+		m_vram_fifo_addr[offset] = data >> 1;
+	}));
+
+	map(0x68, 0x6b).lw16(NAME([this] (offs_t offset, uint16_t data) {
+		LOGFIFO("%s: reg 0x%02x %02x\n", machine().describe_context(), 0x68 + offset * 2, data);
+		m_vram_fifo_mode[offset] = data;
+	}));
+
+	map(0x6c, 0x6d).lw16(NAME([this] (uint16_t data) {
+		// Unknown, initialized to 0 during boot in some games
+		LOGREGISTER("%s: reg 0x6c %02x\n", machine().describe_context(), data);
+	}));
+
+	map(0x6e, 0x6f).lw16(NAME([this] (uint16_t data) {
+		LOGREGISTER("%s: reg 0x6e %02x\n", machine().describe_context(), data);
+
+		/*
+		Called the "mixbuffer" in Keyboardmania's boot process
+		Gets set using a hardcoded value during boot process.
+		kbm sets this to 0x030b
+		bm3final sets this to 0x0fff
+		ppp sets this to 0x0020
+		*/
+		m_mixbuffer = data;
+	}));
+
+	map(0x70, 0x77).lw32(NAME([this] (offs_t offset, uint32_t data) {
+		// LOGREGISTER("%s: reg 0x%02x %02x\n", machine().describe_context(), 0x70 + offset * 4, data);
+
+		if (m_vram_fifo_mode[offset] & 0x100)
+		{
+			// write to command fifo
+			m_command_fifo[offset][m_command_fifo_ptr[offset]] = data;
+			m_command_fifo_ptr[offset]++;
+
+			// execute when filled
+			if (m_command_fifo_ptr[offset] >= 4)
+			{
+				LOGFIFO("GCU FIFO%d exec: %08X %08X %08X %08X\n", offset, m_command_fifo[offset][0], m_command_fifo[offset][1], m_command_fifo[offset][2], m_command_fifo[offset][3]);
+				execute_command(m_command_fifo[offset]);
+				m_command_fifo_ptr[offset] = 0;
+			}
+		}
+		else
+		{
+			// write to VRAM fifo
+			m_vram[m_vram_fifo_addr[offset]] = data;
+			m_vram_fifo_addr[offset]++;
+		}
+	}));
+
+	map(0x78, 0x79).lr16(NAME([this] () -> uint16_t {
+		// Related to IRQs?
+		// kbm checks bits 0 and 1
+		return m_irqctrl;
+	}));
+
+	map(0x7a, 0x7b).lr16(NAME([this] () -> uint16_t {
+		uint32_t r = 0;
+
+		/*
+		Bits 0 and 2 are checked before sending more commands to the FIFO
+		Bits 1 and 3 are also related to FIFO 0 and 1 status but not sure what exactly
+		*/
+		if (m_command_fifo_ptr[0] < 4)
+			r |= 1;
+
+		if (m_command_fifo_ptr[1] < 4)
+			r |= 4;
+
+		/*
+		Some kind of busy status flag relating to direct access port operations?
+		The way this bit is used:
+		1) loop while reg 0x7a bit 4 is set to 1
+		2) set reg 0x5c address
+		3) loop while reg 0x7a bit 4 is set to 1
+		4) read 0x80 bytes of data from VRAM
+		*/
+		r &= ~0x10;
+
+		// Another busy flag
+		r &= ~0x20;
+
+		return r;
+	}));
+
+	map(0x80, 0xff).lr32(NAME([this] (offs_t offset) -> uint32_t {
+		return m_vram[m_vram_read_addr + offset];
+	}));
 }
 
 void k057714_device::set_pixclock(const XTAL &xtal)
@@ -159,372 +496,90 @@ inline void k057714_device::crtc_set_screen_params()
 	screen().configure(htotal, vtotal, visarea, HZ_TO_ATTOSECONDS(m_pixclock) * htotal * vtotal);
 }
 
-uint32_t k057714_device::read(offs_t offset)
+void k057714_device::vblank_w(int state)
 {
-	int reg = offset * 4;
-
-	// VRAM Read
-	if (reg >= 0x80 && reg < 0x100)
-	{
-		return m_vram[m_vram_read_addr + offset - 0x20];
-	}
-
-	switch (reg)
-	{
-		case 0x78:      // GCU Status
-			/* ppd checks bits 0x0041 of the upper halfword on interrupt */
-			return 0xffff0005;
-
-		default:
-			break;
-	}
-
-	return 0xffffffff;
+	if (state && (m_irqctrl & 1))
+		m_irq(ASSERT_LINE);
 }
 
-void k057714_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
+void k057714_device::direct_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	int reg = offset * 4;
+	// Bit 0 if the config register must have been set to 1 for this to be open
+	if (!m_window_direct.enabled)
+		return;
 
-	switch (reg)
+	uint16_t *vram16 = (uint16_t*)m_vram.get();
+
+	if (m_window_direct.x > 0) // first write of every new line is a dummy write
 	{
-		case 0x00:
-			if (ACCESSING_BITS_16_31)
-			{
-				m_display_h_visarea = ((data >> 16) & 0xffff) + 1;
-			}
-			if (ACCESSING_BITS_0_15)
-			{
-				m_display_h_frontporch = ((data >> 8) & 0xff) + 1;
-				m_display_h_backporch = (data & 0xff) + 1;
-			}
-			crtc_set_screen_params();
-			break;
-
-		case 0x04:
-			if (ACCESSING_BITS_16_31)
-			{
-				m_display_v_visarea = ((data >> 16) & 0xffff) + 1;
-			}
-			if (ACCESSING_BITS_0_15)
-			{
-				m_display_v_frontporch = ((data >> 8) & 0xff) + 1;
-				m_display_v_backporch = (data & 0xff) + 1;
-			}
-			crtc_set_screen_params();
-			break;
-
-		case 0x08:
-			if (ACCESSING_BITS_16_31)
-			{
-				m_display_h_syncpulse = ((data >> 24) & 0xff) + 1;
-				m_display_v_syncpulse = ((data >> 16) & 0xff) + 1;
-				crtc_set_screen_params();
-			}
-			break;
-
-		case 0x10:
-			/* IRQ clear/enable; ppd writes bit off then on in response to interrupt */
-			/* it enables bits 0x41, but 0x01 seems to be the one it cares about */
-			if (ACCESSING_BITS_16_31)
-			{
-				data >>= 16;
-
-				if (!BIT(data, 0))
-				{
-					m_irq(CLEAR_LINE);
-				}
-
-				m_irqctrl = data;
-			}
-			if (ACCESSING_BITS_0_15)
-			{
-				m_layer_select = data;
-				LOGREGISTER("%s_w: %02X, %08X, %08X\n", basetag(), reg, data, mem_mask);
-			}
-			break;
-
-		case 0x14:      // Framebuffer 0/1 alpha values
-			if (ACCESSING_BITS_16_31)
-				m_frame[0].alpha = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[1].alpha = data & 0xffff;
-			break;
-
-		case 0x18:      // Framebuffer 0/1 alpha values
-			if (ACCESSING_BITS_16_31)
-				m_frame[2].alpha = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[3].alpha = data & 0xffff;
-			break;
-
-		case 0x1c:      // set to 1 on "media bus" access
-			if ((data >> 16) == 1)
-			{
-				m_ext_fifo_count = 0;
-				m_ext_fifo_line = 0;
-			}
-			break;
-
-		case 0x20:      // Framebuffer 0 Origin(?)
-			if (ACCESSING_BITS_16_31)
-				m_frame[0].y = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[0].x = data & 0xffff;
-			break;
-
-		case 0x24:      // Framebuffer 1 Origin(?)
-			if (ACCESSING_BITS_16_31)
-				m_frame[1].y = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[1].x = data & 0xffff;
-			break;
-
-		case 0x28:      // Framebuffer 2 Origin(?)
-			if (ACCESSING_BITS_16_31)
-				m_frame[2].y = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[2].x = data & 0xffff;
-			break;
-
-		case 0x2c:      // Framebuffer 3 Origin(?)
-			if (ACCESSING_BITS_16_31)
-				m_frame[3].y = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[3].x = data & 0xffff;
-			break;
-
-		case 0x30:      // Framebuffer 0 Dimensions
-			if (ACCESSING_BITS_16_31)
-				m_frame[0].height = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[0].width = data & 0xffff;
-			LOGREGISTER("%s FB0 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-			break;
-
-		case 0x34:      // Framebuffer 1 Dimensions
-			if (ACCESSING_BITS_16_31)
-				m_frame[1].height = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[1].width = data & 0xffff;
-			LOGREGISTER("%s FB1 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-			break;
-
-		case 0x38:      // Framebuffer 2 Dimensions
-			if (ACCESSING_BITS_16_31)
-				m_frame[2].height = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[2].width = data & 0xffff;
-			LOGREGISTER("%s FB2 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-			break;
-
-		case 0x3c:      // Framebuffer 3 Dimensions
-			if (ACCESSING_BITS_16_31)
-				m_frame[3].height = (data >> 16) & 0xffff;
-			if (ACCESSING_BITS_0_15)
-				m_frame[3].width = data & 0xffff;
-			LOGREGISTER("%s FB3 Dimensions: W %04X, H %04X\n", basetag(), data & 0xffff, (data >> 16) & 0xffff);
-			break;
-
-		case 0x40:      // Framebuffer 0 Base
-			m_frame[0].base = data;
-			LOGREGISTER("%s FB0 Base: %08X\n", basetag(), data);
-			break;
-
-		case 0x44:      // Framebuffer 1 Base
-			m_frame[1].base = data;
-			LOGREGISTER("%s FB1 Base: %08X\n", basetag(), data);
-			break;
-
-		case 0x48:      // Framebuffer 2 Base
-			m_frame[2].base = data;
-			LOGREGISTER("%s FB2 Base: %08X\n", basetag(), data);
-			break;
-
-		case 0x4c:      // Framebuffer 3 Base
-			m_frame[3].base = data;
-			LOGREGISTER("%s FB3 Base: %08X\n", basetag(), data);
-			break;
-
-		case 0x54:
-			if (ACCESSING_BITS_16_31)
-				m_ext_fifo_num_lines = data >> 16;
-			if (ACCESSING_BITS_0_15)
-				m_ext_fifo_width = data & 0xffff;
-			break;
-
-		case 0x58:
-			m_ext_fifo_addr = (data & 0xffffff);
-			break;
-
-		case 0x5c:      // VRAM Read Address
-			m_vram_read_addr = (data & 0xffffff) / 2;
-			break;
-
-		case 0x60:      // VRAM Port 0 Write Address
-			m_vram_fifo0_addr = (data & 0xffffff) / 2;
-			break;
-
-		case 0x68:      // VRAM Port 0/1 Mode
-			if (ACCESSING_BITS_16_31)
-				m_vram_fifo0_mode = data >> 16;
-			if (ACCESSING_BITS_0_15)
-				m_vram_fifo1_mode = data & 0xffff;
-			break;
-
-		case 0x70:      // VRAM Port 0 Write FIFO
-			if (m_vram_fifo0_mode & 0x100)
-			{
-				// write to command fifo
-				m_command_fifo0[m_command_fifo0_ptr] = data;
-				m_command_fifo0_ptr++;
-
-				// execute when filled
-				if (m_command_fifo0_ptr >= 4)
-				{
-					LOGFIFO("GCU FIFO0 exec: %08X %08X %08X %08X\n", m_command_fifo0[0], m_command_fifo0[1], m_command_fifo0[2], m_command_fifo0[3]);
-					execute_command(m_command_fifo0);
-					m_command_fifo0_ptr = 0;
-				}
-			}
-			else
-			{
-				// write to VRAM fifo
-				m_vram[m_vram_fifo0_addr] = data;
-				m_vram_fifo0_addr++;
-			}
-			break;
-
-		case 0x64:      // VRAM Port 1 Write Address
-			m_vram_fifo1_addr = (data & 0xffffff) / 2;
-			break;
-
-		case 0x74:      // VRAM Port 1 Write FIFO
-			if (m_vram_fifo1_mode & 0x100)
-			{
-				// write to command fifo
-				m_command_fifo1[m_command_fifo1_ptr] = data;
-				m_command_fifo1_ptr++;
-
-				// execute when filled
-				if (m_command_fifo1_ptr >= 4)
-				{
-					LOGFIFO("GCU FIFO1 exec: %08X %08X %08X %08X\n", m_command_fifo1[0], m_command_fifo1[1], m_command_fifo1[2], m_command_fifo1[3]);
-					execute_command(m_command_fifo1);
-					m_command_fifo1_ptr = 0;
-				}
-			}
-			else
-			{
-				// write to VRAM fifo
-				m_vram[m_vram_fifo1_addr] = data;
-				m_vram_fifo1_addr++;
-			}
-			break;
-
-		case 0x6c:
-			if (ACCESSING_BITS_0_15)
-			{
-				m_reg_6c = data & 0xffff;
-			}
-			break;
-
-		default:
-			LOGREGISTER("%s_w: %02X, %08X, %08X\n", basetag(), reg, data, mem_mask);
-			break;
+		const uint32_t addr = m_window_direct.base + (m_window_direct.y * FB_PITCH) + (m_window_direct.x - 1);
+		vram16[addr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = data;
 	}
-}
+	m_window_direct.x++;
 
-void k057714_device::fifo_w(offs_t offset, uint32_t data, uint32_t mem_mask)
-{
-	if (ACCESSING_BITS_16_31)
+	if (m_window_direct.x > m_window_direct.width + 1)
 	{
-		if (m_ext_fifo_count != 0)      // first access is a dummy write
-		{
-			int count = m_ext_fifo_count - 1;
-			uint32_t addr = (((m_ext_fifo_addr >> 10) + m_ext_fifo_line) * 1024) + count;
-
-			if ((count & 1) == 0)
-			{
-				m_vram[addr >> 1] &= 0x0000ffff;
-				m_vram[addr >> 1] |= (data & 0xffff0000);
-			}
-			else
-			{
-				m_vram[addr >> 1] &= 0xffff0000;
-				m_vram[addr >> 1] |= (data >> 16);
-			}
-		}
-		m_ext_fifo_count++;
-
-		if (m_ext_fifo_count > m_ext_fifo_width+1)
-		{
-			m_ext_fifo_line++;
-			m_ext_fifo_count = 0;
-		}
+		m_window_direct.y++;
+		m_window_direct.x = 0;
 	}
 }
 
 void k057714_device::draw_frame(int frame, bitmap_ind16 &bitmap, const rectangle &cliprect, bool inverse_trans)
 {
-	if (m_frame[frame].height == 0 || m_frame[frame].width == 0)
-		return;
+	// if (m_display_window[frame].height == 0 || m_display_window[frame].width == 0)
+	// 	return;
 
-	int height = m_frame[frame].height + 1;
-	int width = m_frame[frame].width + 1;
-	int alpha = m_frame[frame].alpha;
-	int blend_mode = alpha & 3;
-	int alpha1 = (alpha >> 7) & 0x1f; // beatmania III uses this for blend mode 1
-	int alpha2 = (alpha >> 2) & 0x1f; // But pop'n music has alpha 1 and 2 the same for blend mode 1
-
-	if (blend_mode == 2)
-	{
-		alpha1 = (alpha2 * 16) / alpha1;
-	}
-
-	uint16_t *vram16 = (uint16_t*)m_vram.get();
-
-	int fb_pitch = 1024;
+	int height = m_display_window[frame].height + 1;
+	int width = m_display_window[frame].width + 1;
 
 	uint16_t trans_value = inverse_trans ? 0x8000 : 0x0000;
 
-	if (m_frame[frame].y + height > cliprect.max_y)
-		height = cliprect.max_y - m_frame[frame].y;
-	if (m_frame[frame].x + width > cliprect.max_x)
-		width = cliprect.max_x - m_frame[frame].x;
+	/*
+	There are often times where the base window (3) is enabled but has a width of 0 while the height is set properly.
+	It seems to be a valid case but I am not sure exactly how it works.
+	For example, popn8 has only window 3 enabled with the width set to 0 during boot where you'd normally see the color test pattern.
+	*/
 
-	for (int j = 0; j <= height; j++)
+	if (m_display_window[frame].height == 0 || m_display_window[frame].y + height > cliprect.max_y)
+		height = cliprect.max_y - m_display_window[frame].y;
+
+	if (m_display_window[frame].width == 0 || m_display_window[frame].x + width > cliprect.max_x)
+		width = cliprect.max_x - m_display_window[frame].x;
+
+	uint16_t *vram16 = (uint16_t*)m_vram.get();
+
+	for (int j = 0; j < height; j++)
 	{
-		uint16_t *const d = &bitmap.pix(j + m_frame[frame].y, m_frame[frame].x);
-		int li = (j * fb_pitch);
-		for (int i = 0; i <= width; i++)
+		uint16_t *const d = &bitmap.pix(j + m_display_window[frame].y, m_display_window[frame].x);
+
+		int li = (j * FB_PITCH);
+
+		for (int i = 0; i < width; i++)
 		{
-			uint16_t pix = vram16[(m_frame[frame].base + li + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1, 0)];
+			uint16_t pix = vram16[(m_display_window[frame].base + li + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
+
 			if ((pix & 0x8000) != trans_value)
 			{
-				uint32_t r = (pix >> 10) & 0x1f;
-				uint32_t g = (pix >> 5) & 0x1f;
-				uint32_t b = (pix >> 0) & 0x1f;
+				uint8_t r = BIT(pix, 10, 5);
+				uint8_t g = BIT(pix, 5, 5);
+				uint8_t b = BIT(pix, 0, 5);
 
-				r = (r * alpha1) >> 4;
-				g = (g * alpha1) >> 4;
-				b = (b * alpha1) >> 4;
+				// kbm uses brightness[0] but bm3final uses brightness[1]
+				r = (r * m_display_window[frame].brightness[0]) >> 4;
+				g = (g * m_display_window[frame].brightness[0]) >> 4;
+				b = (b * m_display_window[frame].brightness[0]) >> 4;
 
-				if (r > 0x1f) r = 0x1f;
-				if (g > 0x1f) g = 0x1f;
-				if (b > 0x1f) b = 0x1f;
+				r = (r * m_display_window[frame].brightness[1]) >> 4;
+				g = (g * m_display_window[frame].brightness[1]) >> 4;
+				b = (b * m_display_window[frame].brightness[1]) >> 4;
 
-				d[i] = (r << 10) | (g << 5) | b;
+				uint16_t fr = std::clamp<uint16_t>(r, 0, 0x1f);
+				uint16_t fg = std::clamp<uint16_t>(g, 0, 0x1f);
+				uint16_t fb = std::clamp<uint16_t>(b, 0, 0x1f);
+
+				d[i] = (fr << 10) | (fg << 5) | fb;
 			}
 		}
-	}
-}
-
-void k057714_device::vblank_w(int state)
-{
-	if ((state) && (m_irqctrl & 1))
-	{
-		m_irq(ASSERT_LINE);
 	}
 }
 
@@ -532,73 +587,111 @@ int k057714_device::draw(screen_device &screen, bitmap_ind16 &bitmap, const rect
 {
 	bitmap.fill(0, cliprect);
 
-	bool inverse_trans = false;
+	if (m_display_windows_disabled)
+		return 0;
 
-	// most likely wrong, inverse transparency is only used by kbm
-	// beatmania III sets m_reg_6c to 0xfff but it doesn't use inverse transparency
-	if ((m_reg_6c & 0xf) != 0 && m_reg_6c != 0xfff)
-		inverse_trans = true;
+	bool inverse_trans = (m_mixbuffer & 0x0f) && m_mixbuffer != 0xfff;
 
-	draw_frame((m_layer_select >> 8) & 3, bitmap, cliprect, inverse_trans);
-	draw_frame((m_layer_select >> 10) & 3, bitmap, cliprect, inverse_trans);
-	draw_frame((m_layer_select >> 12) & 3, bitmap, cliprect, inverse_trans);
-	draw_frame((m_layer_select >> 14) & 3, bitmap, cliprect, inverse_trans);
+	if (m_priority != 0)
+		LOGDISPLAY("%s draw %04x %04x %04x %04x | cliprect[%d %d %d %d]\n", basetag(), m_priority, m_mixbuffer, m_unk_reg, m_bgcolor, cliprect.min_x, cliprect.min_y, cliprect.max_x, cliprect.max_y);
+
+	for (int i = 0; i < 4; i++)
+	{
+		const auto window = BIT(m_priority, 8 + i * 2, 2);
+
+		const auto idx = 3 - window;
+		const auto enabled = BIT(m_priority, idx);
+
+		if (m_priority != 0)
+		{
+			const auto mixbuf_val1 = BIT(m_mixbuffer, 4 + idx * 2, 2);
+			const auto mixbuf_val2 = BIT(m_mixbuffer, idx);
+
+			LOGDISPLAY("\t%d: window[%d] enabled[%d] mix[%d %d] base[%08x %d %d] fbinfo[%d x %d (%d, %d)] alpha1[%d %d] alpha2[%d %d]\n",
+				i, window, enabled, mixbuf_val2, mixbuf_val1,
+				m_display_window[window].base, m_display_window[window].base & 0x3ff, (m_display_window[window].base >> 10) & 0x3fff,
+				m_display_window[window].width, m_display_window[window].height, m_display_window[window].x, m_display_window[window].y,
+				m_display_window[window].brightness_flags[0], m_display_window[window].brightness[0],
+				m_display_window[window].brightness_flags[1], m_display_window[window].brightness[1]
+			);
+		}
+
+		if (enabled)
+			draw_frame(window, bitmap, cliprect, inverse_trans);
+	}
+
 
 	return 0;
 }
 
 void k057714_device::draw_object(uint32_t *cmd)
 {
-	// 0x00: -------- -------- ------xx xxxxxxxx   ram x
-	// 0x00: -------- xxxxxxxx xxxxxx-- --------   ram y
+	// 0x00: xxx----- -------- -------- --------   command (always 5)
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
-	// 0x00: xxx----- -------- -------- --------   command (always 5)
+	// 0x00: -------- xxxxxxxx xxxxxx-- --------   ram y
+	// 0x00: -------- -------- ------xx xxxxxxxx   ram x
 
-	// 0x01: -------- -------- ------xx xxxxxxxx   object x
-	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
-	// 0x01: -----x-- -------- -------- --------   object x flip
-	// 0x01: ----x--- -------- -------- --------   object y flip
-	// 0x01: --xx---- -------- -------- --------   blend mode
-	// 0x01: -x------ -------- -------- --------   object transparency enable
 	// 0x01: x------- -------- -------- --------   inverse transparency? (used by kbm)
+	// 0x01: -x------ -------- -------- --------   object transparency enable?
+	// 0x01: --x----- -------- -------- --------   blend mode?
+	// 0x01: ---x---- -------- -------- --------   blend mode?
+	// 0x01: ----x--- -------- -------- --------   object y flip
+	// 0x01: -----x-- -------- -------- --------   object x flip
+	// 0x01: -------- xxxxxxxx xxxxxx-- --------   object y
+	// 0x01: -------- -------- ------xx xxxxxxxx   object x
 
-	// 0x02: -------- -------- -------x xxxxxxxx   object width
+	// 0x02: xxxxx--- -------- -------- --------   alpha1_2
+	// 0x02: -----xxx xx------ -------- --------   alpha1_1/source buffer blend factor?
 	// 0x02: -------- --xxxxxx xxxxxx-- --------   object x scale
-	// 0x02: -----xxx xx------ -------- --------   alpha1_1 (blend mode 2)
-	// 0x02: xxxxx--- -------- -------- --------   alpha1_2 (blend mode 1)
+	// 0x02: -------- -------- ------xx xxxxxxxx   object width
 
-	// 0x03: -------- -------- ------xx xxxxxxxx   object height
+	// 0x03: xxxxx--- -------- -------- --------   alpha2_2
+	// 0x03: -----xxx xx------ -------- --------   alpha2_1/output buffer blend factor?
 	// 0x03: -------- --xxxxxx xxxxxx-- --------   object y scale
-	// 0x03: -----xxx xx------ -------- --------   alpha2_1 (blend mode 2)
-	// 0x03: xxxxx--- -------- -------- --------   alpha2_2 (blend mode 1)
+	// 0x03: -------- -------- ------xx xxxxxxxx   object height
 
-	uint32_t address_x = cmd[0] & 0x3ff;
-	uint32_t address_y = (cmd[0] >> 10) & 0x3fff;
-	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
+	uint32_t address_x = BIT(cmd[0], 0, 10);
+	uint32_t address_y = BIT(cmd[0], 10, 14);
+	bool relative_coords = BIT(cmd[0], 28) == 1;
 
-	int x = cmd[1] & 0x3ff;
-	int y = (cmd[1] >> 10) & 0x3fff;
-	bool xflip = (cmd[1] & 0x04000000) ? true : false;
-	bool yflip = (cmd[1] & 0x08000000) ? true : false;
-	int blend_mode = (cmd[1] >> 28) & 3;
-	bool trans_enable = (cmd[1] & 0xc0000000) ? true : false;
-	uint16_t trans_value = (cmd[1] & 0x80000000) ? 0x0000 : 0x8000;
+	int x = BIT(cmd[1], 0, 10);
+	int y = BIT(cmd[1], 10, 14);
+	bool xflip = BIT(cmd[1], 26) == 1;
+	bool yflip = BIT(cmd[1], 27) == 1;
+	bool flag_bit28 = BIT(cmd[1], 28) == 1; // 28 and 29 seem to have something to do with blending
+	bool flag_bit29 = BIT(cmd[1], 29) == 1;
+	bool flag_bit30 = BIT(cmd[1], 30) == 1; // 30 and 31 seem to have something to do with transparency
+	bool flag_bit31 = BIT(cmd[1], 31) == 1;
+	bool trans_enable = flag_bit31 || flag_bit30;
+	uint16_t trans_value = flag_bit31 ? 0x0000 : 0x8000;
 
-	int width = (cmd[2] & 0x1ff) + 1;
-	int xscale = ((cmd[2] >> 10) & 0x7ff) * (((cmd[2] >> 10) & 0x800) ? -1 : 1);
-	int alpha1_1 = (cmd[2] >> 22) & 0x1f;
-	int alpha1_2 = (cmd[2] >> 27) & 0x1f;
+	int width = BIT(cmd[2], 0, 9) + 1;
+	int xscale = util::sext(BIT(cmd[2], 10, 12), 12);
+	int alpha1_1 = BIT(cmd[2], 22, 5);
+	int alpha1_2 = BIT(cmd[2], 27, 5);
 
-	int height = (cmd[3] & 0x3ff) + 1;
-	int yscale = ((cmd[3] >> 10) & 0x7ff) * (((cmd[3] >> 10) & 0x800) ? -1 : 1);
-	int alpha2_1 = (cmd[3] >> 22) & 0x1f;
-	int alpha2_2 = (cmd[3] >> 27) & 0x1f;
+	int height = BIT(cmd[3], 0, 10) + 1;
+	int yscale = util::sext(BIT(cmd[3], 10, 12), 12);
+	int alpha2_1 = BIT(cmd[3], 22, 5);
+	int alpha2_2 = BIT(cmd[3], 27, 5);
+
+	// This is a big guess and is probably wrong
+	// What's the actual difference between alpha1_1 and alpha1_2?
+	int alpha1 = 16;
+	if (flag_bit30)
+		alpha1 = alpha1_2;
+	else if (flag_bit31)
+		alpha1 = alpha1_1;
+
+	int alpha2 = 16;
+	if (flag_bit28)
+		alpha2 = alpha2_2;
+	else if (flag_bit29)
+		alpha2 = alpha2_1;
 
 	if (xscale == 0 || yscale == 0)
-	{
 		return;
-	}
 
 	if (xflip && ((4 - ((width - 1) % 4)) <= (address_x % 4)))
 	{
@@ -619,82 +712,60 @@ void k057714_device::draw_object(uint32_t *cmd)
 	}
 
 	uint32_t address = (address_y << 10) | address_x;
-
-	LOGDRAW("%s Draw Object %08X (%d, %d), x %d, y %d, w %d, h %d, sx: %f, sy: %f [%08X %08X %08X %08X]\n", basetag(), address, address_x, address_y, x, y, width, height, 64.0f / (float)xscale, 64.0f / (float)yscale, cmd[0], cmd[1], cmd[2], cmd[3]);
-
 	int orig_height = height;
+
+	LOGDRAW("%s Draw Object %08X (%d, %d), x %d, y %d, w %d, h %d, sx: %f, sy: %f, alpha [%d %d %d %d | %d %d %d %d] [%08X %08X %08X %08X]\n", basetag(), address, address_x, address_y, x, y, width, height, 64.0f / (float)xscale, 64.0f / (float)yscale, alpha1_1, alpha1_2, alpha2_1, alpha2_2, flag_bit31, flag_bit30, flag_bit29, flag_bit28, cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	width = (((width * 65536) / xscale) * 64) / 65536;
 	height = (((height * 65536) / yscale) * 64) / 65536;
 
 	if (height <= 0 || width <= 0)
-	{
 		return;
-	}
-
-	int fb_pitch = 1024;
 
 	int v = 0;
 	int xinc = xflip ? -1 : 1;
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
-	for (int j=0; j < height; j++)
+	for (int j = 0; j < height; j++)
 	{
 		int index;
-		uint32_t fbaddr = ((j+y) * fb_pitch) + x;
+		uint32_t fbaddr = ((j + y) * FB_PITCH) + x;
 
 		if (yflip)
-		{
-			index = address + ((orig_height - 1 - (v >> 6)) * fb_pitch);
-		}
+			index = address + ((orig_height - 1 - (v >> 6)) * FB_PITCH);
 		else
-		{
-			index = address + ((v >> 6) * fb_pitch);
-		}
+			index = address + ((v >> 6) * FB_PITCH);
 
 		if (xflip)
-		{
 			fbaddr += width - 1;
-		}
 
 		int u = 0;
-		for (int i=0; i < width; i++)
+		for (int i = 0; i < width; i++)
 		{
-			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)) & 0xffffff];
+			uint16_t pix = vram16[((index + (u >> 6)) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0))];
+
 			bool draw = !trans_enable || (trans_enable && ((pix & 0x8000) == trans_value));
 
-			if (fbaddr < VRAM_SIZE_HALF && draw)
+			if (draw)
 			{
-				if (blend_mode)
+				pix = (std::clamp<uint8_t>((BIT(pix, 10, 5) * alpha1) >> 4, 0, 0x1f) << 10)
+					| (std::clamp<uint8_t>((BIT(pix, 5, 5) * alpha1) >> 4, 0, 0x1f) << 5)
+					| std::clamp<uint8_t>((BIT(pix, 0, 5) * alpha1) >> 4, 0, 0x1f)
+					| (pix & 0x8000);
+
+				if (flag_bit28 || flag_bit29)
 				{
 					uint16_t srcpix = vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
 
-					uint32_t sr = (srcpix >> 10) & 0x1f;
-					uint32_t sg = (srcpix >>  5) & 0x1f;
-					uint32_t sb = (srcpix >>  0) & 0x1f;
+					srcpix = (std::clamp<uint8_t>((BIT(srcpix, 10, 5) * alpha2) >> 4, 0, 0x1f) << 10)
+						| (std::clamp<uint8_t>((BIT(srcpix, 5, 5) * alpha2) >> 4, 0, 0x1f) << 5)
+						| std::clamp<uint8_t>((BIT(srcpix, 0, 5) * alpha2) >> 4, 0, 0x1f)
+						| (srcpix & 0x8000);
 
-					uint32_t r = (pix >> 10) & 0x1f;
-					uint32_t g = (pix >>  5) & 0x1f;
-					uint32_t b = (pix >>  0) & 0x1f;
-
-					if (blend_mode == 1)
-					{
-						sr = ((sr * alpha2_2) + (r * alpha1_2)) >> 4;
-						sg = ((sg * alpha2_2) + (g * alpha1_2)) >> 4;
-						sb = ((sb * alpha2_2) + (b * alpha1_2)) >> 4;
-					}
-					else if (blend_mode == 2)
-					{
-						// Used by Keyboardmania for pulsating glow effects
-						sr = ((sr * alpha2_1) + (r * alpha1_1)) >> 4;
-						sg = ((sg * alpha2_1) + (g * alpha1_1)) >> 4;
-						sb = ((sb * alpha2_1) + (b * alpha1_1)) >> 4;
-					}
-
-					if (sr > 0x1f) sr = 0x1f;
-					if (sg > 0x1f) sg = 0x1f;
-					if (sb > 0x1f) sb = 0x1f;
-
-					pix = (sr << 10) | (sg << 5) | sb | (pix & 0x8000);
+					// Blend the two colors
+					pix = (std::clamp<uint8_t>(BIT(pix, 10, 5) + BIT(srcpix, 10, 5), 0, 0x1f) << 10)
+						| (std::clamp<uint8_t>(BIT(pix, 5, 5) + BIT(srcpix, 5, 5), 0, 0x1f) << 5)
+						| std::clamp<uint8_t>(BIT(pix, 0, 5) + BIT(srcpix, 0, 5), 0, 0x1f)
+						| (srcpix & 0x8000); // whose alpha do we take?
 				}
 
 				vram16[fbaddr ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = pix;
@@ -710,16 +781,19 @@ void k057714_device::draw_object(uint32_t *cmd)
 
 void k057714_device::fill_rect(uint32_t *cmd)
 {
-	// 0x00: xxx----- -------- -------- --------       command (4)
+	// 0x00: xxx----- -------- -------- --------   command (4)
 	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
 	//                                             1: relative coordinates from framebuffer origin
-	// 0x00: ----xx-- -------- -------- --------   ?
-	// 0x00: -------- -------- ------xx xxxxxxxx   width
+	// 0x00: ----xxxx xxx----- -------- --------   unk1
+	// 0x00: -------- ---x---- -------- --------   unk2 bit 0
 	// 0x00: -------- ----xxxx xxxxxx-- --------   height
+	// 0x00: -------- -------- ------xx xxxxxxxx   width
 
-	// 0x01: -------- -------- ------xx xxxxxxxx   x
+	// 0x01: x------- -------- -------- --------   ?
+	// 0x01: -x------ -------- -------- --------   ?
+	// 0x01: --xxxxxx -------- -------- --------   unk2 bits 1-6
 	// 0x01: -------- xxxxxxxx xxxxxx-- --------   y
-	// 0x01: ---x---- -------- -------- --------   ?
+	// 0x01: -------- -------- ------xx xxxxxxxx   x
 
 	// 0x02: xxxxxxxx xxxxxxxx -------- --------   fill pattern pixel 0
 	// 0x02: -------- -------- xxxxxxxx xxxxxxxx   fill pattern pixel 1
@@ -727,11 +801,16 @@ void k057714_device::fill_rect(uint32_t *cmd)
 	// 0x03: xxxxxxxx xxxxxxxx -------- --------   fill pattern pixel 2
 	// 0x03: -------- -------- xxxxxxxx xxxxxxxx   fill pattern pixel 3
 
-	int x = cmd[1] & 0x3ff;
-	int y = (cmd[1] >> 10) & 0x3fff;
-	int width = (cmd[0] & 0x3ff) + 1;
-	int height = ((cmd[0] >> 10) & 0x3ff) + 1;
-	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
+	const int width = BIT(cmd[0], 0, 10) + 1;
+	const int height = BIT(cmd[0], 10, 10) + 1;
+	const bool relative_coords = BIT(cmd[0], 28) == 1;
+
+	int x = BIT(cmd[1], 0, 10);
+	int y = BIT(cmd[1], 10, 14);
+
+	// Depending on the game these seem to default to a value of 0x20 or 0x40, but enchlamp sets unk2 to 1 at one point
+	const int unk1 = BIT(cmd[0], 21, 7);
+	const int unk2 = (BIT(cmd[1], 24, 6) << 1) | BIT(cmd[0], 20); // bit 0 is stashed in cmd[0]
 
 	if (relative_coords)
 	{
@@ -745,7 +824,7 @@ void k057714_device::fill_rect(uint32_t *cmd)
 	color[2] = (cmd[3] >> 16);
 	color[3] = (cmd[3] & 0xffff);
 
-	LOGCMDEXEC("%s Fill Rect x %d, y %d, w %d, h %d, %08X %08X [%08X %08X %08X %08X]\n", basetag(), x, y, width, height, cmd[2], cmd[3], cmd[0], cmd[1], cmd[2], cmd[3]);
+	LOGCMDEXEC("%s Fill Rect x %d, y %d, w %d, h %d, unk1 %02x, unk2 %02x, %08X %08X [%08X %08X %08X %08X]\n", basetag(), x, y, width, height, unk1, unk2, cmd[2], cmd[3], cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	int x1 = x;
 	int x2 = x + width;
@@ -754,30 +833,28 @@ void k057714_device::fill_rect(uint32_t *cmd)
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
 
-	int fb_pitch = 1024;
-
-	for (int j=y1; j < y2; j++)
+	for (int j = y1; j < y2; j++)
 	{
-		uint32_t fbaddr = j * fb_pitch;
-		for (int i=x1; i < x2; i++)
+		uint32_t fbaddr = j * FB_PITCH;
+		for (int i = x1; i < x2; i++)
 		{
-			vram16[(fbaddr+i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = color[i&3];
+			vram16[(fbaddr + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = color[i & 3];
 		}
 	}
 }
 
 void k057714_device::draw_character(uint32_t *cmd)
 {
-	// 0x00: xxx----- -------- -------- --------   command (7)
-	// 0x00: ---x---- -------- -------- --------   0: absolute coordinates
-	//                                             1: relative coordinates from framebuffer base (unverified, should be same as other operations)
+	// 0x00: xxx----- -------- -------- --------   command (6 or 7) (TODO: What's the difference?)
+	// 0x00: ---xxxxx -------- -------- --------   width
 	// 0x00: -------- xxxxxxxx xxxxxxxx xxxxxxxx   character data address in vram
 
-	// 0x01: -------- -------- ------xx xxxxxxxx   character x
-	// 0x01: -------- xxxxxxxx xxxxxx-- --------   character y
-	// 0x01: -------x -------- -------- --------   double height
+	// 0x01: x------- -------- -------- --------   ?
+	// 0x01: -x------ -------- -------- --------   ?
 	// 0x01: --x----- -------- -------- --------   ?
-	// 0x01: -x------ -------- -------- --------   transparency enable
+	// 0x01: ---xxxxx -------- -------- --------   height
+	// 0x01: -------- xxxxxxxx xxxxxx-- --------   character y
+	// 0x01: -------- -------- ------xx xxxxxxxx   character x
 
 	// 0x02: xxxxxxxx xxxxxxxx -------- --------   color 0
 	// 0x02: -------- -------- xxxxxxxx xxxxxxxx   color 1
@@ -789,40 +866,36 @@ void k057714_device::draw_character(uint32_t *cmd)
 	int y = (cmd[1] >> 10) & 0x3fff;
 	uint32_t address = cmd[0] & 0xffffff;
 	uint16_t color[4];
-	bool relative_coords = (cmd[0] & 0x10000000) ? true : false;
-	bool double_height = (cmd[1] & 0x01000000) ? true : false;
-	bool trans_enable = (cmd[1] & 0x40000000) ? true : false;
 
-	if (relative_coords)
-	{
-		x += m_fb_origin_x;
-		y += m_fb_origin_y;
-	}
+	int width = (BIT(cmd[0], 24, 5) + 1) * 8;
+	int height = (BIT(cmd[1], 24, 5) + 1) * 8;
 
 	color[0] = cmd[2] >> 16;
 	color[1] = cmd[2] & 0xffff;
 	color[2] = cmd[3] >> 16;
 	color[3] = cmd[3] & 0xffff;
 
-	LOGCMDEXEC("%s Draw Char %08X, x %d, y %d [%08X %08X %08X %08X]\n", basetag(), address, x, y, cmd[0], cmd[1], cmd[2], cmd[3]);
+	LOGCMDEXEC("%s Draw Char %08X, x %d, y %d, w %d, h %d [%08X %08X %08X %08X]\n", basetag(), address, x, y, width, height, cmd[0], cmd[1], cmd[2], cmd[3]);
+
+	// Haven't found any cases that hit this yet, but this would probably break if a case is ever found
+	if (width > 8)
+		fatalerror("character widths greater than 8 are not supported, found %d\n", width);
+	if (height > 16)
+		fatalerror("character heights greater than 16 are not supported, found %d\n", height);
 
 	uint16_t *vram16 = (uint16_t*)m_vram.get();
-	int fb_pitch = 1024;
-	int height = double_height ? 16 : 8;
 
-	for (int j=0; j < height; j++)
+	for (int j = 0; j < height; j++)
 	{
-		uint32_t fbaddr = (y+j) * fb_pitch;
+		uint32_t fbaddr = (y + j) * FB_PITCH;
 		uint16_t line = vram16[address ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)];
 
 		address += 4;
 
-		for (int i=0; i < 8; i++)
+		for (int i = 0; i < 8; i++)
 		{
-			int p = (line >> ((7-i) * 2)) & 3;
-			bool draw = !trans_enable || (trans_enable && (color[p] & 0x8000));
-			if (draw)
-				vram16[(fbaddr+x+i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = color[p];
+			int p = BIT(line, (7 - i) * 2, 2);
+			vram16[(fbaddr + x + i) ^ NATIVE_ENDIAN_VALUE_LE_BE(1,0)] = color[p];
 		}
 	}
 }
@@ -830,8 +903,9 @@ void k057714_device::draw_character(uint32_t *cmd)
 void k057714_device::fb_config(uint32_t *cmd)
 {
 	// 0x00: xxx----- -------- -------- --------   command (3)
+	// 0x00: -------- -------- ------xx xxxxxxxx   Unknown, always set to 0 (something relating to x or width)
 
-	// 0x01: -------- -------- -------- --------   unused?
+	// 0x01: -------- -------- --xxxxxx xxxxxxxx   Unknown, always set to 0 (something relating to y or height)
 
 	// 0x02: -------- -------- ------xx xxxxxxxx   Framebuffer Origin X
 
@@ -852,7 +926,7 @@ void k057714_device::execute_display_list(uint32_t addr)
 	LOGCMDEXEC("%s Exec Display List %08X\n", basetag(), addr);
 
 	addr /= 2;
-	while (!end && counter < 0x1000 && addr < (VRAM_SIZE/4))
+	while (!end && counter < 0x1000 && addr < (VRAM_SIZE / 4))
 	{
 		uint32_t *cmd = &m_vram[addr];
 		addr += 4;
