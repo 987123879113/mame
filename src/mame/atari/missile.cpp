@@ -424,8 +424,9 @@ private:
 	u8 trampoline_r(offs_t offset);
 	void trampoline_w(offs_t offset, uint8_t data);
 
-	void missilea_map(address_map &map);
+	void base_map(address_map &map);
 	void missile_map(address_map &map);
+	void missilea_map(address_map &map);
 	void mcombat_map(address_map &map);
 
 	required_device<m6502_device> m_maincpu;
@@ -810,7 +811,7 @@ void missile_state::trampoline_map(address_map &map)
 	map(0x0000, 0xffff).rw(FUNC(missile_state::trampoline_r), FUNC(missile_state::trampoline_w));
 }
 
-void missile_state::missilea_map(address_map &map)
+void missile_state::base_map(address_map &map)
 {
 	map.unmap_value_high();
 	map.global_mask(0x7fff);
@@ -826,8 +827,14 @@ void missile_state::missilea_map(address_map &map)
 
 void missile_state::missile_map(address_map &map)
 {
-	missilea_map(map);
+	base_map(map);
 	map(0x4000, 0x400f).mirror(0x07f0).rw(m_pokey, FUNC(pokey_device::read), FUNC(pokey_device::write));
+}
+
+void missile_state::missilea_map(address_map &map)
+{
+	base_map(map);
+	map(0x4000, 0x4000).mirror(0x00ff).portr("R8"); // also sound
 }
 
 void missile_state::mcombat_map(address_map &map)
@@ -1104,7 +1111,7 @@ ROM_START( missilem )
 	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 ) // banked, decrypted rom goes here
 
 	ROM_REGION( 0x10000, "user1", 0 )
-	ROM_LOAD("mcm001d.512", 0x00000, 0x10000, CRC(0a5845b5) SHA1(4828866018a984e7cd7f55a33613f43ece5d8d63) )
+	ROM_LOAD( "mcm001d.512", 0x00000, 0x10000, CRC(0a5845b5) SHA1(4828866018a984e7cd7f55a33613f43ece5d8d63) )
 
 	ROM_REGION( 0x0020, "proms", 0 )
 	ROM_LOAD( "035826-01.l6", 0x0000, 0x0020, CRC(86a22140) SHA1(2beebf7855e29849ada1823eae031fc98220bc43) )
@@ -1198,7 +1205,7 @@ ROM_START( missilea )
 	ROM_LOAD( "5.1n", 0x7000, 0x0800, CRC(df8c58f4) SHA1(44a0cdb0e5222e14e3e91547c35e73b2cf2df174) )
 	ROM_LOAD( "6.1r", 0x7800, 0x0800, CRC(96a21c1f) SHA1(6e43ce8d53aa6d38cef920e7fa2e0683ce42cdb4) )
 
-	ROM_REGION( 0x800, "unknown", 0 )
+	ROM_REGION( 0x800, "samples", 0 )
 	ROM_LOAD( "2708.10c",  0x0000, 0x0400, CRC(9f6978c4) SHA1(34b356fddd86b8b73ee1415b3ad6b00dc4be60e2) )
 	ROM_LOAD( "2708.10e",  0x0400, 0x0400, CRC(90eb28c8) SHA1(c82bc0a00d9e54004b0210f95343c8d7dc1f2050) )
 
@@ -1206,6 +1213,26 @@ ROM_START( missilea )
 	ROM_LOAD( "dm74s288n.6l", 0x0000, 0x0020, CRC(86a22140) SHA1(2beebf7855e29849ada1823eae031fc98220bc43) )
 ROM_END
 
+
+ROM_START( x80wc ) // PCB etched COMPUTER GAME 80
+	ROM_REGION( 0x8000, "maincpu", 0 )
+	ROM_LOAD( "20mm.b1", 0x5000, 0x0400, CRC(20460c38) SHA1(a9a0e951ead6ca96d094bfdcbb89a802aa108340) )
+	ROM_LOAD( "1mm.c1",  0x5400, 0x0400, CRC(83d0a10e) SHA1(b382ba1a893601a4a00922960c79363664bceaa4) ) // 1xxxxxxxxxx = 0xFF
+	ROM_IGNORE(                  0x0400 )
+	ROM_LOAD( "2mm.d1",  0x5800, 0x0400, CRC(291fe2bf) SHA1(9d2ed129e5da90b2542e001e0a8a5f67e4f2194b) )
+	ROM_LOAD( "3mm.e1",  0x5c00, 0x0400, CRC(d868e424) SHA1(be51917c609a8d804ec271ba84358aa928572d1c) )
+	ROM_LOAD( "4mm.fh1", 0x6000, 0x0400, CRC(72d0e053) SHA1(5f4e6c826081d19bb185f00be5a22481b17ede4c) )
+	ROM_LOAD( "5mm.j1",  0x6400, 0x0400, CRC(dd8b21a3) SHA1(5f09fdcf915728762f50655c48aaed40c6e87d7c) )
+	ROM_LOAD( "6mm.k1",  0x6800, 0x0400, CRC(066c48d7) SHA1(34d78d3854816e5935acfda814be0aeffc4450d1) )
+	ROM_LOAD( "7mm.l1",  0x6c00, 0x0400, CRC(305781c7) SHA1(618303d596d114e91cf56573f518e6188af628bb) )
+	ROM_LOAD( "8mm.m1",  0x7000, 0x0400, CRC(091a9353) SHA1(63364a4ddb71d0760a51dabb8aa697931a858169) )
+	ROM_LOAD( "9mm.n1",  0x7400, 0x0400, CRC(1955b6e4) SHA1(118e813c3b965c879185efdd75c2f1b9ef9fda9d) )
+	ROM_LOAD( "10mm.p1", 0x7800, 0x0400, CRC(770fe1a3) SHA1(b75220778909887daef2d6a0da2d01bcce6629df) )
+	ROM_LOAD( "11mm.r1", 0x7c00, 0x0400, CRC(5c5e775b) SHA1(72be5e60f115c1836d6a5e02b55877127855cf3f) )
+
+	ROM_REGION( 0x0020, "proms", 0 )
+	ROM_LOAD( "mmi6331.l6",  0x0000, 0x0020, CRC(86a22140) SHA1(2beebf7855e29849ada1823eae031fc98220bc43) )
+ROM_END
 
 
 /*************************************
@@ -1307,7 +1334,7 @@ void missile_state::init_missilem()
 	}
 }
 
-} // Anonymous namespace
+} // anonymous namespace
 
 
 
@@ -1325,6 +1352,9 @@ GAME( 1981, suprmatkd,missile, missile, suprmatk,  missile_state, empty_init,   
 
 // the following bootleg has extremely similar program ROMs to missile1, but has different unknown sound hardware and 2 more ROMs
 GAME( 1981, missilea, missile, missilea, missile,  missile_state, empty_init,    ROT0, "bootleg (U.Games)", "Missile Attack (U.Games bootleg of Missile Command)", MACHINE_NO_SOUND | MACHINE_SUPPORTS_SAVE )
+
+// the following bootleg has different unknown sound hardware (sound chip had been removed from the PCB the dump comes from)
+GAME( 1981, x80wc,    missile, missilea, missile,  missile_state, empty_init,    ROT0, "bootleg (ManilaMatic)", "X80 - War Command (ManilaMatic bootleg of Missile Command)", MACHINE_NO_SOUND | MACHINE_SUPPORTS_SAVE )
 
 // the following bootlegs are on different hardware and don't work
 GAME( 1980, mcombat,  missile, missileb, missileb, missile_state, empty_init,    ROT0, "bootleg (Videotron)", "Missile Combat (Videotron bootleg, set 1)", MACHINE_NOT_WORKING )

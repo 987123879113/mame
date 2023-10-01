@@ -100,7 +100,6 @@ k573msu_device::k573msu_device(const machine_config &mconfig, const char *tag, d
 	device_t(mconfig, KONAMI_573_MULTI_SESSION_UNIT, tag, owner, clock),
 	digital_id(*this, "digital_id"),
 	m_maincpu(*this, "maincpu"),
-	m_ram(*this, "ram"),
 	m_duart_com(*this, "duart_com_%d", 0L),
 	m_ata_cdrom(*this, "ata_cdrom"),
 	m_dsp(*this, "dsp_%d", 0L)
@@ -120,8 +119,6 @@ void k573msu_device::device_add_mconfig(machine_config &config)
 	m_maincpu->in_brcond<1>().set([]() { return 1; }); // writeback complete
 	m_maincpu->in_brcond<2>().set([]() { return 1; }); // writeback complete
 	m_maincpu->in_brcond<3>().set([]() { return 1; }); // writeback complete
-
-	RAM(config, m_ram).set_default_size("32M").set_default_value(0);
 
 	ATA_INTERFACE(config, m_ata_cdrom).options(k573msu_ata_devices, "cdrom", nullptr, true);
 	m_ata_cdrom->irq_handler().set(FUNC(k573msu_device::ata_interrupt<1>));
@@ -558,9 +555,7 @@ void k573msu_device::fpga_write(offs_t offset, uint16_t data, uint16_t mem_mask)
 
 void k573msu_device::amap(address_map& map)
 {
-	map(0x00000000, 0x0fffffff).ram().share("ram");
-	map(0x80000000, 0x8fffffff).ram().share("ram");
-	map(0xa0000000, 0xafffffff).ram().share("ram");
+	map(0x00000000, 0x0fffffff).ram().mirror(0x80000000).mirror(0xa0000000);
 
 	//map(0x10000000, 0x1000000f).rw(m_ata_hdd, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w)); // HDD - unused on real hardware
 	//map(0x10000080, 0x1000008f).rw(m_ata_hdd, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));

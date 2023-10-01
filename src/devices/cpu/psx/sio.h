@@ -113,10 +113,8 @@ class psxsio1_device : public device_t,
 	public device_serial_interface
 {
 public:
-	// construction/destruction
 	psxsio1_device(const machine_config& mconfig, const char* tag, device_t* owner, uint32_t clock);
 
-	// configuration helpers
 	auto irq_handler() { return m_irq_handler.bind(); }
 	auto txd_handler() { return m_txd_handler.bind(); }
 	auto dtr_handler() { return m_dtr_handler.bind(); }
@@ -141,8 +139,6 @@ protected:
 		device_t* owner,
 		uint32_t clock);
 
-	// device-level overrides
-	virtual void device_resolve_objects() override;
 	virtual void device_start() override;
 	virtual void device_reset() override;
 	virtual void device_post_load() override;
@@ -179,11 +175,8 @@ private:
 	int m_txc_count;
 	int m_br_factor;
 
-	/* data being received */
 	uint8_t m_rx_data;
-	/* tx buffer */
 	uint8_t m_tx_data;
-	// count of rxd bits
 	u8 m_rxd_bits;
 	u8 m_data_bits_count;
 

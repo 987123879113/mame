@@ -345,7 +345,7 @@ W17 pulls J1 serial  port pin 1 to GND when set (chassis to logical GND).
 #include "bus/rs232/terminal.h"
 
 #include "machine/i8251.h"
-#include "dec_lk201.h"
+#include "lk201.h"
 #include "machine/nvram.h"
 #include "machine/ripple_counter.h"
 #include "machine/timer.h"
@@ -931,7 +931,7 @@ void rainbow_base_state::rainbow8088_base_map(address_map &map)
 	// There is a 2212 (256 x 4 bit) NVRAM from 0xed000 to 0xed0ff (*)
 	// shadowed at $ec000 - $ecfff and from $ed100 - $edfff.
 
-	// (*) ED000 - ED0FF is the area the DEC-100-B Bios accesses and checks
+	// (*) ED000 - ED0FF is the area the DEC-100-B BIOS accesses and checks
 
 	//  - Specs say that the CPU has direct access to volatile RAM only.
 	//    So NVRAM is hidden and loads & saves are triggered within the
@@ -1267,7 +1267,7 @@ void rainbow_base_state::machine_reset()
 	m_leds[5] = 1;
 	m_leds[6] = 1;
 
-	// GREEN KEYBOARD LEDs (see machine/dec_lk201.cpp)
+	// GREEN KEYBOARD LEDs (see dec/lk201.cpp)
 }
 
 void rainbow_modela_state::machine_reset()

@@ -55,15 +55,6 @@ void tx3927_sio::device_reset()
 	m_sirfifo_len = 0;
 }
 
-void tx3927_sio::device_resolve_objects()
-{
-	// resolve callbacks
-	m_irq_handler.resolve_safe();
-	m_txd_handler.resolve_safe();
-	m_rts_handler.resolve_safe();
-	m_dtr_handler.resolve_safe();
-}
-
 TIMER_CALLBACK_MEMBER(tx3927_sio::sio_tick)
 {
 	transmit_clock(false);

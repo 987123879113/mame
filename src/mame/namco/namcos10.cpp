@@ -1040,7 +1040,6 @@ void namcos10_state::machine_reset()
 
 void namcos10_state::device_resolve_objects()
 {
-	m_io_update_interrupt.resolve_safe();
 	m_mgexio_outputs.resolve();
 }
 
@@ -3019,7 +3018,7 @@ static INPUT_PORTS_START( namcos10 )
 
 	PORT_BIT( 0x10000000, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_BIT( 0x20000000, IP_ACTIVE_LOW, IPT_COIN1 )
-	PORT_BIT( 0x40000000, IP_ACTIVE_LOW, IPT_SERVICE2 ) PORT_TOGGLE // Test SW, almost all games expect this to be a slide type and the medal games explicitly say "slide on and off test to restart"
+	PORT_BIT( 0x40000000, IP_ACTIVE_LOW, IPT_SERVICE ) PORT_TOGGLE // Test SW, almost all games expect this to be a slide type and the medal games explicitly say "slide on and off test to restart"
 	PORT_BIT( 0x80000000, IP_ACTIVE_LOW, IPT_SERVICE1 )
 
 	PORT_START("EXIO_IN1")

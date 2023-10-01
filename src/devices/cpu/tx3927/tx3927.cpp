@@ -40,7 +40,7 @@
 DEFINE_DEVICE_TYPE(TX3927,	    tx3927_device,    "tx3927",  "Toshiba TX3927")
 
 tx3927_device::tx3927_device(const machine_config& mconfig, const char* tag, device_t* owner, uint32_t clock, size_t icache_size, size_t dcache_size) :
-	mips1_device_base(mconfig, TX3927, tag, owner, clock, 0x3927, icache_size, dcache_size),
+	mips1_device_base(mconfig, TX3927, tag, owner, clock, 0x3927, icache_size, dcache_size, false),
 	m_program_config("program", ENDIANNESS_BIG, 32, 32, 0, address_map_constructor(FUNC(tx3927_device::amap), this)),
 	m_sio(*this, "sio%d", 0L)
 {
@@ -112,16 +112,10 @@ void tx3927_device::device_reset()
 	update_rom_config(0);
 }
 
-void tx3927_device::device_resolve_objects()
-{
-}
-
 device_memory_interface::space_config_vector tx3927_device::memory_space_config() const
 {
-	return space_config_vector{
-		std::make_pair(AS_PROGRAM, &m_program_config),
-		std::make_pair(1, &m_icache_config),
-		std::make_pair(2, &m_dcache_config)
+	return space_config_vector {
+		std::make_pair(AS_PROGRAM, &m_program_config)
 	};
 }
 

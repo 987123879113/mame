@@ -9756,6 +9756,22 @@ ROM_START( galaxyx )
 	ROM_LOAD( "sgprom.6l", 0x0000, 0x0020, CRC(c3ac9467) SHA1(f382ad5a34d282056c78a5ec00c30ec43772bae2) )
 ROM_END
 
+ROM_START( mcwars ) // 2-PCB stack, title comes from instructions. Code is identical to galaxyx but for hacked out 'We are the galaxy x" string.
+	ROM_REGION( 0x4000, "maincpu", 0 )
+	ROM_LOAD( "1.7f", 0x0000, 0x0800, CRC(d493cfd1) SHA1(a93e2aa7e179fb8adbc26f19f3319236b22f882f) )
+	ROM_LOAD( "2.7h", 0x0800, 0x0800, CRC(f58283e3) SHA1(edc6e72516c50fd3402281d9936574d276581ce9) )
+	ROM_LOAD( "3.7k", 0x1000, 0x0800, CRC(4c7031c0) SHA1(97f7ab0cedcd8eba1c8f6f516d84d672a2108258) )
+	ROM_LOAD( "4.7m", 0x1800, 0x0800, CRC(04329e33) SHA1(a85256a7fcfb84d8fdc4830171092c6061f8a979) )
+	ROM_LOAD( "5.8f", 0x2000, 0x0800, CRC(b71fc917) SHA1(a7c2f4d8df27b1828ed01b672d51365d1445a208) )
+
+	ROM_REGION( 0x1000, "gfx1", 0 )
+	ROM_LOAD( "6.1h", 0x0000, 0x0800, CRC(39fb43a4) SHA1(4755609bd974976f04855d51e08ec0d62ab4bc07) )
+	ROM_LOAD( "7.1k", 0x0800, 0x0800, CRC(7e3f56a2) SHA1(a9795d8b7388f404f3b0e2c6ce15d713a4c5bafa) )
+
+	ROM_REGION( 0x0020, "proms", 0 )
+	ROM_LOAD( "82s123.6l", 0x0000, 0x0020, CRC(c3ac9467) SHA1(f382ad5a34d282056c78a5ec00c30ec43772bae2) )
+ROM_END
+
 ROM_START( galaxrfgg )
 	ROM_REGION( 0x4000, "maincpu", 0 )
 	ROM_LOAD( "gxrf.7f",       0x0000, 0x1000, CRC(c06eeb10) SHA1(cf1006a7ff02fe8b04a096d802fb8d8937dd913d) )
@@ -13841,6 +13857,24 @@ ROM_START( froggeram )
 	ROM_LOAD( "n82s123.bin",     0x0000, 0x0020, CRC(a35ec965) SHA1(ea5851f3e0e54f043347c7ae9869db8f6711d031) )
 ROM_END
 
+ROM_START( froggereb ) // found on an original Sega/Gremlin PCB set with original ROMs, minimal differences include subtitle and updated copyright
+	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_LOAD( "epr-26.ic5", 0x0000, 0x1000, CRC(597696d6) SHA1(e7e021776cad00f095a1ebbef407b7c0a8f5d835) )
+	ROM_LOAD( "epr-27.ic6", 0x1000, 0x1000, CRC(b6e6fcc3) SHA1(5e8692f2b0c7f4b3642b3ee6670e1c3b20029cdc) )
+	ROM_LOAD( "ic7",        0x2000, 0x1000, CRC(a9947b9a) SHA1(059896afaad7c3cddb3cef727bf1dece4f6844cd) ) // blank label
+
+	ROM_REGION( 0x10000, "audiocpu", 0 )
+	ROM_LOAD( "epr-608.ic32", 0x0000, 0x0800, CRC(e8ab0256) SHA1(f090afcfacf5f13cdfa0dfda8e3feb868c6ce8bc) )
+	ROM_LOAD( "epr-609.ic33", 0x0800, 0x0800, CRC(7380a48f) SHA1(75582a94b696062cbdb66a4c5cf0bc0bb94f81ee) )
+	ROM_LOAD( "epr-610.ic34", 0x1000, 0x0800, CRC(31d7eb27) SHA1(2e1d34ae4da385fd7cac94707d25eeddf4604e1a) )
+
+	ROM_REGION( 0x1000, "gfx1", 0 )
+	ROM_LOAD( "epr-607.ic101", 0x0000, 0x0800, CRC(05f7d883) SHA1(78831fd287da18928651a8adb7e578d291493eff) )
+	ROM_LOAD( "epr-606.ic102", 0x0800, 0x0800, CRC(f524ee30) SHA1(dd768967add61467baa08d5929001f157d6cd911) )
+
+	ROM_REGION( 0x0020, "proms", 0 )
+	ROM_LOAD( "pr-91.6l", 0x0000, 0x0020, BAD_DUMP CRC(413703bf) SHA1(66648b2b28d3dcbda5bdb2605d1977428939dd3c) ) // not dumped for this set, should match
+ROM_END
 
 ROM_START( turtles )
 	ROM_REGION( 0x10000, "maincpu", 0 )
@@ -16119,6 +16153,7 @@ GAME( 1980, galaxrfgg,   galaxian, galaxian,   galaxrf,    galaxian_state, init_
 GAME( 1980, galaxrcgg,   galaxian, galaxian,   galaxrf,    galaxian_state, init_galaxian,   ROT90,  "bootleg (Recreativos Covadonga)",            "Galaxian Growing Galaxip / Galaxian Nave Creciente (Recreativos Covadonga Spanish bootleg)",   MACHINE_SUPPORTS_SAVE )
 GAME( 1979, galaxianrp,  galaxian, galaxian,   superg,     galaxian_state, init_galaxian,   ROT90,  "bootleg (Valadon Automation / Rene Pierre)", "Galaxian (Rene Pierre bootleg)",                                                               MACHINE_SUPPORTS_SAVE )
 GAME( 1979, galaxyx,     galaxian, galaxian,   superg,     galaxian_state, init_galaxian,   ROT90,  "bootleg",                                    "Galaxy X (bootleg of Galaxian)",                                                               MACHINE_SUPPORTS_SAVE )
+GAME( 1979, mcwars,      galaxian, galaxian,   superg,     galaxian_state, init_galaxian,   ROT90,  "bootleg",                                    "Macro-Cosm Wars (bootleg of Galaxian)",                                                        MACHINE_SUPPORTS_SAVE )
 GAME( 1979, galartic,    galaxian, galartic,   galartic,   galaxian_state, init_galaxian,   ROT270, "bootleg (Artic System)",                     "Galaxian (Artic System bootleg)",                                                              MACHINE_SUPPORTS_SAVE )
 GAME( 1979, galaxianiii, galaxian, galaxian,   galaxian,   galaxian_state, init_galaxian,   ROT90,  "bootleg",                                    "Galaxian III (bootleg of Galaxian)",                                                           MACHINE_SUPPORTS_SAVE )
 
@@ -16353,6 +16388,7 @@ GAME( 1981, frogf,       frogger,  frogf,      frogger,    galaxian_state, init_
 GAME( 1981, frogg,       frogger,  frogg,      frogg,      galaxian_state, init_frogg,      ROT90,  "bootleg",               "Frog (bootleg on Galaxian hardware)",                              MACHINE_SUPPORTS_SAVE )
 GAME( 1981, froggrs,     frogger,  froggers,   frogger,    galaxian_state, init_froggrs,    ROT90,  "bootleg (Coin Music)",  "Frogger (Coin Music, bootleg on Scramble hardware)",               MACHINE_SUPPORTS_SAVE )
 GAME( 1981, froggervd,   frogger,  froggervd,  frogger,    galaxian_state, init_quaak,      ROT90,  "bootleg (Hermatic)",    "Frogger (Hermatic, bootleg on Scramble hardware from Video Dens)", MACHINE_SUPPORTS_SAVE )
+GAME( 1992, froggereb,   frogger,  frogger,    frogger,    galaxian_state, init_frogger,    ROT90,  "bootleg (Eurobed)",     "Frogger - New Serie 92 (bootleg)",                                 MACHINE_SUPPORTS_SAVE )
 GAME( 1981, quaak,       frogger,  quaak,      frogger,    galaxian_state, init_quaak,      ROT90,  "bootleg",               "Quaak (bootleg of Frogger)",                                       MACHINE_SUPPORTS_SAVE ) // closest to Super Cobra hardware, presumably a bootleg from Germany (Quaak is the German frog sound)
 GAME( 1981, froggeram,   frogger,  froggeram,  froggeram,  galaxian_state, init_quaak,      ROT90,  "bootleg",               "Frogger (bootleg on Amigo? hardware)",                             MACHINE_SUPPORTS_SAVE ) // meant to be Amigo hardware, but maybe a different bootleg than the one we have?
 
@@ -16419,7 +16455,7 @@ GAME( 1983, ozon1,       0,        ozon1,      ozon1,      galaxian_state, init_
 GAME( 1981, ckongs,      ckong,    ckongs,     ckongs,     galaxian_state, init_ckongs,     ROT90,  "bootleg", "Crazy Kong (bootleg on Scramble hardware)", MACHINE_SUPPORTS_SAVE )
 
 // Konami L-1200-2 base board with custom Subelectro 113 rom board
-GAME( 1981, jungsub,    jungler,   jungsub,    jungsub,    galaxian_state, init_jungsub,    ROT90,  "bootleg (Subelectro)", "Jungler (Subelectro, bootleg on Scramble hardware)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE ) // mostly works, bad GFX ROM causes lots of glitches
+GAME( 1981, jungsub,     jungler,  jungsub,    jungsub,    galaxian_state, init_jungsub,    ROT90,  "bootleg (Subelectro)", "Jungler (Subelectro, bootleg on Scramble hardware)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE ) // mostly works, bad GFX ROM causes lots of glitches
 
 // Scorpion hardware; based on Scramble but with a 3rd AY-8910 and a speech chip
 GAME( 1982, scorpion,    0,        scorpion,   scorpion,   zac_scorpion_state, init_scorpion, ROT90,  "Zaccaria",           "Scorpion (set 1)",                                      MACHINE_IMPERFECT_SOUND | MACHINE_SUPPORTS_SAVE)

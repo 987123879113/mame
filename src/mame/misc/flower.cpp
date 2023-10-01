@@ -5,9 +5,11 @@
     Flower (c) 1986 Clarue (licensed to Komax/Sega)
 
     driver by Angelo Salese,
-    original "wiped off due of not anymore licenseable" driver by insideoutboy.
+    original "wiped off due of not anymore licensable" driver by insideoutboy.
 
     TODO:
+    - CPU speed is probably wrong. The pacing is fine at 3.072MHz, but then
+      the game locks up sometimes. Or is the cause elsewhere?
     - priority might be wrong in some places (title screen stars around the
       galaxy, planet ship 3rd boss, 2nd boss);
     - sound chips (similar to Namco custom chips?)
@@ -30,7 +32,7 @@ There is a PCB picture that shows two stickers, the first says
         FLOWER   CHIP PLACEMENT
 
 XTAL: 18.4320 MHz
-USES THREE Z80A CPU'S
+USES THREE Z80A (or D780C-1) CPU'S
 
 CHIP #  POSITION   TYPE
 ------------------------
@@ -130,9 +132,8 @@ private:
 	void bgvram_w(offs_t offset, u8 data);
 	void fgvram_w(offs_t offset, u8 data);
 	void txvram_w(offs_t offset, u8 data);
-	void master_irq_enable_w(int state);
-	void slave_irq_enable_w(int state);
-	void vblank_irq_w(int state);
+	void master_irq_ack_w(int state);
+	void slave_irq_ack_w(int state);
 	TILE_GET_INFO_MEMBER(get_tx_tile_info);
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	TILE_GET_INFO_MEMBER(get_fg_tile_info);
@@ -165,8 +166,6 @@ private:
 
 	void draw_sprites(bitmap_ind16 &bitmap,const rectangle &cliprect);
 
-	bool m_master_irq_enable = false;
-	bool m_slave_irq_enable = false;
 	bool m_audio_nmi_enable = false;
 	bool m_flip_screen = false;
 	tilemap_t *m_bg_tilemap = nullptr;
@@ -219,8 +218,6 @@ void flower_state::video_start()
 	m_fg_tilemap->set_transparent_pen(15);
 	m_tx_tilemap->set_transparent_pen(3);
 
-	save_item(NAME(m_master_irq_enable));
-	save_item(NAME(m_slave_irq_enable));
 	save_item(NAME(m_flip_screen));
 
 	m_bg_tilemap->set_scrolldx(16, 0);
@@ -493,27 +490,16 @@ void flower_state::machine_reset()
 	m_audio_nmi_enable = false;
 }
 
-void flower_state::master_irq_enable_w(int state)
+void flower_state::master_irq_ack_w(int state)
 {
-	m_master_irq_enable = state;
 	if (!state)
 		m_mastercpu->set_input_line(0, CLEAR_LINE);
 }
 
-void flower_state::slave_irq_enable_w(int state)
+void flower_state::slave_irq_ack_w(int state)
 {
-	m_slave_irq_enable = state;
 	if (!state)
 		m_slavecpu->set_input_line(0, CLEAR_LINE);
-}
-
-void flower_state::vblank_irq_w(int state)
-{
-	if (state && m_master_irq_enable)
-		m_mastercpu->set_input_line(0, ASSERT_LINE);
-
-	if (state && m_slave_irq_enable)
-		m_slavecpu->set_input_line(0, ASSERT_LINE);
 }
 
 
@@ -534,8 +520,8 @@ void flower_state::flower(machine_config &config)
 	ls259_device &outlatch(LS259(config, "outlatch")); // M74LS259P @ 11K
 	outlatch.q_out_cb<0>().set_nop();
 	outlatch.q_out_cb<1>().set(FUNC(flower_state::flipscreen_w));
-	outlatch.q_out_cb<2>().set(FUNC(flower_state::master_irq_enable_w));
-	outlatch.q_out_cb<3>().set(FUNC(flower_state::slave_irq_enable_w));
+	outlatch.q_out_cb<2>().set(FUNC(flower_state::master_irq_ack_w));
+	outlatch.q_out_cb<3>().set(FUNC(flower_state::slave_irq_ack_w));
 	outlatch.q_out_cb<4>().set(FUNC(flower_state::coin_counter_w));
 	outlatch.q_out_cb<5>().set_nop();
 
@@ -543,7 +529,8 @@ void flower_state::flower(machine_config &config)
 	m_screen->set_screen_update(FUNC(flower_state::screen_update));
 	m_screen->set_raw(MASTER_CLOCK / 3, 384, 0, 288, 264, 16, 240); // derived from Galaxian HW, 60.606060
 	m_screen->set_palette(m_palette);
-	m_screen->screen_vblank().set(FUNC(flower_state::vblank_irq_w));
+	m_screen->screen_vblank().set_inputline(m_mastercpu, 0, ASSERT_LINE);
+	m_screen->screen_vblank().append_inputline(m_slavecpu, 0, ASSERT_LINE);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_flower);
 	PALETTE(config, m_palette, palette_device::RGB_444_PROMS, "proms", 256);

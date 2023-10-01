@@ -34,9 +34,6 @@ void tc9446f_device::device_start()
 
 	mp3dec = std::make_unique<mp3_audio>(reinterpret_cast<const uint8_t *>(&mp3data[0]));
 
-	cb_mpeg_frame_sync.resolve();
-	cb_demand.resolve();
-
 	save_item(NAME(mp3data));
 	save_item(NAME(samples));
 	save_item(NAME(m_mode_select));

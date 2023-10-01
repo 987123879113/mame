@@ -14,7 +14,6 @@
 #include "cpu/tx3927/tx3927.h"
 #include "bus/ata/ataintf.h"
 #include "bus/ata/atapicdr.h"
-#include "bus/ata/idehd.h"
 #include "machine/ds2401.h"
 #include "machine/ins8250.h"
 #include "machine/ram.h"
@@ -50,7 +49,6 @@ protected:
 private:
 	required_device<ds2401_device> digital_id;
 	required_device<tx3927_device> m_maincpu;
-	required_device<ram_device> m_ram;
 	required_device_array<pc16552_device, 2> m_duart_com;
 	required_device<ata_interface_device> m_ata_cdrom;
 	required_device_array<tc9446f_device, 4> m_dsp;

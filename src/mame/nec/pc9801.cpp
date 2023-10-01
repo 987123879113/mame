@@ -761,7 +761,6 @@ void pc9801vm_state::a20_ctrl_w(offs_t offset, uint8_t data)
 		// TODO: is there any other way that doesn't involve direct r/w of ppi address?
 		por = m_ppi_sys->read(2) & ~0x20;
 		m_ppi_sys->write(2, por);
-		m_maincpu->set_input_line(INPUT_LINE_A20, CLEAR_LINE);
 		m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);
 		m_gate_a20 = 0;
 	}
@@ -2354,7 +2353,7 @@ void pc9801vm_state::pc9801ux(machine_config &config)
 	i80286_cpu_device &maincpu(I80286(config.replace(), m_maincpu, 10000000));
 	maincpu.set_addrmap(AS_PROGRAM, &pc9801vm_state::pc9801ux_map);
 	maincpu.set_addrmap(AS_IO, &pc9801vm_state::pc9801ux_io);
-	maincpu.set_a20_callback(i80286_cpu_device::a20_cb(&pc9801vm_state::a20_286, this));
+	maincpu.set_a20_callback(FUNC(pc9801vm_state::a20_286));
 	maincpu.set_irq_acknowledge_callback("pic8259_master", FUNC(pic8259_device::inta_cb));
 
 	config_floppy_35hd(config);
@@ -2367,7 +2366,7 @@ void pc9801vm_state::pc9801dx(machine_config &config)
 	i80286_cpu_device &maincpu(I80286(config.replace(), m_maincpu, 12000000));
 	maincpu.set_addrmap(AS_PROGRAM, &pc9801vm_state::pc9801ux_map);
 	maincpu.set_addrmap(AS_IO, &pc9801vm_state::pc9801ux_io);
-	maincpu.set_a20_callback(i80286_cpu_device::a20_cb(&pc9801vm_state::a20_286, this));
+	maincpu.set_a20_callback(FUNC(pc9801vm_state::a20_286));
 	maincpu.set_irq_acknowledge_callback("pic8259_master", FUNC(pic8259_device::inta_cb));
 
 	config_floppy_525hd(config);

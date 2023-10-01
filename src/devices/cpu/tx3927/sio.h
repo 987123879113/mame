@@ -23,7 +23,6 @@ public:
 
 	virtual void device_start() override;
 	virtual void device_reset() override;
-	virtual void device_resolve_objects() override;
 
 	void write_rxd(int state);
 	void write_cts(int state);

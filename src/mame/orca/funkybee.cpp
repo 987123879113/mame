@@ -34,10 +34,12 @@ f800      watchdog
 
 I/0 ports:
 write
-00        8910  control
-01        8910  write
+00        8912  control
+01        8912  write
 
-AY8910 Port A = DSW
+AY-3-8912 Port A = DSW
+
+The Sky Lancer PCB has an unpopulated space for a second AY-3-8912.
 
 
 Stephh's notes (based on the games Z80 code and some tests) :
@@ -282,6 +284,7 @@ uint32_t funkybee_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 	m_bg_tilemap->draw(screen, bitmap, cliprect, 0, 0);
 	draw_sprites(bitmap, cliprect);
 	draw_columns(bitmap, cliprect);
+
 	return 0;
 }
 
@@ -290,7 +293,9 @@ uint32_t funkybee_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 
 uint8_t funkybee_state::input_port_0_r()
 {
-	m_watchdog->watchdog_reset();
+	if (!machine().side_effects_disabled())
+		m_watchdog->watchdog_reset();
+
 	return m_in0->read();
 }
 
@@ -564,36 +569,6 @@ ROM_START( funkybeeb )
 	ROM_REGION( 0x0020, "proms", 0 )
 	ROM_LOAD( "funkybee.clr",   0x0000, 0x0020, CRC(e2cf5fe2) SHA1(50b293f48f078cbcebccb045aa779ced2fb298c8) )
 ROM_END
-
-
-/*
-Sky Lancer PCB Layout
----------------------
-
-  |--------------------------------------------|
- _|                          ROM.U33           |
-|                                              |
-|                            ROM.U32           |
-|    WF19054                                   |
-|                                              |
-|_                                             |
-  |                                  6264      |
-  |                     |------|     6116      |
- _|           DSW4(8)   |ACTEL |               |
-|             DSW3(8)   |A1010B|               |
-|             DSW2(8)   |      |          6264 |
-|             DSW1(8)   |------|               |
-|                                         6264 |
-|    M5M82C255                                 |
-|                                              |
-|       ROM.U35                                |
-|3.6V_BATT                                     |
-|_          6116              Z80        12MHz |
-  |--------------------------------------------|
-Notes:
-      Z80 @ 3.0MHz [12/4]
-      WF19054 = AY-3-8910 @ 1.5MHz [12/8]
-*/
 
 ROM_START( skylancr )
 	ROM_REGION( 0x10000, "maincpu", 0 )

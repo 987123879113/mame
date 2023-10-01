@@ -10,17 +10,18 @@ Undocumented buttons:
 - holding CLEAR on boot clears battery backed RAM
 
 TODO:
-- does it have ROM waitstates like mephisto_modular?
+- does it have ROM waitstates like modular.cpp?
 
 *******************************************************************************/
 
 #include "emu.h"
 
+#include "mmboard.h"
+#include "mmdisplay2.h"
+
 #include "cpu/m68000/m68000.h"
 #include "cpu/m68000/m68020.h"
 #include "machine/nvram.h"
-#include "mmboard.h"
-#include "mmdisplay2.h"
 
 // internal artwork
 #include "mephisto_berlin.lh"

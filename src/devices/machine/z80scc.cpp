@@ -480,24 +480,6 @@ scc8523l_device::scc8523l_device(const machine_config &mconfig, const char *tag,
 }
 
 //-------------------------------------------------
-//  device_resolve_objects - device-specific setup
-//-------------------------------------------------
-void z80scc_device::device_resolve_objects()
-{
-	LOG("%s\n", FUNCNAME);
-
-	// resolve callbacks
-	m_out_txd_cb.resolve_all_safe();
-	m_out_dtr_cb.resolve_all_safe();
-	m_out_rts_cb.resolve_all_safe();
-	m_out_wreq_cb.resolve_all_safe();
-	m_out_sync_cb.resolve_all_safe();
-	m_out_rxdrq_cb.resolve_all_safe();
-	m_out_txdrq_cb.resolve_all_safe();
-	m_out_int_cb.resolve_safe();
-}
-
-//-------------------------------------------------
 //  device_start - device-specific startup
 //-------------------------------------------------
 void z80scc_device::device_start()
@@ -1064,10 +1046,8 @@ void z80scc_channel::device_start()
 	m_uart->m_wr0_ptrbits = 0;
 
 	m_rx_fifo_sz = (m_uart->m_variant & z80scc_device::SET_ESCC) ? 8 : 3;
-	m_rx_fifo_wp = m_rx_fifo_rp = 0;
 
 	m_tx_fifo_sz = (m_uart->m_variant & z80scc_device::SET_ESCC) ? 4 : 1;
-	m_tx_fifo_wp = m_tx_fifo_rp = 0;
 
 	m_rxc   = 0x00;
 	m_txc   = 0x00;
@@ -1148,6 +1128,10 @@ void z80scc_channel::device_reset()
 	// Reset RS232 emulation
 	receive_register_reset();
 	transmit_register_reset();
+
+	// empty fifos
+	m_rx_fifo_wp = m_rx_fifo_rp = 0;
+	m_tx_fifo_wp = m_tx_fifo_rp = 0;
 
 	// Soft/Channel Reset values (mostly) according to SCC users manual
 	m_wr0   = 0x00;

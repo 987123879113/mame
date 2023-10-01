@@ -388,8 +388,6 @@ wd33c9x_base_device::wd33c9x_base_device(const machine_config &mconfig, device_t
 
 void wd33c9x_base_device::device_start()
 {
-	m_irq_cb.resolve_safe();
-	m_drq_cb.resolve_safe();
 	m_timer = timer_alloc(FUNC(wd33c9x_base_device::update_step), this);
 	save_item(NAME(m_addr));
 	save_item(NAME(m_regs));
@@ -1344,7 +1342,7 @@ void wd33c9x_base_device::step(bool timeout)
 		if (sat && m_xfr_phase == S_PHASE_MSG_IN) {
 			if (m_regs[COMMAND_PHASE] <= COMMAND_PHASE_CP_BYTES_C) {
 				switch (m_last_message) {
-				case SM_SAVE_DATA_PTR:
+				case SM_SAVE_DATA_POINTER:
 					set_scsi_state(FINISHED);
 					irq_fifo_push(SCSI_STATUS_SAVE_DATA_POINTERS);
 					m_regs[COMMAND_PHASE] = COMMAND_PHASE_SAVE_DATA_POINTER;

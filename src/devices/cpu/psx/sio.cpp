@@ -67,13 +67,7 @@ void psxsio0_device::device_post_load()
 
 void psxsio0_device::device_start()
 {
-	m_irq_handler.resolve_safe();
-	m_sck_handler.resolve_safe();
-	m_txd_handler.resolve_safe();
-	m_dtr_handler.resolve_safe();
-	m_rts_handler.resolve_safe();
-
-	m_timer = timer_alloc( FUNC( psxsio0_device::sio_tick ), this );
+	m_timer = timer_alloc(FUNC(psxsio0_device::sio_tick), this);
 	m_mode = 0;
 	m_control = 0;
 	m_baud = 0;
@@ -84,22 +78,22 @@ void psxsio0_device::device_start()
 	m_rx_bits = 0;
 	m_tx_bits = 0;
 
-	save_item( NAME( m_status ) );
-	save_item( NAME( m_mode ) );
-	save_item( NAME( m_control ) );
-	save_item( NAME( m_baud ) );
-	save_item( NAME( m_rxd ) );
-	save_item( NAME( m_rx_data ) );
-	save_item( NAME( m_tx_data ) );
-	save_item( NAME( m_rx_shift ) );
-	save_item( NAME( m_tx_shift ) );
-	save_item( NAME( m_rx_bits ) );
-	save_item( NAME( m_tx_bits ) );
+	save_item(NAME(m_status));
+	save_item(NAME(m_mode));
+	save_item(NAME(m_control));
+	save_item(NAME(m_baud));
+	save_item(NAME(m_rxd));
+	save_item(NAME(m_rx_data));
+	save_item(NAME(m_tx_data));
+	save_item(NAME(m_rx_shift));
+	save_item(NAME(m_tx_shift));
+	save_item(NAME(m_rx_bits));
+	save_item(NAME(m_tx_bits));
 }
 
 void psxsio0_device::sio_interrupt()
 {
-	verboselog( *this, 1, "sio_interrupt( %s )\n", tag() );
+	LOG("sio_interrupt\n");
 	m_status |= SIO_STATUS_IRQ;
 	m_irq_handler(1);
 }
@@ -396,26 +390,6 @@ psxsio1_device::psxsio1_device(const machine_config& mconfig, const char* tag, d
 {
 }
 
-
-//-------------------------------------------------
-//  device_resolve_objects - resolve objects that
-//  may be needed for other devices to set
-//  initial conditions at start time
-//-------------------------------------------------
-
-void psxsio1_device::device_resolve_objects()
-{
-	// resolve callbacks
-	m_irq_handler.resolve_safe();
-	m_txd_handler.resolve_safe();
-	m_rts_handler.resolve_safe();
-	m_dtr_handler.resolve_safe();
-}
-
-//-------------------------------------------------
-//  device_start - device-specific startup
-//-------------------------------------------------
-
 void psxsio1_device::device_start()
 {
 	m_timer = timer_alloc( FUNC( psxsio1_device::sio_tick ), this );
@@ -439,12 +413,6 @@ void psxsio1_device::device_post_load()
 {
 	sio_timer_adjust();
 }
-
-
-
-/*-------------------------------------------------
-	receive_clock
--------------------------------------------------*/
 
 void psxsio1_device::sio_timer_adjust()
 {
@@ -472,17 +440,11 @@ TIMER_CALLBACK_MEMBER( psxsio1_device::sio_tick )
 	sio_timer_adjust();
 }
 
-/*-------------------------------------------------
-	is_tx_enabled
--------------------------------------------------*/
 bool psxsio1_device::is_tx_enabled() const
 {
 	return BIT(m_control, SIO_CONTROL_BIT_TXEN);// && !m_cts;
 }
 
-/*-------------------------------------------------
-	check_for_tx_start
--------------------------------------------------*/
 void psxsio1_device::check_for_tx_start()
 {
 	if (is_tx_enabled() && (m_status & (SIO_STATUS_TX_EMPTY | SIO_STATUS_TX_RDY)) == SIO_STATUS_TX_EMPTY)
@@ -491,19 +453,12 @@ void psxsio1_device::check_for_tx_start()
 	}
 }
 
-/*-------------------------------------------------
-	start_tx
--------------------------------------------------*/
 void psxsio1_device::start_tx()
 {
 	LOGGENERAL("start_tx %02x\n", m_tx_data);
 	transmit_register_setup(m_tx_data);
 	m_status &= ~SIO_STATUS_TX_EMPTY;
 }
-
-/*-------------------------------------------------
-	transmit_clock
--------------------------------------------------*/
 
 void psxsio1_device::transmit_clock()
 {
@@ -527,11 +482,6 @@ void psxsio1_device::transmit_clock()
 		m_irq_handler(1);
 	}
 }
-
-
-//-------------------------------------------------
-//  device_reset - device-specific reset
-//-------------------------------------------------
 
 void psxsio1_device::device_reset()
 {
@@ -563,12 +513,6 @@ void psxsio1_device::device_reset()
 
 	m_cts = 1;
 }
-
-
-
-/*-------------------------------------------------
-	control_w
--------------------------------------------------*/
 
 void psxsio1_device::command_w(uint16_t data)
 {
@@ -688,23 +632,11 @@ void psxsio1_device::mode_w(uint16_t data)
 	sio_timer_adjust();
 }
 
-
-
-/*-------------------------------------------------
-	status_r
--------------------------------------------------*/
-
 uint16_t psxsio1_device::status_r()
 {
 	uint16_t status = (m_cts << 8) | (m_dsr << 7) | m_status;
 	return status;
 }
-
-
-
-/*-------------------------------------------------
-	data_w
--------------------------------------------------*/
 
 void psxsio1_device::data_w(uint8_t data)
 {
@@ -718,13 +650,6 @@ void psxsio1_device::data_w(uint8_t data)
 	LOGBITS("TX data_w %02x\n", data);
 	check_for_tx_start();
 }
-
-
-
-/*-------------------------------------------------
-	receive_character - called when last
-	bit of data has been received
--------------------------------------------------*/
 
 void psxsio1_device::receive_character(uint8_t ch)
 {
@@ -744,12 +669,6 @@ void psxsio1_device::receive_character(uint8_t ch)
 	m_status |= SIO_STATUS_RX_RDY;
 	LOGSTAT("status post RX READY set %02x\n", m_status);
 }
-
-
-
-/*-------------------------------------------------
-	data_r - read data
--------------------------------------------------*/
 
 uint8_t psxsio1_device::data_r()
 {

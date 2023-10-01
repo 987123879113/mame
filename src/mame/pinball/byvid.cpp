@@ -738,8 +738,6 @@ TIMER_DEVICE_CALLBACK_MEMBER( by133_state::u11_timer )
 void by133_state::machine_start()
 {
 	genpin_class::machine_start();
-	m_sound_select_handler.resolve();
-	m_sound_int_handler.resolve();
 	m_io_outputs.resolve();
 
 	save_item(NAME(m_mpu_to_vid));
@@ -795,7 +793,7 @@ void by133_state::by133(machine_config &config)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
-	PIA6821(config, m_pia_u7, 0);
+	PIA6821(config, m_pia_u7);
 	m_pia_u7->readpa_handler().set(FUNC(by133_state::u7_a_r));
 	m_pia_u7->writepa_handler().set(FUNC(by133_state::u7_a_w));
 	m_pia_u7->readpb_handler().set(FUNC(by133_state::u7_b_r));
@@ -805,7 +803,7 @@ void by133_state::by133(machine_config &config)
 	m_pia_u7->irqa_handler().set_inputline("videocpu", M6809_FIRQ_LINE);
 	m_pia_u7->irqa_handler().set_inputline("videocpu", M6809_FIRQ_LINE);
 
-	PIA6821(config, m_pia_u10, 0);
+	PIA6821(config, m_pia_u10);
 	m_pia_u10->readpa_handler().set(FUNC(by133_state::u10_a_r));
 	m_pia_u10->writepa_handler().set(FUNC(by133_state::u10_a_w));
 	m_pia_u10->readpb_handler().set(FUNC(by133_state::u10_b_r));
@@ -816,7 +814,7 @@ void by133_state::by133(machine_config &config)
 	m_pia_u10->irqb_handler().set_inputline("maincpu", M6800_IRQ_LINE);
 	TIMER(config, "babypac1").configure_periodic(FUNC(by133_state::u10_timer), attotime::from_hz(120)); // mains freq*2
 
-	PIA6821(config, m_pia_u11, 0);
+	PIA6821(config, m_pia_u11);
 	m_pia_u11->readpa_handler().set(FUNC(by133_state::u11_a_r));
 	m_pia_u11->writepa_handler().set(FUNC(by133_state::u11_a_w));
 	m_pia_u11->readpb_handler().set(FUNC(by133_state::u11_b_r));

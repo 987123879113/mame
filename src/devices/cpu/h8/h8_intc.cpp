@@ -3,7 +3,9 @@
 
 #include "emu.h"
 #include "h8_intc.h"
+
 #include "h8.h"
+
 
 DEFINE_DEVICE_TYPE(H8_INTC,    h8_intc_device,    "h8_intc",    "H8 interrupt controller")
 DEFINE_DEVICE_TYPE(H8H_INTC,   h8h_intc_device,   "h8h_intc",   "H8H interrupt controller")
@@ -115,7 +117,7 @@ uint8_t h8_intc_device::ier_r()
 void h8_intc_device::ier_w(uint8_t data)
 {
 	m_ier = data;
-	logerror("ier = %02x\n", data);
+	//	logerror("ier = %02x\n", data);
 	update_irq_state();
 }
 

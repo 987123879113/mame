@@ -13,6 +13,7 @@ known chips:
  *021     1650    1978, GI AY-3-8910 demo board
  @024     1655    1979, Toytronic? Football
  @033     1655A   1979, Toytronic Football (newer)
+ *034     1655A   1979, Cardinal Electronic Football
  @036     1655A   1979, Ideal Maniac
  @043     1655A   1979, Caprice Pro-Action Baseball
  @049     1655A   1980, Kingsford Match Me(?)/Mini Match Me
@@ -74,14 +75,14 @@ TODO:
 
 // internal artwork
 #include "drdunk.lh"
-#include "flash.lh" // clickable
+#include "flash.lh"
 #include "hccbaskb.lh"
-#include "leboom.lh" // clickable
-#include "maniac.lh" // clickable
-#include "melodym.lh" // clickable
-#include "matchme.lh" // clickable
+#include "leboom.lh"
+#include "maniac.lh"
+#include "melodym.lh"
+#include "matchme.lh"
 #include "rockpin.lh"
-#include "touchme.lh" // clickable
+#include "touchme.lh"
 #include "ttfball.lh"
 #include "us2pfball.lh"
 

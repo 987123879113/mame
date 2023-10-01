@@ -21,7 +21,6 @@ protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
 	virtual void device_add_mconfig(machine_config& config) override;
-	virtual void device_resolve_objects() override;
 
 	virtual space_config_vector memory_space_config() const override;
 
@@ -33,10 +32,47 @@ protected:
 
 	void amap(address_map& map);
 
-	const address_space_config m_program_config;
+	address_space_config const m_program_config;
 	address_space *m_program;
 
 private:
+	enum cause_mask : u32
+	{
+		CAUSE_EXCCODE = 0x0000007c, // exception code
+		CAUSE_IPSW0   = 0x00000100, // software interrupt 0 pending
+		CAUSE_IPSW1   = 0x00000200, // software interrupt 1 pending
+		CAUSE_IPEX0   = 0x00000400, // external interrupt 0 pending
+		CAUSE_IPEX1   = 0x00000800, // external interrupt 1 pending
+		CAUSE_IPEX2   = 0x00001000, // external interrupt 2 pending
+		CAUSE_IPEX3   = 0x00002000, // external interrupt 3 pending
+		CAUSE_IPEX4   = 0x00004000, // external interrupt 4 pending
+		CAUSE_IPEX5   = 0x00008000, // external interrupt 5 pending
+		CAUSE_IP      = 0x0000ff00, // interrupt pending
+		CAUSE_CE      = 0x30000000, // co-processor error
+		CAUSE_BD      = 0x80000000, // branch delay
+
+		CAUSE_IPEX    = 0x0000fc00, // external interrupt pending
+	};
+
+	enum cop0_reg : u8
+	{
+		COP0_Index    = 0,
+		COP0_Random   = 1,
+		COP0_EntryLo  = 2,
+		COP0_BusCtrl  = 2,  // r3041 only
+		COP0_Config   = 3,  // r3041/r3071/r3081 only
+		COP0_Context  = 4,
+		COP0_BadVAddr = 8,
+		COP0_Count    = 9,  // r3041 only
+		COP0_EntryHi  = 10,
+		COP0_PortSize = 10, // r3041 only
+		COP0_Compare  = 11, // r3041 only
+		COP0_Status   = 12,
+		COP0_Cause    = 13,
+		COP0_EPC      = 14,
+		COP0_PRId     = 15,
+	};
+
 	required_device_array<tx3927_sio, 2> m_sio;
 
 	void update_timer_speed();
@@ -106,6 +142,7 @@ private:
 		IRCSR_ILV = 8, // Interrupt Level Vector
 		IRCSR_IVL = 0, // Interrupt Vector
 	};
+
 	uint32_t m_irc_irssr;  // Interrupt Source Status Register
 	uint32_t m_irc_irscr; // Interrupt Status/Control Register
 	uint32_t m_irc_ircsr; // Interrupt Current Status Register

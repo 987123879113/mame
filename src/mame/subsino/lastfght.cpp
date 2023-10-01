@@ -86,8 +86,8 @@ namespace {
 class lastfght_state : public driver_device
 {
 public:
-	lastfght_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
+	lastfght_state(const machine_config &mconfig, device_type type, const char *tag) :
+		driver_device(mconfig, type, tag),
 		m_maincpu(*this,"maincpu"),
 		m_eeprom(*this, "eeprom"),
 		m_screen(*this, "screen"),
@@ -528,7 +528,6 @@ void lastfght_state::lastfght(machine_config &config)
 	/* basic machine hardware */
 	H83044(config, m_maincpu, 32000000/2);
 	m_maincpu->set_addrmap(AS_PROGRAM, &lastfght_state::lastfght_map);
-	m_maincpu->set_vblank_int("screen", FUNC(lastfght_state::irq0_line_hold));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
@@ -556,6 +555,7 @@ void lastfght_state::lastfght(machine_config &config)
 	m_screen->set_refresh_hz(60);
 	m_screen->set_screen_update(FUNC(lastfght_state::screen_update));
 	m_screen->set_palette(m_palette);
+	m_screen->screen_vblank().set_inputline(m_maincpu, 0);
 }
 
 
