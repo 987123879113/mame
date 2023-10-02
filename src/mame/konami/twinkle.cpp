@@ -793,7 +793,7 @@ uint8_t twinkle_state::twinkle_io_r(offs_t offset)
 			case 0x0f:
 				data = ioport(
 					((ioport("TURNTABLES")->read() >> 4) & 0x0f) == 0
-					? "IN1_ANALOG"
+					? "IN1"
 					: "IN1_DIGITAL"
 				)->read();
 				break;
@@ -801,7 +801,7 @@ uint8_t twinkle_state::twinkle_io_r(offs_t offset)
 			case 0x17:
 				data = ioport(
 					(ioport("TURNTABLES")->read() & 0x0f) == 0
-					? "IN2_ANALOG"
+					? "IN2"
 					: "IN2_DIGITAL"
 				)->read();
 				break;
@@ -1453,13 +1453,13 @@ static INPUT_PORTS_START( twinkle )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE1)
 	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNKNOWN)
 
-	PORT_START( "IN2_ANALOG" )
+	PORT_START( "IN2" )
 	PORT_BIT( 0xff, 0x00, IPT_POSITIONAL ) PORT_PLAYER(1) PORT_NAME("1P Turntable (Analog)") PORT_WRAPS PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
 
 	PORT_START( "IN2_DIGITAL" )
 	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_PLAYER(1) PORT_NAME("1P Turntable (Digital)") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(75) PORT_KEYDELTA(2)
 
-	PORT_START( "IN1_ANALOG" )
+	PORT_START( "IN1" )
 	PORT_BIT( 0xff, 0x00, IPT_POSITIONAL ) PORT_PLAYER(2) PORT_NAME("2P Turntable (Analog)") PORT_WRAPS PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
 
 	PORT_START( "IN1_DIGITAL" )
