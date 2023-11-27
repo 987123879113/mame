@@ -38,7 +38,7 @@
   Sound CPU: I8035 @ 4 MHz.
   2K EPROM
 
-  4051 (8-channel analog multiplexers/demultiplexers) as DAC + resistor 
+  4051 (8-channel analog multiplexers/demultiplexers) as DAC + resistor
 
   3x I8243 (I/O expander)
   1x I8279 (programmable keyboard/display interface)
@@ -67,7 +67,7 @@
 
     - Auxiliary Lever Activation: The cam activates the Auxiliary Lever microswitch as it initiates the mechanism's forward movement
       when the player pulls the lever.
-    
+
     - Lever Microswitch Activation: The Lever microswitch is engaged when the cam reaches the end-of-tour position.
 
   The game is initiated by processing the combination of these signal events within the system.
@@ -115,7 +115,7 @@
 
 
   Error codes:
-  
+
   01: Physical RAM error.
   02: CPU/MCU error.
   03: Coin-In error.
@@ -183,8 +183,7 @@
 
   TODO:
 
-  - Split subclasses for different games.
-  - Create internal layouts for Sevilla and Costa Brava with their proper reels/symbols.
+  - Nothing... :)
 
 
 *******************************************************************************************************************************************************
@@ -279,7 +278,7 @@
 
      Toledo plays from 1 to 6 tokens.
      All coins bet in the central line, but usually
-	 the prize is multiplied by the number of inserted tokens.
+     the prize is multiplied by the number of inserted tokens.
 
 
          TOLEDO PAYTABLE                      PRIZE
@@ -410,7 +409,7 @@
 
      Sevilla plays from 1 to 3 tokens.
      All coins bet in the central line, but usually
-	 the prize is multiplied by the number of inserted tokens.
+     the prize is multiplied by the number of inserted tokens.
 
 
         SEVILLA PAYTABLE            PRIZE
@@ -475,6 +474,12 @@
 #include "sound/samples.h"
 #include "speaker.h"
 
+#include "cbrava_81.lh"
+#include "cbrava_77.lh"
+#include "sevilla_81.lh"
+#include "sevilla_77.lh"
+#include "toledo_87.lh"
+#include "toledo_83.lh"
 #include "ifslots.lh"
 
 
@@ -499,9 +504,16 @@ public:
 
 	enum { STEPS_PER_SYMBOL = 168 };
 
-	void add_em_reels(machine_config &config, int symbols, attotime period);	
+	void add_em_reels(machine_config &config, int symbols, attotime period);
 
 	void interflip(machine_config &config);
+	void cbr_81_cnf(machine_config &config);
+	void cbr_77_cnf(machine_config &config);
+	void sev_81_cnf(machine_config &config);
+	void sev_77_cnf(machine_config &config);
+	void tol_87_cnf(machine_config &config);
+	void tol_83_cnf(machine_config &config);
+	void jkp_cnf(machine_config &config);
 
 	template <unsigned Reel> int symbol_opto_r();
 	template <unsigned Reel> int reel_opto_r();
@@ -521,18 +533,21 @@ private:
 	// Main MCU Interface
 	u8 main_io_r(offs_t offset);
 	void main_io_w(offs_t offset, u8 data);
-	void main_p1_data_w(u8 data);
+	void main_p1_enc_data_w(u8 data);  // encoded coin lamps
+	void main_p1_dec_data_w(u8 data);  // decoded coin lamps
 	void main_p2_w(u8 data);
 	u8 main_p2_r();
-	u8 m_mp1, m_mp2;
-	u8 m_int_flag;
+	u8 m_mp1 = 0xff;
+	u8 m_mp2 = 0xff;
+	u8 m_int_flag = 0x00;
 
-	// Audio MCU Interface	
+	// Audio MCU Interface
 	u8 audio_io_r(offs_t offset);
-	void audio_io_w(offs_t offset, u8 data);	
+	void audio_io_w(offs_t offset, u8 data);
 	u8 audio_p2_r();
 	void audio_p2_w(u8 data);
-	u8 m_audio;
+	u8 m_audio = 0x00;
+	u8 m_sample_flags = 0x00;
 
 	// I8243 IO Expander x 3
 	void exp2_p4_w(u8 data);
@@ -548,7 +563,7 @@ private:
 	void disp_w(u8 data);
 	void irq_w(int state);
 	void output_digit(int i, u8 data);
-	u8 m_kbd_sl;
+	u8 m_kbd_sl = 0x00;
 
 	// other
 	required_device<i8035_device> m_maincpu;
@@ -557,7 +572,7 @@ private:
 	required_device<i8279_device> m_kbdc;
 	required_device_array<em_reel_device, 4> m_reels;
 	required_device<hopper_device> m_hopper;
-	required_device<samples_device> m_samples;	
+	required_device<samples_device> m_samples;
 
 	// object finders
 	output_finder<50> m_outbit;
@@ -637,7 +652,7 @@ u8 interflip8035_state::main_io_r(offs_t offset)
 			// logerror("Data RAM Read Offs:%02X - Data:%02X\n", offset, ret);
 			break;
 		}
-		default: 
+		default:
 			ret =  0xff;
 	}
 	return ret;
@@ -666,32 +681,32 @@ void interflip8035_state::main_io_w(offs_t offset, u8 data)
 			break;
 		}
 	}
-	// logerror("%s: Main I/O Write Offs:%02X - Data: %02X\n", machine().describe_context(), offset, data);	
+	// logerror("%s: Main I/O Write Offs:%02X - Data: %02X\n", machine().describe_context(), offset, data);
 
 /* gpkd commands ( under revision)
 
 CMD  Binary
----- ---- ---- 
-0x25 0010-0101 -> 001 (1) - 00101	Code=1: Program Clock Divider 5 
+---- ---- ----
+0x25 0010-0101 -> 001 (1) - 00101   Code=1: Program Clock Divider 5
 
-0x0C 0000-1100 -> 000 (0) - 01-100	Code=0: Keyboard Display Mode Set. 
-									DD=01: 16 8bit character display.
-									KKK=100: Encoded Scan Sensor Matrix.
+0x0C 0000-1100 -> 000 (0) - 01-100  Code=0: Keyboard Display Mode Set.
+                                    DD=01: 16 8bit character display.
+                                    KKK=100: Encoded Scan Sensor Matrix.
 
-0xD6 1101-0110 -> 110 (6) - 101-10	Code=6: Clear
-									CD CD CD = 101: Clear all Zeroes
-									CF = 1: Fifo Status Cleared an the interrupt output line is reset.
-									        Also, the sensor raw pointer is set to row 0.
-									CA = 0: No Clear all bit.
+0xD6 1101-0110 -> 110 (6) - 101-10  Code=6: Clear
+                                    CD CD CD = 101: Clear all Zeroes
+                                    CF = 1: Fifo Status Cleared an the interrupt output line is reset.
+                                            Also, the sensor raw pointer is set to row 0.
+                                    CA = 0: No Clear all bit.
 
 0xA5 1010-0101 -> 101 (5) - 0-0101  Code=5: Display Write inhibit/blanking
-									x       = 0: 
-									IWA IWB = 01: Inhibit port B
-									BLA BLB = 01: Blank port B
+                                    x       = 0:
+                                    IWA IWB = 01: Inhibit port B
+                                    BLA BLB = 01: Blank port B
 
 0x90 1001-0000 -> 100 (4) - 1-0000  Code = 4: Write display Ram
-									AI = 1  : Autoincrement
-									AD AD AD AD = 0000: Buffer base address to write.
+                                    AI = 1  : Autoincrement
+                                    AD AD AD AD = 0000: Buffer base address to write.
 
 Then MPU sends gpkd data.
 
@@ -712,20 +727,63 @@ void interflip8035_state::audio_io_w(offs_t offset, u8 data)
 }
 
 
-void interflip8035_state::main_p1_data_w(u8 data)
+void interflip8035_state::main_p1_enc_data_w(u8 data)  // Encoded lamps. (Sevilla & Toledo)
 {
 /*
-	Port P1 Maincpu
-	===============
+    Port P1 Maincpu
+    ===============
 
-	P1.0 Lamp 1st. Coin
-	P1.1 Lamp 2nd. Coin
-	P1.2 Lamp 3rd. Coin
-	P1.3 Interrupt Flag (enable/disable /INT via NAND Gate.)
-	P1.4 /CS PIA 1 - Debug: MPU usually writes 0x67, 0x6f, 0xe7 or 0xef to enable PIA access
-	P1.5 /CS PIA 2 - Debug: MPU usually writes 0x57, 0x5f, 0x57 or 0x5f to enable PIA access
-	P1.6 /CS PIA 3 - Debug: MPU usually writes 0x37, 0x3f, 0x37 or 0x3f to enable PIA access
-	P1.7 /GPKD Reset (Not implemented on device)
+    P1.0 Coin Lamp Bit 0
+    P1.1 Coin Lamp Bit 1
+    P1.2 Coin Lamp Bit 2
+    P1.3 Interrupt Flag (enable/disable /INT via NAND Gate.)
+    P1.4 /CS PIA 1 - Debug: MPU usually writes 0x67, 0x6f, 0xe7 or 0xef to enable PIA access
+    P1.5 /CS PIA 2 - Debug: MPU usually writes 0x57, 0x5f, 0x57 or 0x5f to enable PIA access
+    P1.6 /CS PIA 3 - Debug: MPU usually writes 0x37, 0x3f, 0x37 or 0x3f to enable PIA access
+    P1.7 /GPKD Reset (Not implemented on device)
+*/
+
+	m_mp1 = data;
+
+/* Lamp decoder: Active "0"
+
+m_outbit[0] -> Lamp: 1st. Coin
+m_outbit[1] -> Lamp: 2nd. Coin
+m_outbit[2] -> Lamp: 3rd. Coin
+m_outbit[3] -> Lamp: 4th. Coin
+m_outbit[4] -> Lamp: 5th. Coin
+m_outbit[5] -> Lamp: 6th. Coin
+*/
+	for(u8 i = 0; i < 6; i++)
+		if((data & 0x07) == i )
+			m_outbit[i] = 0;
+		else
+			m_outbit[i] = 1;
+
+	m_int_flag = BIT(data, 3);       // Main Interrupt Flag
+	m_outbit[44] = BIT(data, 3);     // Main Interrupt Flag
+	m_ioexp[0]->cs_w(BIT(data, 4));  // Chip Select IO Expander_1
+	m_ioexp[1]->cs_w(BIT(data, 5));  // Chip Select IO Expander_2
+	m_ioexp[2]->cs_w(BIT(data, 6));  // Chip Select IO Expander_3
+	// m_kbdc->reset(BIT(data, 7));  // Reset GPKD (not implemented on device)
+	// logerror("Main P1 Write: %02X\n", data);
+
+}
+
+void interflip8035_state::main_p1_dec_data_w(u8 data)  // Decoded lamps. (Costa Brava)
+{
+/*
+    Port P1 Maincpu
+    ===============
+
+    P1.0 Lamp 1st. Coin
+    P1.1 Lamp 2nd. Coin
+    P1.2 Lamp 3rd. Coin
+    P1.3 Interrupt Flag (enable/disable /INT via NAND Gate.)
+    P1.4 /CS PIA 1 - Debug: MPU usually writes 0x67, 0x6f, 0xe7 or 0xef to enable PIA access
+    P1.5 /CS PIA 2 - Debug: MPU usually writes 0x57, 0x5f, 0x57 or 0x5f to enable PIA access
+    P1.6 /CS PIA 3 - Debug: MPU usually writes 0x37, 0x3f, 0x37 or 0x3f to enable PIA access
+    P1.7 /GPKD Reset (Not implemented on device)
 */
 
 	m_mp1 = data;
@@ -734,7 +792,7 @@ void interflip8035_state::main_p1_data_w(u8 data)
 	m_outbit[2] = BIT(data, 2);      // Lamp: 3rd. Coin
 	m_int_flag = BIT(data, 3);       // Main Interrupt Flag
 	m_outbit[44] = BIT(data, 3);     // Main Interrupt Flag
-	m_ioexp[0]->cs_w(BIT(data, 4));  // Chip Select IO Expander_1 
+	m_ioexp[0]->cs_w(BIT(data, 4));  // Chip Select IO Expander_1
 	m_ioexp[1]->cs_w(BIT(data, 5));  // Chip Select IO Expander_2
 	m_ioexp[2]->cs_w(BIT(data, 6));  // Chip Select IO Expander_3
 	// m_kbdc->reset(BIT(data, 7));  // Reset GPKD (not implemented on device)
@@ -742,23 +800,22 @@ void interflip8035_state::main_p1_data_w(u8 data)
 
 }
 
-
 void interflip8035_state::main_p2_w(u8 data)
 {
 /*
-	Port P2 Maincpu
-	===============
+    Port P2 Maincpu
+    ===============
 
-	P2.0 A8  Address line
-	P2.1 A9  Address line
-	P2.2 A10 Address line
-	P2.3 A11 Address line
-	P2.4 /CE1 RAM 1 - Debug: MPU usually writes 0xef to enable NVRAM access
-	P2.5 /CE1 RAM 2 - Unused on these games
-	P2.6 /A0 GPKD   - Selects -> [Data (rw)] or [Status(r)/ Control(w)] access on I8279
-	P2.7 /CS GPKD   - Enable I8279 access. 
+    P2.0 A8  Address line
+    P2.1 A9  Address line
+    P2.2 A10 Address line
+    P2.3 A11 Address line
+    P2.4 /CE1 RAM 1 - Debug: MPU usually writes 0xef to enable NVRAM access
+    P2.5 /CE1 RAM 2 - Unused on these games
+    P2.6 /A0 GPKD   - Selects -> [Data (rw)] or [Status(r)/ Control(w)] access on I8279
+    P2.7 /CS GPKD   - Enable I8279 access.
 
-	GPKD Notes: MPU writes 0x3f to data access and 0x7f to status/control
+    GPKD Notes: MPU writes 0x3f to data access and 0x7f to status/control
 */
 
 	m_mp2 = data;
@@ -774,9 +831,9 @@ void interflip8035_state::main_p2_w(u8 data)
 u8 interflip8035_state::main_p2_r()
 {
 /*
-	P1.4 /CS PIA 1 - Debug: MPU usually writes 0x67, 0x6f, 0xe7 or 0xef to enable PIA access
-	P1.5 /CS PIA 2 - Debug: MPU usually writes 0x57, 0x5f, 0xd7 or 0xdf to enable PIA access
-	P1.6 /CS PIA 3 - Debug: MPU usually writes 0x37, 0x3f, 0xb7 or 0xbf to enable PIA access
+    P1.4 /CS PIA 1 - Debug: MPU usually writes 0x67, 0x6f, 0xe7 or 0xef to enable PIA access
+    P1.5 /CS PIA 2 - Debug: MPU usually writes 0x57, 0x5f, 0xd7 or 0xdf to enable PIA access
+    P1.6 /CS PIA 3 - Debug: MPU usually writes 0x37, 0x3f, 0xb7 or 0xbf to enable PIA access
 */
 	u8 opt, ret;
 	opt = (m_mp1 & 0x70) >> 4;  // valid PIA selectors are 3, 5, 6
@@ -813,9 +870,9 @@ u8 interflip8035_state::main_p2_r()
 u8 interflip8035_state::audio_p2_r()
 {
 /*
-	P2.4 Sound Code 0
-	P2.5 Sound Code 1
-	P2.6 Sound Code 2
+    P2.4 Sound Code 0
+    P2.5 Sound Code 1
+    P2.6 Sound Code 2
 */
 	return m_audio;
 }
@@ -823,22 +880,40 @@ u8 interflip8035_state::audio_p2_r()
 
 void interflip8035_state::audio_p2_w(u8 data)
 {
-	m_outbit[28] = BIT(data, 7);  //	P2.7 Topper Lamp
 
-	if(!m_outbit[28])
+// Ring bell is turned on together with tower lamp under error or required handpay conditions
+
+// Added some logic to emulate ringing bell sampled sound effects with fadeout
+
+	u8 change = false;
+	if(m_outbit[28] != BIT(data, 7))
+		change = true;
+	m_outbit[28] = BIT(data, 7);  //    P2.7 Topper Lamp
+
+	if(!m_outbit[28] && change)
+	{
 		m_samples->start(0, 0, true);
+		m_sample_flags |= 0x01;
+	}
 	else
+	{
+		if(BIT(m_sample_flags, 0) && change)
+		{
+			m_sample_flags &= 0xfe;
+			m_samples->start(1, 3, false);
+		}
 		m_samples->stop(0);
+	}
 }
 
 
 /****************************************************************
 
-             I8243 IO Expander Interface x 3                
+               I8243 IO Expander Interface x 3
 
-	Access:
-	P1 -> Enable PIA Access
-	IORW -> Destination Port (4, 5, 6, 7) 0xf4, 0xf5, 0xf6, 0xf7  
+    Access:
+    P1 -> Enable PIA Access
+    IORW -> Destination Port (4, 5, 6, 7) 0xf4, 0xf5, 0xf6, 0xf7
 
 ****************************************************************/
 
@@ -849,12 +924,6 @@ void interflip8035_state::exp2_p4_w(u8 data)
 	m_outbit[11] = BIT(data, 1);  // Coil: Lock Reel C
 	m_outbit[12] = BIT(data, 2);  // Coil: Lock Reel B
 	m_outbit[13] = BIT(data, 3);  // Coil: Lock Reel A
-
-	m_reels[0]->set_state(!m_outbit[10]);
-	m_reels[1]->set_state(!m_outbit[11]);
-	m_reels[2]->set_state(!m_outbit[12]);
-	m_reels[3]->set_state(!m_outbit[13]);
-
 }
 
 void interflip8035_state::exp2_p5_w(u8 data)
@@ -878,7 +947,7 @@ void interflip8035_state::exp2_p6_w(u8 data)
 	machine().bookkeeping().coin_counter_w(1, BIT(data, 1));  // EM.Counter: Coin Out
 	machine().bookkeeping().coin_counter_w(2, BIT(data, 2));  // EM.Counter: Coin Drop
 	machine().bookkeeping().coin_counter_w(3, BIT(data, 3));  // EM.Counter: Jackpot Times
-	
+
 // Coin in sound
 	if(BIT(data, 0))
 		m_samples->start(0, 1, false);
@@ -895,29 +964,32 @@ void interflip8035_state::exp2_p7_w(u8 data)
 
 	m_hopper->motor_w(BIT(data, 0));
 
-// Lever rattle sound
+// Lever rattle sampled sound effect
 
-	if(BIT(data, 1)) 
+	if(!m_samples->playing(1) && BIT(data, 1))
+	{
 		m_samples->start(1, 2, false);
+		m_sample_flags |= 0x02;
+	}
 }
 
 void interflip8035_state::exp3_p4_w(u8 data)
 {
 // All active "0" via PNP + NPN open colector transistor driver
-	m_outbit[3] = BIT(data, 0);  // Lamp: Accepted Coin
-	m_outbit[4] = BIT(data, 1);  // Lamp: Insert Coin
-	m_outbit[5] = BIT(data, 2);  // Lamp: Fault
+	m_outbit[6] = BIT(data, 0);  // Lamp: Accepted Coin
+	m_outbit[7] = BIT(data, 1);  // Lamp: Insert Coin
+	m_outbit[8] = BIT(data, 2);  // Lamp: Fault
 }
 
 void interflip8035_state::exp3_p6_w(u8 data)
 {
 /*  Swapped Sound Control bits
-	==========================
-	IO_Exp_Data    ->	Audio MPU P2
-	bit 0 - /Int		/Int
-	bit 1 - Code2		P2.6
-	bit 2 - Code1		P2.5
-	bit 3 - Code0		P2.4
+    ==========================
+    IO_Exp_Data    ->   Audio MPU P2
+    bit 0 - /Int        /Int
+    bit 1 - Code2       P2.6
+    bit 2 - Code1       P2.5
+    bit 3 - Code0       P2.4
 */
 
 	u8 state;
@@ -937,7 +1009,7 @@ void interflip8035_state::kbd_sl_w(u8 data)
 {
 //  Scan Line
 	m_kbd_sl = data;
-    // logerror("I8279: Scan Line: %02X\n", data);
+	// logerror("I8279: Scan Line: %02X\n", data);
 }
 
 u8 interflip8035_state::kbd_rl_r()
@@ -953,8 +1025,28 @@ u8 interflip8035_state::kbd_rl_r()
 
 void interflip8035_state::disp_w(u8 data)
 {
+
 //  Display Data
 	output_digit(m_kbd_sl, data >> 4);
+
+// Added some logic to manage rattle forth and back sound effects
+
+	if( m_outbit[25])
+	{
+		if(!m_samples->playing(1))
+		{
+			// reels will start after rattle forth sound has ended
+			m_reels[0]->set_state(!m_outbit[10]);
+			m_reels[1]->set_state(!m_outbit[11]);
+			m_reels[2]->set_state(!m_outbit[12]);
+			m_reels[3]->set_state(!m_outbit[13]);
+			if(BIT(m_sample_flags,1))
+			{
+				m_samples->start(1, 4, false);  // ended rattle forth sound then play rattle back sound
+				m_sample_flags &= 0xfd;
+			}
+		}
+	}
 }
 
 void interflip8035_state::output_digit(int i, u8 data)
@@ -962,7 +1054,7 @@ void interflip8035_state::output_digit(int i, u8 data)
 //  Segment Decode
 	static const u8 led_map[16] =
 		{ 0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7c, 0x07, 0x7f, 0x67, 0x58, 0x4c, 0x62, 0x69, 0x78, 0x00 };
-//  show layout 
+//  show layout
 	m_outbyte[i] = led_map[data & 0x0f];
 }
 
@@ -970,7 +1062,7 @@ void interflip8035_state::irq_w(int state)
 {
 //  KBD Interrupt ( Enabled by maincpu P1.3 )
 	m_maincpu->set_input_line(INPUT_LINE_IRQ0, (state & m_int_flag) ? ASSERT_LINE : CLEAR_LINE);
-	// logerror("I8279: irq state: %s  | Int_flag T0:%02x\n", (state & m_int_flag) ? "Assert Line":"Clear Line" , m_int_flag);
+	// logerror("I8279: irq state: %s  | Int_flag T0:%02x\n", (state & m_int_flag) ? "Assert Line":"Clear Line", m_int_flag);
 }
 
 
@@ -1013,12 +1105,14 @@ int interflip8035_state::reel_opto_r()
 *                 Sound Samples                  *
 *************************************************/
 
-static const char *const interflip8035_sample_names[] =
+static const char *const ifslots_sample_names[] =
 {
-	"*samples",
-	"ringbellm",        // ring bell
-	"coin_in",          // coin in
-	"rattle",           // rattle
+	"*ifslots",
+	"ringbellm",
+	"coin_in",
+	"rattle_forth",
+	"fade_ring",
+	"rattle_back",
 	nullptr
 };
 
@@ -1039,7 +1133,7 @@ static INPUT_PORTS_START( interflip )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN1 )   PORT_IMPULSE(5)                                  // coin in
 
 	PORT_START("IN1")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE2 )  PORT_NAME("Hopper Full") PORT_TOGGLE           // Hopper Full Sensor
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE2 )  PORT_NAME("Hopper Full") PORT_TOGGLE           // hopper full sensor
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -1060,30 +1154,30 @@ static INPUT_PORTS_START( interflip )
 //  To select Game Mode all DSW5, DSW6 and DSW7 must be On. All others are ignored.
 
 	PORT_START("DSW_A")
-	PORT_DIPNAME(0x01, 0x00, DEF_STR(Unused))	PORT_DIPLOCATION("SW1:1")
+	PORT_DIPNAME(0x01, 0x00, DEF_STR(Unused))   PORT_DIPLOCATION("SW1:1")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x01, DEF_STR(On))
-	PORT_DIPNAME(0x02, 0x00, DEF_STR(Unused))	PORT_DIPLOCATION("SW1:2")
+	PORT_DIPNAME(0x02, 0x00, DEF_STR(Unused))   PORT_DIPLOCATION("SW1:2")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x02, DEF_STR(On))
-	PORT_DIPNAME(0x04, 0x00, DEF_STR(Unused))	PORT_DIPLOCATION("SW1:3")
+	PORT_DIPNAME(0x04, 0x00, DEF_STR(Unused))   PORT_DIPLOCATION("SW1:3")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x04, DEF_STR(On))
-	PORT_DIPNAME(0x08, 0x00, DEF_STR(Unused))	PORT_DIPLOCATION("SW1:4")
+	PORT_DIPNAME(0x08, 0x00, DEF_STR(Unused))   PORT_DIPLOCATION("SW1:4")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x08, DEF_STR(On))
 
 	PORT_START("DSW_B")
-	PORT_DIPNAME(0x01, 0x00, "General Test")	PORT_DIPLOCATION("SW1:5")
+	PORT_DIPNAME(0x01, 0x00, "General Test")    PORT_DIPLOCATION("SW1:5")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x01, DEF_STR(On))
-	PORT_DIPNAME(0x02, 0x00, "Reels Test")		PORT_DIPLOCATION("SW1:6")
+	PORT_DIPNAME(0x02, 0x00, "Reels Test")      PORT_DIPLOCATION("SW1:6")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x02, DEF_STR(On))
-	PORT_DIPNAME(0x04, 0x00, "Timing Test")		PORT_DIPLOCATION("SW1:7")
+	PORT_DIPNAME(0x04, 0x00, "Timing Test")     PORT_DIPLOCATION("SW1:7")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x04, DEF_STR(On))
-	PORT_DIPNAME(0x08, 0x00, DEF_STR(Unused))	PORT_DIPLOCATION("SW1:8")
+	PORT_DIPNAME(0x08, 0x00, DEF_STR(Unused))   PORT_DIPLOCATION("SW1:8")
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x08, DEF_STR(On))
 INPUT_PORTS_END
@@ -1099,7 +1193,6 @@ void interflip8035_state::interflip(machine_config &config)
 	I8035(config, m_maincpu, MAIN_CLOCK);  // 6 MHz.
 	m_maincpu->set_addrmap(AS_PROGRAM, &interflip8035_state::main_program_map);
 	m_maincpu->set_addrmap(AS_IO , &interflip8035_state::main_io_map);
-	m_maincpu->p1_out_cb().set(FUNC(interflip8035_state::main_p1_data_w));
 	m_maincpu->p2_in_cb().set(FUNC(interflip8035_state::main_p2_r));
 	m_maincpu->p2_out_cb().set(FUNC(interflip8035_state::main_p2_w));
 	m_maincpu->prog_out_cb().set(m_ioexp[0], FUNC(i8243_device::prog_w));
@@ -1130,7 +1223,7 @@ void interflip8035_state::interflip(machine_config &config)
 	m_ioexp[2]->p5_in_cb().set_ioport("IN1");
 	m_ioexp[2]->p6_out_cb().set(FUNC(interflip8035_state::exp3_p6_w));
 
-	I8279(config, m_kbdc, MAIN_CLOCK / 3);  // 2 MHz. (Derived from Main CPU that gives Main Clock / 3  frequency.
+	I8279(config, m_kbdc, MAIN_CLOCK / 3);  // 2 MHz. (Derived from Main CPU T0 line, that gives Main Clock / 3  frequency.
 	m_kbdc->out_sl_callback().set(FUNC(interflip8035_state::kbd_sl_w));  // scan SL lines
 	m_kbdc->out_disp_callback().set(FUNC(interflip8035_state::disp_w));  // display A&B
 	m_kbdc->in_rl_callback().set(FUNC(interflip8035_state::kbd_rl_r));   // kbd RL lines
@@ -1143,11 +1236,8 @@ void interflip8035_state::interflip(machine_config &config)
 	// electromechanics
 	add_em_reels(config, 20, attotime::from_double(2));
 
-	// Hopper device
+	// hopper device
 	HOPPER(config, m_hopper, attotime::from_msec(100), TICKET_MOTOR_ACTIVE_HIGH, TICKET_STATUS_ACTIVE_HIGH);
-	
-	// video layout
-	config.set_default_layout(layout_ifslots);
 
 	// sound stuff
 	SPEAKER(config, "mono").front_center();
@@ -1156,9 +1246,81 @@ void interflip8035_state::interflip(machine_config &config)
 
 	SAMPLES(config, m_samples);
 	m_samples->set_channels(2);
-	m_samples->set_samples_names(interflip8035_sample_names);
+	m_samples->set_samples_names(ifslots_sample_names);
 	m_samples->add_route(ALL_OUTPUTS, "mono", 2.0);
 
+}
+
+
+void interflip8035_state::cbr_81_cnf(machine_config &config)
+{
+	interflip(config);
+
+	m_maincpu->p1_out_cb().set(FUNC(interflip8035_state::main_p1_dec_data_w));  // decoded coin lamps
+
+	// video layout
+	config.set_default_layout(layout_cbrava_81);
+}
+
+void interflip8035_state::cbr_77_cnf(machine_config &config)
+{
+	interflip(config);
+
+	m_maincpu->p1_out_cb().set(FUNC(interflip8035_state::main_p1_dec_data_w));  // decoded coin lamps
+
+	// video layout
+	config.set_default_layout(layout_cbrava_77);
+}
+
+
+void interflip8035_state::sev_81_cnf(machine_config &config)
+{
+	interflip(config);
+
+	m_maincpu->p1_out_cb().set(FUNC(interflip8035_state::main_p1_enc_data_w));  // encoded coin lamps
+
+	// video layout
+	config.set_default_layout(layout_sevilla_81);
+}
+
+void interflip8035_state::sev_77_cnf(machine_config &config)
+{
+	interflip(config);
+
+	m_maincpu->p1_out_cb().set(FUNC(interflip8035_state::main_p1_enc_data_w));  // encoded coin lamps
+
+	// video layout
+	config.set_default_layout(layout_sevilla_77);
+}
+
+
+void interflip8035_state::tol_87_cnf(machine_config &config)
+{
+	interflip(config);
+
+	m_maincpu->p1_out_cb().set(FUNC(interflip8035_state::main_p1_enc_data_w));  // encoded coin lamps
+
+	// video layout
+	config.set_default_layout(layout_toledo_87);
+}
+
+void interflip8035_state::tol_83_cnf(machine_config &config)
+{
+	interflip(config);
+
+	m_maincpu->p1_out_cb().set(FUNC(interflip8035_state::main_p1_enc_data_w));  // encoded coin lamps
+
+	// video layout
+	config.set_default_layout(layout_toledo_83);
+}
+
+
+void interflip8035_state::jkp_cnf(machine_config &config)
+{
+	interflip(config);
+
+	// video layout
+	config.set_default_layout(layout_ifslots);
 }
 
 
@@ -1166,7 +1328,9 @@ void interflip8035_state::interflip(machine_config &config)
 *                  Rom Load                  *
 *********************************************/
 
-ROM_START( cbrava )
+// Costa Brava sets...
+
+ROM_START( cbrava )  // 2p81 - 2 jackpot points by coin, 81%.
 	ROM_REGION( 0x1000, "maincpu", 0 )
 	ROM_LOAD( "cbr2p81.pal", 0x0000, 0x1000, CRC(89209629) SHA1(8f2e6acfcb3f9d3663a40b6714bc6c784a2af8db) )
 
@@ -1174,7 +1338,42 @@ ROM_START( cbrava )
 	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
 ROM_END
 
-ROM_START( sevilla )
+ROM_START( cbravaa )  // 1p77 - 1 jackpot point by coin, 77%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "cbr1p77.pal", 0x0000, 0x1000, CRC(54bb67d4) SHA1(481f89173c3ecbb093ba2c616055709523feee96) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as sevilla
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+ROM_START( cbravab )  // 2p77 - 2 jackpot points by coin, 77%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "cbr2p77.pal", 0x0000, 0x1000, CRC(c48e3225) SHA1(34552d98a0c6e8fef422b37fe015dfe590ff9040) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as sevilla
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+ROM_START( cbravac )  // 4p77 - 4 jackpot points by coin, 77%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "cbr4p77.pal", 0x0000, 0x1000, CRC(d28ddd81) SHA1(16c35c184fa761256b00fc066831588b5aa7c2eb) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as sevilla
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+ROM_START( cbravad )  // 8p77 - 8 jackpot points by coin, 77%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "cbr8p77.pal", 0x0000, 0x1000, CRC(dec13b4d) SHA1(9235480683c93949e14f57a6d60254d0b8380b83) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as sevilla
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+
+// Sevilla sets...
+
+ROM_START( sevilla )  // 2p81 - 2 jackpot points by coin, 81%.
 	ROM_REGION( 0x1000, "maincpu", 0 )
 	ROM_LOAD( "sev2p81.pal", 0x0000, 0x1000, CRC(362acdf4) SHA1(82913fe5c646be9c10252c2337ceaac2fc8173df) )
 
@@ -1182,15 +1381,69 @@ ROM_START( sevilla )
 	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
 ROM_END
 
-ROM_START( toledo )
+ROM_START( sevillaa )  // 1p77 - 1 jackpot point by coin, 77%.
 	ROM_REGION( 0x1000, "maincpu", 0 )
-	ROM_LOAD( "told2p87.pal", 0x0000, 0x1000, CRC(9990f5ed) SHA1(b556eb3c9ebec7b974a19ec077e81ef0429ccfe0) )
+	ROM_LOAD( "sev1p77.pal", 0x0000, 0x1000, CRC(242d3be6) SHA1(5aa80000bf13321c8f70f72e941123ce417e7b6e) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as cbrava
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+ROM_START( sevillab )  // 2p77 - 2 jackpot points by coin, 77%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "sev2p77.pal", 0x0000, 0x1000, CRC(a7e2ef85) SHA1(c1bc0eb255c26365bb7d5f286fd3aafdf993aeb1) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as cbrava
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+ROM_START( sevillac )  // 4p77 - 4 jackpot points by coin, 77%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "sev4p77.pal", 0x0000, 0x1000, CRC(501a4cb9) SHA1(1f98072d4499da1c8c4f90b99432a00e0bb98e79) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as cbrava
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+ROM_START( sevillad )  // 8p77 - 8 jackpot points by coin, 77%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "sev8p77.pal", 0x0000, 0x1000, CRC(2a0df366) SHA1(29b66bd78c35a5ad284a20102d6f6299d1e2f5a6) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 ) // same as cbrava
+	ROM_LOAD( "sonsev.pal", 0x000, 0x800, CRC(1043a346) SHA1(3d45e3795653a51dca7992848eb4b9ed66492b0c) )
+ROM_END
+
+
+// Toledo sets...
+
+ROM_START( toledo )  // 2p87 - 2 jackpot points by coin, 87%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "tol2p87.pal", 0x0000, 0x1000, CRC(9990f5ed) SHA1(b556eb3c9ebec7b974a19ec077e81ef0429ccfe0) )
 
 	ROM_REGION( 0x800, "audiocpu", 0 )
 	ROM_LOAD( "sontol.pal", 0x000, 0x800, CRC(5066dc8c) SHA1(9bb81671525c645a633db2b8f6aed0dfe198fe63) )
 ROM_END
 
-ROM_START( jackuse )  // jackpot settings...
+ROM_START( toledoa )  // 2p83 - 2 jackpot points by coin, 83%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "tol2p83.pal", 0x0000, 0x1000, CRC(7052a2f3) SHA1(ad56ecc50f0806a03a4451aecf3c6f749fd44480) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 )
+	ROM_LOAD( "sontol.pal", 0x000, 0x800, CRC(5066dc8c) SHA1(9bb81671525c645a633db2b8f6aed0dfe198fe63) )
+ROM_END
+
+ROM_START( toledob )  // 1p79 - 1 jackpot point by coin, 79%.
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "tol1p79.pal", 0x0000, 0x1000, CRC(f1c74d63) SHA1(8ceab68e27ba24ce843245a26696ff3b081adefa) )
+
+	ROM_REGION( 0x800, "audiocpu", 0 )
+	ROM_LOAD( "sontol.pal", 0x000, 0x800, CRC(5066dc8c) SHA1(9bb81671525c645a633db2b8f6aed0dfe198fe63) )
+ROM_END
+
+
+// Other sets...
+
+ROM_START( jackuse )  // jackpot settings program.
 	ROM_REGION( 0x1000, "maincpu", 0 )
 	ROM_LOAD( "jackuse.pal", 0x0000, 0x1000, CRC(6adc3fcf) SHA1(cb63a0dcf9accf283a9aeddb2e9e120c19483b13) )
 
@@ -1199,15 +1452,29 @@ ROM_START( jackuse )  // jackpot settings...
 ROM_END
 
 
-} // anonymous namespace
+}  // anonymous namespace
 
 
 /*********************************************
 *                Game Drivers                *
 *********************************************/
 
-//    YEAR  NAME     PARENT  MACHINE    INPUT      STATE                INIT        ROT    COMPANY      FULLNAME      FLAGS
-GAME( 1982, cbrava,  0,      interflip, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Costa Brava", MACHINE_MECHANICAL )
-GAME( 1982, sevilla, 0,      interflip, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Sevilla",     MACHINE_MECHANICAL )
-GAME( 1982, toledo,  0,      interflip, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Toledo",      MACHINE_MECHANICAL )
-GAME( 1982, jackuse, 0,      interflip, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Jack Use (Jackpot settings for Interflip slots machines)",  MACHINE_MECHANICAL )
+//    YEAR  NAME      PARENT   MACHINE     INPUT      STATE                INIT        ROT    COMPANY      FULLNAME                              FLAGS
+GAME( 1982, cbrava,   0,       cbr_81_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Costa Brava (2 jackpot points, 81%)", MACHINE_MECHANICAL )
+GAME( 1982, cbravaa,  cbrava,  cbr_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Costa Brava (1 jackpot point, 77%)",  MACHINE_MECHANICAL )
+GAME( 1982, cbravab,  cbrava,  cbr_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Costa Brava (2 jackpot points, 77%)", MACHINE_MECHANICAL )
+GAME( 1982, cbravac,  cbrava,  cbr_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Costa Brava (4 jackpot points, 77%)", MACHINE_MECHANICAL )
+GAME( 1982, cbravad,  cbrava,  cbr_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Costa Brava (8 jackpot points, 77%)", MACHINE_MECHANICAL )
+
+GAME( 1982, sevilla,  0,       sev_81_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Sevilla (2 jackpot points, 81%)",     MACHINE_MECHANICAL )
+GAME( 1982, sevillaa, sevilla, sev_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Sevilla (1 jackpot point, 77%)",      MACHINE_MECHANICAL )
+GAME( 1982, sevillab, sevilla, sev_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Sevilla (2 jackpot points, 77%)",     MACHINE_MECHANICAL )
+GAME( 1982, sevillac, sevilla, sev_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Sevilla (4 jackpot points, 77%)",     MACHINE_MECHANICAL )
+GAME( 1982, sevillad, sevilla, sev_77_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Sevilla (8 jackpot points, 77%)",     MACHINE_MECHANICAL )
+
+GAME( 1982, toledo,   0,       tol_87_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Toledo (2 jackpot points, 87%)",      MACHINE_MECHANICAL )
+GAME( 1982, toledoa,  toledo,  tol_83_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Toledo (2 jackpot points, 83%)",      MACHINE_MECHANICAL )
+GAME( 1982, toledob,  toledo,  tol_83_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Toledo (1 jackpot point, 79%)",       MACHINE_MECHANICAL )  // same as 83%
+
+// jackpot settings program
+GAME( 1982, jackuse,  0,       jkp_cnf, interflip, interflip8035_state, empty_init, ROT0, "Interflip", "Jack Use (Jackpot settings for Interflip slots machines)", MACHINE_MECHANICAL )

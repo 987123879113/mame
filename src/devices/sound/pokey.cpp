@@ -433,9 +433,12 @@ TIMER_CALLBACK_MEMBER(pokey_device::sync_pot)
 
 TIMER_CALLBACK_MEMBER(pokey_device::sync_set_irqst)
 {
-	LOG_IRQ("POKEY TIMR%d IRQ raised\n", param);
-	m_IRQST |=  (param & 0xff);
-	m_irq_w_cb(ASSERT_LINE);
+	if (m_IRQEN & param)
+	{
+		LOG_IRQ("POKEY TIMR%d IRQ raised\n", param);
+		m_IRQST |=  (param & 0xff);
+		m_irq_w_cb(ASSERT_LINE);
+	}
 }
 
 void pokey_device::execute_run()
@@ -502,7 +505,7 @@ void pokey_device::step_keyboard()
 			{
 				if (ret & 1)
 				{
-					m_KBCODE = m_kbd_latch;
+					m_KBCODE = (m_SKCTL & SK_DEBOUNCE) ? m_kbd_latch : (m_kbd_latch & 0xc0) | m_kbd_cnt;
 					m_SKSTAT |= SK_KEYBD;
 					if (m_IRQEN & IRQ_KEYBD)
 					{

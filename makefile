@@ -1163,7 +1163,7 @@ endif
 
 .PHONY: vs2019_clang
 vs2019_clang: generate
-	$(SILENT) $(GENIE) $(PARAMS) $(TARGET_PARAMS) --vs=clangcl --NO_USE_PORTAUDIO=1 vs2019
+	$(SILENT) $(GENIE) $(PARAMS) $(TARGET_PARAMS) --vs=clangcl vs2019
 ifdef MSBUILD
 	$(SILENT) msbuild.exe $(PROJECTDIR_WIN)/vs2019-clang/$(PROJECT_NAME).sln $(MSBUILD_PARAMS)
 endif
@@ -1564,7 +1564,7 @@ endif
 
 ifeq (posix,$(SHELLTYPE))
 $(GENDIR)/version.cpp: makefile $(GENDIR)/git_desc | $(GEN_FOLDERS)
-	@echo '#define BARE_BUILD_VERSION "0.259"' > $@
+	@echo '#define BARE_BUILD_VERSION "0.260"' > $@
 	@echo '#define BARE_VCS_REVISION "$(NEW_GIT_VERSION)"' >> $@
 	@echo 'extern const char bare_build_version[];' >> $@
 	@echo 'extern const char bare_vcs_revision[];' >> $@
@@ -1574,7 +1574,7 @@ $(GENDIR)/version.cpp: makefile $(GENDIR)/git_desc | $(GEN_FOLDERS)
 	@echo 'const char build_version[] = BARE_BUILD_VERSION " (" BARE_VCS_REVISION ")";' >> $@
 else
 $(GENDIR)/version.cpp: makefile $(GENDIR)/git_desc | $(GEN_FOLDERS)
-	@echo #define BARE_BUILD_VERSION "0.259" > $@
+	@echo #define BARE_BUILD_VERSION "0.260" > $@
 	@echo #define BARE_VCS_REVISION "$(NEW_GIT_VERSION)" >> $@
 	@echo extern const char bare_build_version[]; >> $@
 	@echo extern const char bare_vcs_revision[]; >> $@

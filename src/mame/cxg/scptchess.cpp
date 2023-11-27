@@ -32,14 +32,14 @@ Portachess II:
 - Hitachi HD44801C89 MCU @ ~400kHz (serial 202: from Portachess 1985 version)
 - rest same as above
 
-HD44801A50 used in:
+HD44801A50 MCU is used in:
 - CXG Sensor Computachess (1981 version) - 1st use
 - CXG Portachess (1983 version, has "Sound" button)
 - Hanimex HCG 1500
 - Schneider Sensor Chesspartner MK 3
 - Systema Computachess
 
-HD44801C89 used in:
+HD44801C89 MCU is used in:
 - CXG Portachess (1985 version, "NEW 16 LEVELS") - 1st use
 - CXG Sensor Computachess (1985 rerelease, "NEW 16 LEVELS")
 - CXG Portachess II (1986)
@@ -54,10 +54,12 @@ HD44801C89 used in:
 *******************************************************************************/
 
 #include "emu.h"
+
 #include "cpu/hmcs40/hmcs40.h"
 #include "machine/sensorboard.h"
 #include "sound/dac.h"
 #include "video/pwm.h"
+
 #include "speaker.h"
 
 // internal artwork
@@ -96,13 +98,13 @@ private:
 	required_device<dac_bit_interface> m_dac;
 	required_ioport m_inputs;
 
+	u8 m_inp_mux = 0;
+	u8 m_led_data = 0;
+
 	void update_display();
 	template<int N> void mux_w(u8 data);
 	void leds_w(u16 data);
 	u16 input_r();
-
-	u8 m_inp_mux = 0;
-	u8 m_led_data = 0;
 };
 
 void scptchess_state::machine_start()
@@ -188,7 +190,7 @@ INPUT_PORTS_END
 void scptchess_state::scptchess_v1(machine_config &config)
 {
 	// basic machine hardware
-	HD44801(config, m_maincpu, 400000);
+	HD44801(config, m_maincpu, 400'000);
 	m_maincpu->write_r<2>().set(FUNC(scptchess_state::mux_w<0>));
 	m_maincpu->write_r<3>().set(FUNC(scptchess_state::mux_w<1>));
 	m_maincpu->write_d().set(FUNC(scptchess_state::leds_w));

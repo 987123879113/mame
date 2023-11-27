@@ -233,6 +233,8 @@ Notes:
 #include "speaker.h"
 #include "cdrom.h"
 
+#include "multibyte.h"
+
 
 namespace {
 

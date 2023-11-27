@@ -5522,7 +5522,7 @@ void ktmnt2_state::sound_w(u8 data)
 			if (sample == 0)
 				m_samples->stop(0);
 		}
-		else
+		else if (sample != 0)
 		{
 			sample--;
 			if (sample < m_samples->samples() && strncmp(m_samples->names()[sample + 1], "none", 4))
@@ -6754,8 +6754,8 @@ protected:
 
 private:
 	// R2 connects to a single LED behind the screen
-	void led_w(u8 data) { m_led_out = data >> 1 & 1; }
 	output_finder<> m_led_out;
+	void led_w(u8 data) { m_led_out = data >> 1 & 1; }
 };
 
 void tgaiden_state::machine_start()

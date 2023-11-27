@@ -83,6 +83,8 @@
 #include "screen.h"
 #include "speaker.h"
 
+#include "multibyte.h"
+
 
 namespace {
 

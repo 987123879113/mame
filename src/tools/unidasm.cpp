@@ -50,6 +50,7 @@ using util::BIT;
 #include "cpu/e132xs/32xsdasm.h"
 #include "cpu/es5510/es5510d.h"
 #include "cpu/esrip/esripdsm.h"
+#include "cpu/evolution/evod.h"
 #include "cpu/f2mc16/f2mc16d.h"
 #include "cpu/f8/f8dasm.h"
 #include "cpu/fr/frdasm.h"
@@ -204,6 +205,7 @@ using util::BIT;
 #include "cpu/vt61/vt61dasm.h"
 #include "cpu/we32000/we32100d.h"
 #include "cpu/xavix2/xavix2d.h"
+#include "cpu/xtensa/xtensad.h"
 #include "cpu/z180/z180dasm.h"
 #include "cpu/z8/z8dasm.h"
 #include "cpu/z80/z80dasm.h"
@@ -442,6 +444,7 @@ static const dasm_table_entry dasm_table[] =
 	{ "epg3231",         le, -1, []() -> util::disasm_interface * { return new epg3231_disassembler; } },
 //  { "es5510",          be,  0, []() -> util::disasm_interface * { return new es5510_disassembler; } }, // Currently does nothing
 	{ "esrip",           be,  0, []() -> util::disasm_interface * { return new esrip_disassembler; } },
+	{ "evo",             le, -1, []() -> util::disasm_interface * { return new evolution_disassembler; } },
 	{ "f2mc16",          le,  0, []() -> util::disasm_interface * { return new f2mc16_disassembler; } },
 	{ "f8",              be,  0, []() -> util::disasm_interface * { return new f8_disassembler; } },
 	{ "fr",              be,  0, []() -> util::disasm_interface * { return new fr_disassembler; } },
@@ -712,6 +715,7 @@ static const dasm_table_entry dasm_table[] =
 	{ "xavix2000",       le,  0, []() -> util::disasm_interface * { return new xavix2000_disassembler; } },
 	{ "xavix2",          le,  0, []() -> util::disasm_interface * { return new xavix2_disassembler; } },
 	{ "xerox530",        be, -1, []() -> util::disasm_interface * { return new xerox530_disassembler; } },
+	{ "xtensa",          le,  0, []() -> util::disasm_interface * { return new xtensa_disassembler; } },
 	{ "z180",            le,  0, []() -> util::disasm_interface * { return new z180_disassembler; } },
 	{ "z8",              be,  0, []() -> util::disasm_interface * { return new z8_disassembler; } },
 	{ "z80",             le,  0, []() -> util::disasm_interface * { return new z80_disassembler; } },
