@@ -2,27 +2,43 @@
 // copyright-holders:Angelo Salese
 /**************************************************************************************************
 
-'Nichibutsu LD' HW (c) 199? Nichibutsu
+'Nichibutsu LD' HW (c) 1990? Nichibutsu
 
 TODO:
-- ldquiz4: spins on "memory test error 13", implying a missing ROM dump (other GFXs will return further errors if missing, returning the label there);
+- ldquiz4: spins on "memory test error 13", implying a missing ROM dump
+  (other GFXs will return further errors if missing, returning the label there).
+  To bypass: bp 18d,1,{hl=34bf;g}
+  or alternatively patch location $40 in ROM with a 0x00 (which looks a debug switch)
 - Unknown LaserDisc type;
-- Unknown irq vector for LaserDisc strobe (ldquiz4 sets a flag at $f014,
-  the only place it clears it is at snippet 0x0ED6);
-- V9938 has issues with layer clears, implicitly cleared by superimposing or irq timing?
-- Complete audio section, SFXs keeps ringing;
-- Document meaning of DIP switches
+- Unknown irq vector for LaserDisc strobe, unless it's really supposed to execute code with trg0
+  irq service (which spins for nothing in both games)
+- V9938 has issues with layer clears, has an hard time sending a vblank irq (the only one enabled)
+  at the right time. Removing the invert() from the int_cb will "fix" it at the expense of being
+  excruciatingly slow.
+- Document meaning of remaining DIP switches
+
+Notes:
+- In service mode, press KAN/PON for the sound test and CHI/REACH for the voice test
+- Push START to continue after the RGB test screen is shown
 
 ===================================================================================================
 
-    1 x TMPZ84C011AF-6 main CPU
-    1 x 21.47727MHz OSC
-    1 x Z0840004PSC audio CPU
-    1 x 4.000MHz OSC
-    1 x Yamaha V9938
-    1 x uPC1352C
-    1 x Yamaha YM3812
-    2 x 8 dip switch banks
+1 x TMPZ84C011AF-6 main CPU
+1 x 12.000MHz OSC
+1 x 21.47727MHz OSC
+1 x Z0840004PSC audio CPU
+1 x 4.000MHz OSC
+1 x Yamaha V9938
+1 x uPC1352C (NTSC decoder)
+1 x Yamaha YM3812
+2 x 8 dip switch banks
+
+A red/white RCA connector near the uPC, labeled video/audio respectively
+A LDC labeled 2 pin connector
+6 x potentiometers for LD decoder section, 5 of them aligned as VR1-VR5,
+    the 6th one (VR6) is near LDC
+1 x potentiometer labeled VR7, near the sound section
+1 x VOL for LD decoder section
 
 **************************************************************************************************/
 
@@ -42,7 +58,8 @@ TODO:
 
 namespace {
 
-#define MAIN_CLOCK XTAL(21'477'272)
+#define MAIN_CLOCK XTAL(12'000'000)
+#define VDP_CLOCK XTAL(21'477'272)
 #define SOUND_CLOCK XTAL(4'000'000)
 
 class nichild_state : public driver_device
@@ -104,6 +121,7 @@ private:
 
 	uint32_t m_gfx_bank = 0;
 	uint8_t m_key_select = 0;
+	uint8_t m_soundlatch_ack = 0;
 	int m_dsw_data = 0;
 };
 
@@ -212,7 +230,12 @@ void nichild_state::main_io(address_map &map)
 void nichild_state::soundbank_w(uint8_t data)
 {
 	m_soundbank->set_entry(data & 0x03);
-	// TODO: bit 7 used often with 0 -> 1 transitions
+	// 1 -> 0 -> 1 transitions clears the soundlatch
+	if (!BIT(data, 7) && BIT(m_soundlatch_ack, 7))
+		m_soundlatch->clear_w();
+
+	m_soundlatch_ack = data & 0x80;
+
 	if (data & 0x7c)
 		logerror("soundbank_w: %02x\n", data);
 }
@@ -236,7 +259,7 @@ void nichild_state::audio_io(address_map &map)
 }
 
 
-static INPUT_PORTS_START( nichild )
+static INPUT_PORTS_START( nichild_mj )
 	// mahjong panels are virtually identical to nb1413m3
 	PORT_START("P1_KEY0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1 )
@@ -361,12 +384,117 @@ static INPUT_PORTS_START( nichild )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
 	PORT_START("DSWA")
-	PORT_DIPUNKNOWN_DIPLOC(0x01, 0x01, "DSWA:8")
+	PORT_DIPNAME( 0x01, 0x01, "Background" ) PORT_DIPLOCATION("DSWA:8")
+	PORT_DIPSETTING(    0x01, "Green" )
+	PORT_DIPSETTING(    0x00, "Video Playback" )
 	PORT_DIPUNKNOWN_DIPLOC(0x02, 0x02, "DSWA:7")
 	PORT_DIPUNKNOWN_DIPLOC(0x04, 0x04, "DSWA:6")
 	PORT_DIPUNKNOWN_DIPLOC(0x08, 0x08, "DSWA:5")
-	PORT_DIPUNKNOWN_DIPLOC(0x10, 0x10, "DSWA:4")
-	PORT_DIPUNKNOWN_DIPLOC(0x20, 0x20, "DSWA:3")
+	PORT_DIPNAME(0x10, 0x10, DEF_STR( Coinage )) PORT_DIPLOCATION("DSWA:4")
+	PORT_DIPSETTING(0x10, DEF_STR( 1C_1C ))
+	PORT_DIPSETTING(0x00, DEF_STR( 1C_2C ))
+	PORT_DIPUNKNOWN_DIPLOC(0x20, 0x20, "DSWA:3") // those three are probably difficulty
+	PORT_DIPUNKNOWN_DIPLOC(0x40, 0x40, "DSWA:2")
+	PORT_DIPUNKNOWN_DIPLOC(0x80, 0x80, "DSWA:1")
+
+	PORT_START("DSWB")
+	PORT_DIPUNKNOWN_DIPLOC(0x01, 0x01, "DSWB:8")
+	PORT_DIPUNKNOWN_DIPLOC(0x02, 0x02, "DSWB:7")
+	PORT_DIPUNKNOWN_DIPLOC(0x04, 0x04, "DSWB:6")
+	PORT_DIPUNKNOWN_DIPLOC(0x08, 0x08, "DSWB:5")
+	PORT_DIPUNKNOWN_DIPLOC(0x10, 0x10, "DSWB:4")
+	PORT_DIPUNKNOWN_DIPLOC(0x20, 0x20, "DSWB:3")
+	PORT_DIPUNKNOWN_DIPLOC(0x40, 0x40, "DSWB:2")
+	PORT_DIPUNKNOWN_DIPLOC(0x80, 0x80, "DSWB:1")
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( nichild_quiz )
+	// the quiz game(s) accesses the matrix with 0x00 writes, so that any of these works
+	PORT_START("P1_KEY0")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1 )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("D Button") PORT_PLAYER(1)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("C Button") PORT_PLAYER(1)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_NAME("B Button") PORT_PLAYER(1)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("A Button") PORT_PLAYER(1)
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("P1_KEY1")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("P1_KEY2")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("P1_KEY3")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("P1_KEY4")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("P2_KEY0")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START2 )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("D Button") PORT_PLAYER(2)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_NAME("C Button") PORT_PLAYER(2)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_NAME("B Button") PORT_PLAYER(2)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("A Button") PORT_PLAYER(2)
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("P2_KEY1")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("P2_KEY2")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("P2_KEY3")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("P2_KEY4")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("PORTD")
+	PORT_DIPNAME( 0x01, 0x01, "PORTD" )
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x02, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x04, 0x04, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x08, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_SERVICE( 0x10, IP_ACTIVE_LOW )
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN1 )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+
+	PORT_START("DSWA")
+	PORT_DIPNAME( 0x01, 0x01, "RGB Test Screen" ) PORT_DIPLOCATION("DSWA:8")
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x02, "Video Playback In Attract Mode" ) PORT_DIPLOCATION("DSWA:7")
+	PORT_DIPSETTING(    0x02, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	// at least for ldquiz4, to be verified for other games
+	// (definitely don't affect sound in shabdama unless it expects attract mode audio from LD player)
+	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Demo_Sounds ) ) PORT_DIPLOCATION("DSWA:6")
+	PORT_DIPSETTING(    0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+	PORT_DIPUNKNOWN_DIPLOC(0x08, 0x08, "DSWA:5")
+	PORT_DIPNAME(0x10, 0x10, DEF_STR( Lives )) PORT_DIPLOCATION("DSWA:4")
+	PORT_DIPSETTING(0x10, "3")
+	PORT_DIPSETTING(0x00, "5")
+	PORT_DIPNAME(0x20, 0x20, DEF_STR( Coinage )) PORT_DIPLOCATION("DSWA:3")
+	PORT_DIPSETTING(0x20, DEF_STR( 1C_1C ))
+	PORT_DIPSETTING(0x00, DEF_STR( 1C_2C ))
 	PORT_DIPUNKNOWN_DIPLOC(0x40, 0x40, "DSWA:2")
 	PORT_DIPUNKNOWN_DIPLOC(0x80, 0x80, "DSWA:1")
 
@@ -401,7 +529,7 @@ static const z80_daisy_config daisy_chain_main[] =
 
 void nichild_state::nichild(machine_config &config)
 {
-	TMPZ84C011(config, m_maincpu, MAIN_CLOCK/4);
+	TMPZ84C011(config, m_maincpu, MAIN_CLOCK/2);
 	m_maincpu->set_daisy_config(daisy_chain_main);
 	m_maincpu->set_addrmap(AS_PROGRAM, &nichild_state::main_map);
 	m_maincpu->set_addrmap(AS_IO, &nichild_state::main_io);
@@ -428,7 +556,7 @@ void nichild_state::nichild(machine_config &config)
 	m_dsw_shifter[1]->data_callback().set_ioport("DSWA");
 	m_dsw_shifter[1]->qh_callback().set([this](int state) { m_dsw_data = state; });
 
-	V9938(config, m_v9938, MAIN_CLOCK);
+	V9938(config, m_v9938, VDP_CLOCK);
 	m_v9938->set_screen_ntsc("screen");
 	m_v9938->set_vram_size(0x40000);
 	m_v9938->int_cb().set(m_maincpu, FUNC(tmpz84c011_device::trg3)).invert();
@@ -452,6 +580,34 @@ void nichild_state::nichild(machine_config &config)
 
 ***************************************************************************/
 
+// NOTE: identical to shabdama below
+ROM_START( ldmj1mbh )
+	ROM_REGION( 0x10000, "ipl", ROMREGION_ERASE00 )
+	ROM_LOAD( "1.bin",        0x000000, 0x010000, CRC(e49e3d73) SHA1(6d17d60e1b6f8aee96f7a09f45113030064d3bdb) )
+
+	ROM_REGION( 0x20000, "audiorom", ROMREGION_ERASE00 )
+	ROM_LOAD( "3.bin",        0x000000, 0x010000, CRC(e8233c6e) SHA1(fbfdb03dc9f4e3e80e161b8522b676485ffb1c95) )
+	ROM_LOAD( "2.bin",        0x010000, 0x010000, CRC(3e0b5344) SHA1(eeae36fc4fca091065c1d51f05c2d11f44fe6d13) )
+
+	ROM_REGION( 0x200000, "gfx", ROMREGION_ERASE00 )
+	ROM_LOAD( "4.bin",        0x000000, 0x010000, CRC(199e2127) SHA1(2514d51cb06438b312d1f328c72baa739280416a) )
+	ROM_LOAD( "5.bin",        0x010000, 0x010000, CRC(0706386a) SHA1(29eee363775869dcc9c46285632e8bf745c9110b) )
+	ROM_LOAD( "6.bin",        0x020000, 0x010000, CRC(0fece809) SHA1(1fe8436af8ead02a3b517b6306f9824cd64b2d26) )
+	ROM_LOAD( "7.bin",        0x030000, 0x010000, CRC(7f08e3a6) SHA1(127018442183332175c9e1f558274cd2cb5f0147) )
+	ROM_LOAD( "8.bin",        0x040000, 0x010000, CRC(3e75423e) SHA1(62e24849ddeb004ed8570d2884afa4ab257cdf07) )
+	ROM_LOAD( "9.bin",        0x050000, 0x010000, CRC(1afdc5bf) SHA1(b07b32656ffc96b7f7d4bd242b2a6e0e105ab67a) )
+	ROM_LOAD( "10.bin",       0x060000, 0x010000, CRC(5da10b82) SHA1(72974d083110fc6c583bfa1c22ce3abe02ba86f6) )
+
+	ROM_REGION( 0x800, "plds", 0 ) // all protected
+	ROM_LOAD( "pal16l8.0", 0x000, 0x104, NO_DUMP )
+	ROM_LOAD( "pal16l8.1", 0x200, 0x104, NO_DUMP )
+	ROM_LOAD( "pal16l8.2", 0x400, 0x104, NO_DUMP )
+	ROM_LOAD( "pal16l8.3", 0x600, 0x104, NO_DUMP )
+
+	DISK_REGION( "laserdisc" )
+	DISK_IMAGE_READONLY( "ldmj1mbh", 0, NO_DUMP )
+ROM_END
+
 ROM_START( shabdama )
 	ROM_REGION( 0x10000, "ipl", ROMREGION_ERASE00 )
 	ROM_LOAD( "1.bin",        0x000000, 0x010000, CRC(e49e3d73) SHA1(6d17d60e1b6f8aee96f7a09f45113030064d3bdb) )
@@ -468,6 +624,12 @@ ROM_START( shabdama )
 	ROM_LOAD( "8.bin",        0x040000, 0x010000, CRC(3e75423e) SHA1(62e24849ddeb004ed8570d2884afa4ab257cdf07) )
 	ROM_LOAD( "9.bin",        0x050000, 0x010000, CRC(1afdc5bf) SHA1(b07b32656ffc96b7f7d4bd242b2a6e0e105ab67a) )
 	ROM_LOAD( "10.bin",       0x060000, 0x010000, CRC(5da10b82) SHA1(72974d083110fc6c583bfa1c22ce3abe02ba86f6) )
+
+	ROM_REGION( 0x800, "plds", 0 ) // all protected
+	ROM_LOAD( "pal16l8.0", 0x000, 0x104, NO_DUMP )
+	ROM_LOAD( "pal16l8.1", 0x200, 0x104, NO_DUMP )
+	ROM_LOAD( "pal16l8.2", 0x400, 0x104, NO_DUMP )
+	ROM_LOAD( "pal16l8.3", 0x600, 0x104, NO_DUMP )
 
 	DISK_REGION( "laserdisc" )
 	DISK_IMAGE_READONLY( "shabdama", 0, NO_DUMP )
@@ -494,7 +656,7 @@ ROM_START( ldquiz4 )
 	ROM_LOAD( "10.k8",  0x0c0000, 0x20000, CRC(c7437125) SHA1(55b161ce2432d04531ed0afab973f892b571ef88) )
 	ROM_LOAD( "11.k9",  0x0e0000, 0x20000, CRC(6feeab93) SHA1(d77325c1eecb677c48d11bf8d5f73b238f2896e6) )
 	ROM_LOAD( "12.k10", 0x100000, 0x20000, CRC(c7f9bf98) SHA1(103b78b0e126ea4249982bf114010f57e5ffa70a) )
-	ROM_LOAD( "13",     0x120000, 0x20000, NO_DUMP )
+	ROM_LOAD( "13",     0x180000, 0x08000, NO_DUMP )
 
 	ROM_REGION( 0x800, "plds", 0 ) // all protected
 	ROM_LOAD( "pal16l8.0", 0x000, 0x104, NO_DUMP )
@@ -508,6 +670,24 @@ ROM_END
 
 } // anonymous namespace
 
-
-GAME( 1991, shabdama, 0,   nichild, nichild, nichild_state, empty_init, ROT0, "Nichibutsu / AV Japan", "LD Mahjong #4 Shabon-Dama (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
-GAME( 1992, ldquiz4,  0,   nichild, nichild, nichild_state, empty_init, ROT0, "Nichibutsu", "LD Quiz dai 4-dan - Kotaetamon Gachi! (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+// 1990
+// LD花札 花のクリスマスイブ (LD version of nbmj8891.cpp hnxmasev?)
+// 1991
+GAME( 1991, ldmj1mbh, 0,   nichild, nichild_mj,   nichild_state, empty_init, ROT0, "Nichibutsu / AV Japan", "LD Mahjong #1 Marine Blue no Hitomi (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND ) // LD麻雀 第1弾 マリンブルーの瞳
+// LD麻雀 第2弾 マリンブルーの瞳2
+// LD麻雀 第3弾 泊まりにおいでよ
+GAME( 1991, shabdama, 0,   nichild, nichild_mj,   nichild_state, empty_init, ROT0, "Nichibutsu / AV Japan", "LD Mahjong #4 Shabon-Dama (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND ) // LD麻雀 第4弾 シャボン玉
+// LDQUIZ クイズDEデート
+// LDQUIZ ミラクルQ 日本物産
+// LDQUIZ もう答えずにはいられない
+// 1992
+GAME( 1992, ldquiz4,  0,   nichild, nichild_quiz, nichild_state, empty_init, ROT0, "Nichibutsu / AV Japan", "LD Quiz dai 4-dan - Kotaetamon Gachi! (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND ) // LDQUIZ 答えたもん勝ち
+// LD麻雀 第5弾 夜明けのカフェテラス (LD A8165)
+// LD麻雀 第6弾 ティファニー
+// 1993
+// LD麻雀 第7弾 ジェラシー
+// LD麻雀 第8弾 ブルセラ (LD A8190M)
+// 1994
+// LD麻雀 第9弾 ポケベル1919
+// LD麻雀 第10弾 ボディコン総集編
+// LD麻雀 第11弾 エロスの館

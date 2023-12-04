@@ -17266,6 +17266,7 @@ rongrong                        // "80" (c) 1994 Nakanihon
 rongrongg                       // "80" (c) 1994 Nakanihon
 rongrongj                       // "80" (c) 1994 Nakanihon
 seljan2                         // "557" 1996 Dynax / Face
+seljan2a                        // "508" 1996 Dynax / Face
 sryudens                        // "502" (c) 1996 Dynax / Face
 ultrchmp                        // "104" (c) 1995 Nakanihon
 ultrchmph                       // "114" (c) 1995 Nakanihon
@@ -24142,6 +24143,7 @@ viostormeb                      // GX168 (c) 1993 (Europe)
 viostormj                       // GX168 (c) 1993 (Japan)
 viostormu                       // GX168 (c) 1993 (US)
 viostormub                      // GX168 (c) 1993 (US)
+viostormubbl                    // bootleg
 
 @source:konami/nemesis.cpp
 blkpnthr                        // GX604 (c) 1987 (Japan)
@@ -28520,6 +28522,8 @@ magibombg                       // (c) 2004  Astro Corp.
 magibombh                       // (c) 2001? Astro Corp.
 magibombi                       // (c) 2001? Astro Corp.
 magibombj                       // (c) 2005  Astro Corp.
+monkeyl                         // (c) 2005  Astro Corp.
+monkeyla                        // (c) 2004  Astro Corp.
 showhanc                        // (c) 2000  Astro Corp.
 showhand                        // (c) 2000  Astro Corp.
 skilldrp                        // (c) 2002  Astro Corp.
@@ -32803,6 +32807,7 @@ keroro                          // 2006.08 Keroro Gunsou: Pekopon Shinryaku Shir
 knpuzzle                        // 2001.12 Kotoba no Puzzle Mojipittan (KPM1 Ver.A)
 konotako                        // 2003.11 Kono e Tako (10021 Ver.A)
 medalnt                         // 2005.04 Medal no Tatsujin Doki! Ooatari-Darake no Sugoroku Matsuri (MTL1 SPR0B)
+medalnta                        // 2005.03 Medal no Tatsujin Doki! Ooatari-Darake no Sugoroku Matsuri (MTL1 SPR0A)
 medalnt2                        // 2007.02 Medal no Tatsujin 2 Atsumare! Go! Go! Sugoroku Sentai Don Ranger Five (MTA1 STMPR0A)
 mrdrilr2                        // 2000.07 Mr Driller 2 (DR22 Ver.A)
 mrdrilr2j                       // 2000.07 Mr Driller 2 (DR21 Ver.A)
@@ -32813,7 +32818,8 @@ nicetsuk                        // 2002.07 Tsukkomi Yousei Gips Nice Tsukkomi (N
 pacmball                        // 2003.?? Pacman Ball
 panikuru                        // 2002.03 Panikuru Panekuru
 ptblank3                        // 2000.12 Point Blank 3 (GNN2 Ver.A)
-puzzball                        // 2002.02 Puzz Ball (Japan, PZB1 Ver.A)
+puzzball                        // 2002.08 Puzz Ball (Japan, PZB1 Ver.C)
+puzzballa                       // 2002.02 Puzz Ball (Japan, PZB1 Ver.A)
 sekaikh                         // 2004.03 Sekai Kaseki Hakken (Japan, SKH1 Ver.B)
 sekaikha                        // 2004.03 Sekai Kaseki Hakken (Japan, SKH1 Ver.A)
 slotouji                        // 2003.05 Slot no Oujisama / Slot Prince (Japan, SLO1 Ver. B)
@@ -33885,6 +33891,7 @@ yosimotm                        // (c) 1994 Nichibutsu/Yoshimoto Kougyou
 yosimoto                        // (c) 1994 Nichibutsu/Yoshimoto Kougyou
 
 @source:nichibutsu/nichild.cpp
+ldmj1mbh                        // (c) 1991
 ldquiz4                         // (c) 1992
 shabdama                        // (c) 1991
 
@@ -36679,7 +36686,8 @@ trailer                         //
 ufo_x                           //
 
 @source:pinball/recel.cpp
-recel                           //
+recel13                         //
+recel14                         //
 r_alaska                        //
 r_blackm4                       //
 r_blackmag                      //
@@ -36693,6 +36701,7 @@ r_mrevil                        //
 r_pokrplus                      //
 r_quijote                       //
 r_screech                       //
+r_screech4                      //
 r_swash                         //
 r_torneo                        //
 
