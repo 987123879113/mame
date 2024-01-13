@@ -842,7 +842,7 @@ void subsino_state::sharkpy_map(address_map &map)
 	map(0x0f016, 0x0f017).w("ymsnd", FUNC(ym3812_device::write));
 	map(0x0f018, 0x0f018).w("oki", FUNC(okim6295_device::write));
 	map(0x0f01b, 0x0f01b).w(FUNC(subsino_state::tiles_offset_w));
-	map(0x10000, 0x13fff).rom().region("program", 0);
+	map(0x10000, 0x15fff).rom().region("program", 0);
 }
 
 /*
@@ -3287,7 +3287,7 @@ ROM_END
     - TI TPC1020AFN-084C.
     - Unpopulated locations on the PCB for a battery and a reset switch. */
 ROM_START( newhunter )
-	ROM_REGION( 0x4000, "maincpu", 0 ) 	// The MCU had its surface scratched out, but almost sure it's an HD647180X0CP8L
+	ROM_REGION( 0x4000, "maincpu", 0 )  // The MCU had its surface scratched out, but almost sure it's an HD647180X0CP8L
 	ROM_LOAD( "hd647180.bin", 0x00000, 0x04000, NO_DUMP )
 	HD647180X_FAKE_INTERNAL_ROM
 
