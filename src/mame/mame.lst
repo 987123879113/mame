@@ -36281,6 +36281,7 @@ tmnt_104g                       //
 tmnt_a07                        //
 tomy_102                        //
 tomy_102be                      //
+tomy_201h                       //
 tomy_300h                       //
 tomy_301g                       //
 tomy_400                        //
@@ -41182,6 +41183,7 @@ s8waysfc                        // (c) 1989 Sigma
 
 @source:sigma/sigmab88.cpp
 cool104
+freedeal
 
 @source:sigma/sigmab98.cpp
 animalc                         // (c) 2000 Sammy
@@ -45033,6 +45035,7 @@ evio                            //
 gcslottv                        //
 gungunad                        //
 has_wamg                        //
+hikara							//
 jarajal                         //
 jpopira                         //
 ltv_tam                         //
