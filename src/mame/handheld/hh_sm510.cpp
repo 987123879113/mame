@@ -26,6 +26,7 @@ TODO:
 - improve display decay simulation? but SVG doesn't support setting brightness
   per segment, adding pwm_display_device right now has no added value
 - add nstarfox sound effect chip emulation
+- naltair IPT_DIAL should be 1-way, it's not supposed to rotate left
 - add svg screen for nsmb3, nsmw
 - Currently there is no accurate way to dump the SM511/SM512 melody ROM
   electronically. For the ones that weren't decapped, they were read by
@@ -151,8 +152,9 @@ The MCUs used were not imported from Sharp, but cloned by USSR, renamed to
 #include "speaker.h"
 
 // internal artwork
-#include "gnw_dualv.lh"
-#include "gnw_dualh.lh"
+#include "hh_sm510_single.lh"
+#include "hh_sm510_dualv.lh"
+#include "hh_sm510_dualh.lh"
 
 //#include "hh_sm510_test.lh" // common test-layout - use external artwork
 #include "hh_sm500_test.lh" // "
@@ -424,6 +426,8 @@ void hh_sm510_state::mcfg_svg_screen(machine_config &config, u16 width, u16 heig
 	screen.set_refresh_hz(60);
 	screen.set_size(width, height);
 	screen.set_visarea_full();
+
+	config.set_default_layout(layout_hh_sm510_single);
 }
 
 void hh_sm510_state::mcfg_sound_r1(machine_config &config)
@@ -487,7 +491,7 @@ void hh_sm510_state::sm510_dualh(machine_config &config, u16 leftwidth, u16 left
 	mcfg_svg_screen(config, leftwidth, leftheight, "screen_left");
 	mcfg_svg_screen(config, rightwidth, rightheight, "screen_right");
 
-	config.set_default_layout(layout_gnw_dualh);
+	config.set_default_layout(layout_hh_sm510_dualh);
 }
 
 void hh_sm510_state::dualv_common(machine_config &config, u16 topwidth, u16 topheight, u16 botwidth, u16 botheight)
@@ -496,7 +500,7 @@ void hh_sm510_state::dualv_common(machine_config &config, u16 topwidth, u16 toph
 	mcfg_svg_screen(config, topwidth, topheight, "screen_top");
 	mcfg_svg_screen(config, botwidth, botheight, "screen_bottom");
 
-	config.set_default_layout(layout_gnw_dualv);
+	config.set_default_layout(layout_hh_sm510_dualv);
 }
 
 void hh_sm510_state::sm510_dualv(machine_config &config, u16 topwidth, u16 topheight, u16 botwidth, u16 botheight)
@@ -1471,23 +1475,34 @@ ROM_END
   player/CPU roles are reversed. This version is known as Разведчики космоса
   (Razvedchiki kosmosa, export version: Explorers of Space).
 
+  Another variant of the game which also included a radiation scintillation
+  counter was released by Научприбор (Nauchpribor, USSR) in 1991. This unit was
+  named Альтаир (Altair). This unit uses the same screen as ИМ-22 (Весёлые
+  футболисты, export version: Monkey Goalkeeper). The ROM has been modified to
+  include showing radiation exposure ("Dosimeter Mode"). The dosimeter mode can
+  be entered by pressing the dosimeter mode button when the unit is showing
+  time. Radiation readings are shown in µSv/h. The dosimeter mode ends
+  automatically after 40 seconds. A gas-discharge counter (SBM-20-1) collects
+  radiation exposure and feeds info to the game board via the D0-D3 input lines.
+
   The following Mickey Mouse Elektronika clones are emulated in MAME:
 
-  Model  Title               Transliteration      Export version      Note
-  ------------------------------------------------------------------------------
-  ИМ-02  Ну, погоди!         Nu, pogodi!          -                   -
-  ИМ-10  Хоккей              Hockey (Khokkey)     Ice Hockey          Export version manufactured by PO Proton
-  ИМ-13  Разведчики космоса  Razvedchiki kosmosa  Explorers of Space  Modified ROM (see note above)
-  ИМ-16  Охота               Okhota               Fowling             -
-  ИМ-19  Биатлон             Biathlon (Biatlon)   -                   -
-  ИМ-22  Весёлые футболисты  Vesyolye futbolisty  Monkey Goalkeeper   -
-  ИМ-32  Кот-рыболов         Kot-rybolov          -                   -
-  ИМ-33  Квака-задавака      Kvaka-zadavaka       Frogling            -
-  ИМ-49  Ночные воришки      Nochnye vorishki     Night Burglars      -
-  ИМ-50  Космический полёт   Kosmicheskiy polyot  Space Flight        The Model ID is the same as Весёлая арифметика (Vesyolaya arithmetika, export version: Amusing Arithmetic) (not emulated in MAME)
-  ИМ-51  Морская атака       Morskaya ataka       -                   -
-  ИМ-53  Атака астероидов    Ataka asteroidov     -                   Graphics are very similar to ИМ-50
-  -      Цирк                Circus (Tsirk)       -                   Unknown Model ID
+  Model    Title               Transliteration      Export version      Note
+  --------------------------------------------------------------------------------
+  ИМ-02    Ну, погоди!         Nu, pogodi!          -                   -
+  ИМ-10    Хоккей              Hockey (Khokkey)     Ice Hockey          Export version manufactured by PO Proton
+  ИМ-13    Разведчики космоса  Razvedchiki kosmosa  Explorers of Space  Modified ROM (see note above)
+  ИМ-16    Охота               Okhota               Fowling             -
+  ИМ-19    Биатлон             Biathlon (Biatlon)   -                   -
+  ИМ-22    Весёлые футболисты  Vesyolye futbolisty  Monkey Goalkeeper   -
+  ИМ-32    Кот-рыболов         Kot-rybolov          -                   -
+  ИМ-33    Квака-задавака      Kvaka-zadavaka       Frogling            -
+  ИМ-49    Ночные воришки      Nochnye vorishki     Night Burglars      -
+  ИМ-50    Космический полёт   Kosmicheskiy polyot  Space Flight        The Model ID is the same as Весёлая арифметика (Vesyolaya arithmetika, export version: Amusing Arithmetic) (not emulated in MAME)
+  ИМ-51    Морская атака       Morskaya ataka       -                   -
+  ИМ-53    Атака астероидов    Ataka asteroidov     -                   Graphics are very similar to ИМ-50
+  -        Цирк                Circus (Tsirk)       -                   Unknown Model ID
+  ДБГБ-06И Альтаир             Altair               -                   Modified ROM (see note above)
 
 *******************************************************************************/
 
@@ -1513,6 +1528,7 @@ public:
 	void morataka(machine_config &config);
 	void atakaast(machine_config &config);
 	void ecircus(machine_config &config);
+	void naltair(machine_config &config);
 };
 
 // inputs
@@ -1547,6 +1563,16 @@ static INPUT_PORTS_START( rkosmosa )
 
 	PORT_MODIFY("BA")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNUSED )
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( naltair )
+	PORT_INCLUDE( gnw_mmouse )
+
+	PORT_MODIFY("IN.0") // R2
+	PORT_BIT( 0x0f, 0x00, IPT_DIAL) PORT_NAME("Dosimeter Reading") PORT_SENSITIVITY(10) PORT_KEYDELTA(1)
+
+	PORT_MODIFY("IN.1") // R3
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_JOYSTICKRIGHT_UP ) PORT_CHANGED_CB(input_changed) PORT_16WAY PORT_NAME("Right Up / Dosimeter Mode")
 INPUT_PORTS_END
 
 // config
@@ -1746,6 +1772,14 @@ ROM_START( ecircus )
 
 	ROM_REGION( 124643, "screen", 0)
 	ROM_LOAD( "ecircus.svg", 0, 124643, CRC(079f25db) SHA1(defa784c80e01ce6affbb424930674114275bea1) )
+ROM_END
+
+ROM_START( naltair )
+	ROM_REGION( 0x800, "maincpu", 0 )
+	ROM_LOAD( "dbgb-06i.bin", 0x0000, 0x0740, CRC(7e5bf42b) SHA1(588db84d8c9a1abaae77534321dec8466967eb5f) )
+
+	ROM_REGION( 131901, "screen", 0)
+	ROM_LOAD( "naltair.svg", 0, 131901, CRC(85811308) SHA1(288aa41bade08c61e0d346b9c1109179564e34ed) )
 ROM_END
 
 
@@ -6243,14 +6277,12 @@ ROM_END
 
 *******************************************************************************/
 
-class nstarfox_state : public hh_sm510_state
+class nstarfox_state : public gamewatch_state
 {
 public:
 	nstarfox_state(const machine_config &mconfig, device_type type, const char *tag) :
-		hh_sm510_state(mconfig, type, tag)
-	{
-		inp_fixed_last();
-	}
+		gamewatch_state(mconfig, type, tag)
+	{ }
 
 	void nstarfox(machine_config &config);
 
@@ -7961,7 +7993,66 @@ ROM_END
 
 /*******************************************************************************
 
-  Tiger MC Hammer: U Can't Touch This (model 7-863)
+  Tiger The Rocketeer (model 7-864)
+  * Sharp SM510 under epoxy (die label M96)
+  * lcd screen with custom segments, 1-bit sound
+
+  MCU ROM is the same for Robocop 2, The Rocketeer.
+
+*******************************************************************************/
+
+class trockteer_state : public hh_sm510_state
+{
+public:
+	trockteer_state(const machine_config &mconfig, device_type type, const char *tag) :
+		hh_sm510_state(mconfig, type, tag)
+	{
+		inp_fixed_last();
+	}
+
+	void trockteer(machine_config &config);
+};
+
+// inputs
+
+static INPUT_PORTS_START( trockteer )
+	PORT_INCLUDE( trobocop2 )
+
+	PORT_MODIFY("IN.0")
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_CHANGED_CB(input_changed) PORT_NAME("P1 Up/Rocket Pack")
+
+	PORT_MODIFY("IN.3")
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_BUTTON3 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Fire Right")
+
+	PORT_MODIFY("IN.4")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Fire Up")
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_BUTTON2 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Fire Left")
+INPUT_PORTS_END
+
+// config
+
+void trockteer_state::trockteer(machine_config &config)
+{
+	sm510_tiger(config, 1463, 1080);
+}
+
+// roms
+
+ROM_START( trockteer )
+	ROM_REGION( 0x1000, "maincpu", 0 )
+	ROM_LOAD( "m96", 0x0000, 0x1000, CRC(3704b60c) SHA1(04275833e1a79fd33226faf060890b66ae54e1d3) )
+
+	ROM_REGION( 558128, "screen", 0)
+	ROM_LOAD( "trockteer.svg", 0, 558128, CRC(70ff1f46) SHA1(5cd94655654614206ed11844ba31650edb51eb22) )
+ROM_END
+
+
+
+
+
+/*******************************************************************************
+
+  Tiger MC Hammer: U Can't Touch This (model 7-865)
   * Sharp SM511 under epoxy (die label N63)
   * lcd screen with custom segments, 1-bit sound
 
@@ -8041,65 +8132,6 @@ ROM_START( tmchammer )
 
 	ROM_REGION( 456487, "screen", 0)
 	ROM_LOAD( "tmchammer.svg", 0, 456487, CRC(1cd10ff3) SHA1(092396c56adae7f872c3b5916ef3ecf67ab30161) )
-ROM_END
-
-
-
-
-
-/*******************************************************************************
-
-  Tiger The Rocketeer (model 7-864)
-  * Sharp SM510 under epoxy (die label M96)
-  * lcd screen with custom segments, 1-bit sound
-
-  MCU ROM is the same for Robocop 2, The Rocketeer.
-
-*******************************************************************************/
-
-class trockteer_state : public hh_sm510_state
-{
-public:
-	trockteer_state(const machine_config &mconfig, device_type type, const char *tag) :
-		hh_sm510_state(mconfig, type, tag)
-	{
-		inp_fixed_last();
-	}
-
-	void trockteer(machine_config &config);
-};
-
-// inputs
-
-static INPUT_PORTS_START( trockteer )
-	PORT_INCLUDE( trobocop2 )
-
-	PORT_MODIFY("IN.0")
-	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_CHANGED_CB(input_changed) PORT_NAME("P1 Up/Rocket Pack")
-
-	PORT_MODIFY("IN.3")
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_BUTTON3 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Fire Right")
-
-	PORT_MODIFY("IN.4")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Fire Up")
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_BUTTON2 ) PORT_CHANGED_CB(input_changed) PORT_NAME("Fire Left")
-INPUT_PORTS_END
-
-// config
-
-void trockteer_state::trockteer(machine_config &config)
-{
-	sm510_tiger(config, 1463, 1080);
-}
-
-// roms
-
-ROM_START( trockteer )
-	ROM_REGION( 0x1000, "maincpu", 0 )
-	ROM_LOAD( "m96", 0x0000, 0x1000, CRC(3704b60c) SHA1(04275833e1a79fd33226faf060890b66ae54e1d3) )
-
-	ROM_REGION( 558128, "screen", 0)
-	ROM_LOAD( "trockteer.svg", 0, 558128, CRC(70ff1f46) SHA1(5cd94655654614206ed11844ba31650edb51eb22) )
 ROM_END
 
 
@@ -11452,6 +11484,7 @@ SYST( 19??, kosmicpt,     gnw_mmouse,  0,      kosmicpt,     gnw_mmouse,   gnw_m
 SYST( 19??, morataka,     gnw_mmouse,  0,      morataka,     gnw_mmouse,   gnw_mmouse_state,   empty_init, "bootleg (Elektronika)", "Morskaja ataka", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1992, atakaast,     gnw_mmouse,  0,      atakaast,     gnw_mmouse,   gnw_mmouse_state,   empty_init, "bootleg (Elektronika)", "Ataka asteroidov", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 19??, ecircus,      gnw_mmouse,  0,      ecircus,      gnw_mmouse,   gnw_mmouse_state,   empty_init, "bootleg (Elektronika)", "Circus (Elektronika)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
+SYST( 1991, naltair,      gnw_mmouse,  0,      vfutbol,      naltair,      gnw_mmouse_state,   empty_init, "bootleg (Nauchpribor)", "Altair (Nauchpribor)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK | MACHINE_IMPERFECT_CONTROLS )
 SYST( 1989, kosmicmt,     gnw_fire,    0,      kosmicmt,     gnw_fire,     gnw_fire_state,     empty_init, "bootleg (Elektronika)", "Kosmicheskiy most", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1990, auslalom,     0,           0,      auslalom,     auslalom,     auslalom_state,     empty_init, "Elektronika", "Autoslalom", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 
@@ -11502,8 +11535,8 @@ SYST( 1991, txmen,        0,           0,      txmen,        txmen,        txmen
 SYST( 1991, tddragon3,    0,           0,      tddragon3,    tddragon3,    tddragon3_state,    empty_init, "Tiger Electronics (licensed from Technos)", "Double Dragon 3: The Rosetta Stone (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1991, tflash,       0,           0,      tflash,       tflash,       tflash_state,       empty_init, "Tiger Electronics", "The Flash (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1991, trobhood,     tgaunt,      0,      trobhood,     trobhood,     trobhood_state,     empty_init, "Tiger Electronics", "Robin Hood (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
-SYST( 1991, tmchammer,    0,           0,      tmchammer,    tmchammer,    tmchammer_state,    empty_init, "Tiger Electronics", "MC Hammer: U Can't Touch This (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1991, trockteer,    trobocop2,   0,      trockteer,    trockteer,    trockteer_state,    empty_init, "Tiger Electronics", "The Rocketeer (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
+SYST( 1991, tmchammer,    0,           0,      tmchammer,    tmchammer,    tmchammer_state,    empty_init, "Tiger Electronics", "MC Hammer: U Can't Touch This (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1991, tbtoads,      0,           0,      tbtoads,      tbtoads,      tbtoads_state,      empty_init, "Tiger Electronics (licensed from Rare/Tradewest)", "Battletoads (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1991, thook,        0,           0,      thook,        thook,        thook_state,        empty_init, "Tiger Electronics", "Hook (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )
 SYST( 1992, tbttf,        0,           0,      tbttf,        tbttf,        tbttf_state,        empty_init, "Tiger Electronics", "Back to the Future (Tiger)", MACHINE_SUPPORTS_SAVE | MACHINE_REQUIRES_ARTWORK )

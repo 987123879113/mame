@@ -212,6 +212,14 @@ void heath_tlb_device::device_start()
 
 	m_key_click_timer = timer_alloc(FUNC(heath_tlb_device::key_click_off), this);
 	m_bell_timer = timer_alloc(FUNC(heath_tlb_device::bell_off), this);
+
+	// Flip bits in font ROM to avoid having to flip them during scan out since some
+	// boards with graphics has the pixel graphic reversed from the font layout. Doing
+	// it for all devices for consistency.
+	for (size_t i = 0; i < m_p_chargen.length(); i++)
+	{
+		m_p_chargen[i] = bitswap<8>(m_p_chargen[i], 0, 1, 2, 3, 4, 5, 6, 7);
+	}
 }
 
 void heath_tlb_device::device_reset()
@@ -448,7 +456,7 @@ MC6845_UPDATE_ROW(heath_tlb_device::crtc_update_row)
 			// Display a scanline of a character (8 pixels)
 			for (int b = 0; 8 > b; ++b)
 			{
-				*p++ = palette[BIT(gfx, 7 - b)];
+				*p++ = palette[BIT(gfx, b)];
 			}
 		}
 	}
@@ -1124,7 +1132,6 @@ void heath_superset_tlb_device::device_add_mconfig(machine_config &config)
 	// per line updates are needed for onscreen menu to display properly
 	m_screen->set_video_attributes(VIDEO_UPDATE_SCANLINE);
 
-	m_crtc->set_begin_update_callback(FUNC(heath_superset_tlb_device::crtc_begin_update));
 	m_crtc->set_update_row_callback(FUNC(heath_superset_tlb_device::crtc_update_row));
 
 	// link up the serial port outputs to font chip.
@@ -1187,11 +1194,6 @@ void heath_superset_tlb_device::crtc_reg_w(offs_t reg, uint8_t val)
 	heath_tlb_device::crtc_reg_w(reg, val);
 }
 
-MC6845_BEGIN_UPDATE(heath_superset_tlb_device::crtc_begin_update)
-{
-	bitmap.fill(rgb_t::black(), cliprect);
-}
-
 MC6845_UPDATE_ROW(heath_superset_tlb_device::crtc_update_row)
 {
 	rgb_t const *const palette = m_palette->palette()->entry_list_raw();
@@ -1226,13 +1228,13 @@ MC6845_UPDATE_ROW(heath_superset_tlb_device::crtc_update_row)
 			// Display a scanline of a character (8 pixels)
 			for (int b = 0; 8 > b; ++b)
 			{
-				*p++ = palette[BIT(gfx, 7 - b)];
+				*p++ = palette[BIT(gfx, b)];
 			}
 		}
 	}
 	else
 	{
-		std::fill_n(p, x_count * 8, palette[0]);
+		std::fill_n(p, bitmap.rowpixels(), palette[0]);
 	}
 }
 
@@ -1455,7 +1457,7 @@ MC6845_UPDATE_ROW(heath_gp19_tlb_device::crtc_update_row)
 				// Display a scanline of a character (8 pixels)
 				for (int b = 0; 8 > b; ++b)
 				{
-					*p++ = palette[BIT(gfx, 7 - b)];
+					*p++ = palette[BIT(gfx, b)];
 				}
 			}
 		}
@@ -1689,7 +1691,7 @@ MC6845_UPDATE_ROW(heath_imaginator_tlb_device::crtc_update_row)
 					chr &= 0x7f;
 				}
 
-				output |= bitswap<8>(m_p_chargen[(chr << 4) | ra] ^ inv, 0, 1, 2, 3, 4, 5, 6, 7);
+				output |= m_p_chargen[(chr << 4) | ra] ^ inv;
 			}
 
 			if (m_graphics_mode_active && (x > 7 ) && (x < 73))

@@ -12,10 +12,14 @@ NVRAM won't save properly.
 
 Hardware notes:
 - PCB label: 957&958-2, europa.H+G
-- Hitachi HD63B01Y0, 8MHz resonator
+- Hitachi HD63B01Y0F, 8MHz resonator
 - 8*8 chessboard buttons, 24 LEDs, piezo
 
-Mephisto Europa A and Mephisto Marco Polo have the exact same MCU.
+The E62 MCU was used in:
+- Mephisto Europa
+- Mephisto Europa A
+- Mephisto Marco Polo
+- Mephisto Manhattan (suspected)
 
 In the early 90s, it was also reproduced in Ukraine as Chess Computer-1 (ШК-1).
 It has a typical yellow-brown PCB and Soviet discrete components, and they

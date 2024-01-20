@@ -20,6 +20,7 @@
 # TARGET = mame
 # SUBTARGET = tiny
 # TOOLS = 1
+# EMULATOR = 1
 # TESTS = 1
 # BENCHMARKS = 1
 # OSD = sdl
@@ -66,6 +67,7 @@
 # USE_SYSTEM_LIB_ASIO = 1
 # USE_SYSTEM_LIB_EXPAT = 1
 # USE_SYSTEM_LIB_ZLIB = 1
+# USE_SYSTEM_LIB_ZSTD = 1
 # USE_SYSTEM_LIB_JPEG = 1
 # USE_SYSTEM_LIB_FLAC = 1
 # USE_SYSTEM_LIB_LUA = 1
@@ -512,6 +514,10 @@ ifdef USE_SYSTEM_LIB_ZLIB
 PARAMS += --with-system-zlib='$(USE_SYSTEM_LIB_ZLIB)'
 endif
 
+ifdef USE_SYSTEM_LIB_ZSTD
+PARAMS += --with-system-zstd='$(USE_SYSTEM_LIB_ZSTD)'
+endif
+
 ifdef USE_SYSTEM_LIB_JPEG
 PARAMS += --with-system-jpeg='$(USE_SYSTEM_LIB_JPEG)'
 endif
@@ -642,6 +648,14 @@ endif
 ifdef TOOLS
 ifneq '$(TOOLS)' '0'
 PARAMS += --with-tools
+endif
+endif
+
+ifndef EMULATOR
+PARAMS += --with-emulator
+else
+ifeq '$(EMULATOR)' '1'
+PARAMS += --with-emulator
 endif
 endif
 
