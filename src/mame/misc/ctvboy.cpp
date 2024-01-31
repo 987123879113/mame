@@ -149,7 +149,7 @@ void ctvboy_state::p1_w(u8 data)
 u8 ctvboy_state::p1_r()
 {
 	// P17: MC6847 HS
-	return m_mc6847->hs_r() ? 0 : 0x80;
+	return m_mc6847->hs_r() ? 0x80 : 0;
 }
 
 u8 ctvboy_state::p2_r()
@@ -186,7 +186,7 @@ u8 ctvboy_state::mc6847_vram_r(offs_t offset)
 void ctvboy_state::vblank_irq(int state)
 {
 	if (!state)
-		m_maincpu->pulse_input_line(M6801_IRQ_LINE, attotime::from_usec(12));
+		m_maincpu->pulse_input_line(M6801_IRQ1_LINE, attotime::from_usec(15));
 }
 
 

@@ -15916,6 +15916,10 @@ mz1                             // 1986 Casio (unreleased)
 @source:casio/cz101.cpp
 cz101                           // 1984 Casio
 
+@source:casio/cz230s.cpp
+cz230s                          // 1985 Casio
+sz1                             // 1985 Casio
+
 @source:casio/fp200.cpp
 fp200                           //
 
@@ -15982,6 +15986,9 @@ arbv2                           //
 
 @source:chess/cking_master.cpp
 ckmaster                        //
+
+@source:chess/cking_triomphe.cpp
+triomphe
 
 @source:chess/compuchess.cpp
 ccmk1                           // Chess Champion MK I
@@ -18826,6 +18833,7 @@ zackman                         // Bandai
 
 @source:handheld/hh_ht11xx.cpp
 brke23p2
+ga888
 
 @source:handheld/hh_melps4.cpp
 cfrogger                        // Coleco
@@ -19010,9 +19018,11 @@ tkarnov                         // Tiger Electronics
 tkazaam                         // Tiger Electronics
 tmchammer                       // Tiger Electronics
 tmegaman3                       // Tiger Electronics
+tmigmax                         // Tiger Electronics
 tmkombat                        // Tiger Electronics
 tnmarebc                        // Tiger Electronics
 topaliens                       // Tiger Electronics
+tpitfight                       // Tiger Electronics
 trobhood                        // Tiger Electronics
 trobocop2                       // Tiger Electronics
 trobocop3                       // Tiger Electronics
@@ -32875,8 +32885,7 @@ gahaha                          // 2000.03 GAHAHA Ippatsudou (World, GID2 Ver.A)
 gahaha2                         // 2001.09 GAHAHA Ippatsudou 2 (Japan, GIS1 Ver.A)
 gamshara                        // 2002.08 Gamshara (10021 Ver.A)
 gamsharao                       // 2002.08 Gamshara (10021 Ver.A)
-gegemdb                         // 2007.12 Gegege no Kitarō Yōkai Yokochō Matsuri de Battle Ja (GYM1 Ver.B)
-gegemdba                        // 2007.12 Gegege no Kitarō Yōkai Yokochō Matsuri de Battle Ja (GYM1 Ver.A)
+gegemdb                         // 2007.12 Gegege no Kitarō Yōkai Yokochō Matsuri de Battle Ja (GYM1 Ver.A)
 gjspace                         // 2001.12 GekiToride-Jong Space (10011 Ver.A)
 gunbalina                       // 2000.12 Gunbalina (GNN1 Ver.A)
 kd2001                          // 2001.11 Knock Down 2001 (KD11 Ver.B)
@@ -34860,6 +34869,7 @@ nsvip
 nsvipa
 nsvipb
 nsvipc
+nvip
 
 @source:novation/basssta.cpp
 bassstr                         //
@@ -36782,8 +36792,7 @@ trailer                         //
 ufo_x                           //
 
 @source:pinball/recel.cpp
-recel13                         //
-recel14                         //
+recel                           //
 r_alaska                        //
 r_blackm4                       //
 r_blackmag                      //
@@ -36797,7 +36806,6 @@ r_mrevil                        //
 r_pokrplus                      //
 r_quijote                       //
 r_screech                       //
-r_screech4                      //
 r_swash                         //
 r_torneo                        //
 
@@ -39298,6 +39306,7 @@ ninjaslt                        // 2000.11 Ninja Assault (World, NJA2 Ver.A)
 ninjaslta                       // 2000.11 Ninja Assault (Asia, NJA4 Ver.A)
 ninjasltj                       // 2000.11 Ninja Assault (Japan, NJA1 Ver.A)
 ninjasltu                       // 2000.11 Ninja Assault (US, NJA3 Ver.A)
+ntvmys                          // 2000.08 Nittere Shiki! Mirai Yosou Studio / NTV Future Forecast Studio (Japan)
 oinori                          // 2003.08 Oinori-daimyoujin Matsuri
 otrigger                        // 1999.11 OutTrigger
 pjustic                         // 2000.12 Moero! Justice Gakuen / Project Justice
@@ -39463,6 +39472,9 @@ tvochken                        //
 
 @source:sega/sega_sawatte.cpp
 sawatte                         //
+
+@source:sega/segaai.cpp
+segaai                          // (c) 1986 Sega
 
 @source:sega/segaatom.cpp
 spongbob                        // (c) 200? Sega
@@ -41049,6 +41061,8 @@ partner1fg                      // Iskra Delta Partner 1F/G
 partnerwfg                      // Iskra Delta Partner WF/G
 
 @source:sfrj/lola8a.cpp
+lola8                           //
+lola8nk                         //
 lola8a                          //
 
 @source:sfrj/orao.cpp
@@ -41324,6 +41338,7 @@ magic6                          // 1993 Magic 6
 mistrum                         // 1988 Mistrum
 orizon                          // 199? Orizon-Micro
 quorum48                        // 1993 Kvorum 48K
+santaka2                        // 1991 Santaka-002
 sintez2                         // 1991 Signal Sintez 2
 spec80k                         // 1987 ZX Spectrum 80k
 specide                         // 1995 ZX Spectrum IDE
@@ -41404,6 +41419,10 @@ am1000                          // (c) 1988 Alpha Micro
 @source:skeleton/antonelli_hd6305.cpp
 anto2495                        //
 anto2614                        //
+
+@source:skeleton/aquaplus_piece.cpp
+piece512k                       //
+piece2m                         //
 
 @source:skeleton/argox.cpp
 os214                           //
@@ -43213,6 +43232,7 @@ driftoutct                      // 1991.10 (c) 1991 Visco (Europe)
 driftoutj                       // 1991.10 (c) 1991 Visco (Japan)
 driveout                        // bootleg
 euroch92                        // 1991.??     (c) 1992 Taito Corporation Japan (World)
+euroch92j                       // 1991.??     (c) 1992 Taito Corporation Japan (Japan)
 finalb                          // 1989.?? B82 (c) 1988 Taito Corporation Japan (World)
 finalbj                         // 1989.04 B82 (c) 1988 Taito Corporation (Japan)
 finalbu                         // 1989.06 B82 (c) 1988 Taito America Corporation (US)
@@ -43224,7 +43244,8 @@ growlp                          // 1991.?? C74 (c) 1990 Taito Corporation Japan 
 growlu                          // 1991.02 C74 (c) 1990 Taito America Corporation (US)
 gunfront                        // 1991.?? C71 (c) 1990 Taito Corporation Japan (World)
 gunfrontj                       // 1991.01 C71 (c) 1990 Taito Corporation (Japan)
-hthero                          // 1991.03 C80 (c) 1990 Taito Corporation (Japan)
+htheroj                         // 1991.03 C80 (c) 1990 Taito Corporation (Japan)
+htherou                         // 1991.?? C80 (c) 1990 Taito America Corporation (US)
 koshien                         // 1991.04 C81 (c) 1990 Taito Corporation (Japan)
 liquidk                         // 1990.?? C49 (c) 1990 Taito Corporation Japan (World)
 liquidku                        // 1990.?? C49 (c) 1990 Taito America Corporation (US)
