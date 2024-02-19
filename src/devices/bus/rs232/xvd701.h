@@ -6,7 +6,8 @@
 #include "diserial.h"
 #include "rs232.h"
 #include "screen.h"
-#include "pl_mpeg/pl_mpeg.h"
+
+#include "video/pl_mpeg.h"
 
 class jvc_xvd701_device : public device_t,
 		public device_serial_interface,

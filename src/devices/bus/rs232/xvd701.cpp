@@ -4,7 +4,6 @@
 #include "emu.h"
 #include "rendutil.h"
 
-#define PL_MPEG_IMPLEMENTATION
 #include "xvd701.h"
 
 #define LOG_COMMAND    (1U << 1)
