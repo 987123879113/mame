@@ -402,9 +402,12 @@ Notes: (all ICs shown)
 #include "cpu/psx/psx.h"
 #include "bus/ata/ataintf.h"
 #include "bus/ata/cr589.h"
+#include "bus/rs232/rs232.h"
+#include "bus/rs232/null_modem.h"
 #include "machine/adc083x.h"
 #include "machine/bankdev.h"
 #include "machine/ds2401.h"
+#include "machine/ins8250.h"
 #include "machine/jvshost.h"
 #include "machine/linflash.h"
 #include "machine/mb89371.h"
@@ -607,6 +610,9 @@ public:
 	void casszi(machine_config &config);
 	void cassxzi(machine_config &config);
 
+	void msu_local(machine_config &config);
+	void msu_remote(machine_config &config);
+
 	void init_serlamp();
 	void init_hyperbbc();
 	void init_drmn();
@@ -647,6 +653,7 @@ public:
 	void hyperbbc_lamp_strobe2(int state);
 	void hyperbbc_lamp_strobe3(int state);
 
+	void toggle_serial(int state);
 	void h8_clk_w(int state);
 
 	int jvs_rx_r();
@@ -701,6 +708,7 @@ private:
 	void cdrom_dma_read( uint32_t *ram, uint32_t n_address, int32_t n_size );
 	void cdrom_dma_write( uint32_t *ram, uint32_t n_address, int32_t n_size );
 
+	void zi_cassette_install(device_t* device);
 	void stepchmp_cassette_install(device_t* device);
 	void animechmp_cassette_install(device_t *device);
 	void salarymc_cassette_install(device_t *device);
@@ -1171,6 +1179,10 @@ void ksys573_state::machine_reset()
 
 	std::fill_n( m_jvs_input_buffer, sizeof( m_jvs_input_buffer ), 0 );
 	std::fill_n( m_jvs_output_buffer, sizeof( m_jvs_output_buffer ), 0 );
+
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+	if (sio1 != nullptr)
+		sio1->write_dsr(0);
 }
 
 // H8 check at startup (JVS related)
@@ -2619,6 +2631,22 @@ void ksys573_state::casszi(machine_config &config)
 {
 	subdevice<konami573_cassette_slot_device>("cassette")->option_add( "game", KONAMI573_CASSETTE_ZI );
 	subdevice<konami573_cassette_slot_device>("cassette")->set_default_option( "game" );
+	subdevice<konami573_cassette_slot_device>("cassette")->set_option_machine_config("game", [this](device_t* device) { zi_cassette_install(device); });
+}
+
+void ksys573_state::zi_cassette_install(device_t* device)
+{
+	// TODO: Add pin 4 (d7) to RS232 somehow here to separate MSU and card reader traffic
+	konami573_cassette_zi_device& cassette = downcast<konami573_cassette_zi_device&>(*device);
+	cassette.d7_handler().set(*this, FUNC(ksys573_state::toggle_serial));
+}
+
+void ksys573_state::toggle_serial(int state)
+{
+	// This switches between the MSU and card reader devices on the network port of the security cart
+	auto duart_chan = subdevice<ns16550_device>("k573msu:duart_com_0:chan1");
+	if (duart_chan != nullptr)
+		duart_chan->set_clock_scale(!state);
 }
 
 void ksys573_state::cassxzi(machine_config &config)
@@ -2796,10 +2824,41 @@ void ksys573_state::ddr4ms(machine_config &config)
 
 // DrumMania
 
+void ksys573_state::msu_local(machine_config &config)
+{
+	KONAMI_573_MULTI_SESSION_UNIT(config, "k573msu", 0);
+
+	auto duart_chan = subdevice<ns16550_device>("k573msu:duart_com_0:chan1");
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+
+	sio1->txd_handler().set(*duart_chan, FUNC(ins8250_uart_device::rx_w));
+	sio1->dtr_handler().set(*duart_chan, FUNC(ins8250_uart_device::dsr_w));
+	sio1->rts_handler().set(*duart_chan, FUNC(ins8250_uart_device::cts_w));
+
+	duart_chan->out_tx_callback().set(*sio1, FUNC(psxsio1_device::write_rxd));
+	duart_chan->out_dtr_callback().set(*sio1, FUNC(psxsio1_device::write_dsr));
+	duart_chan->out_rts_callback().set(*sio1, FUNC(psxsio1_device::write_cts));
+}
+
+void ksys573_state::msu_remote(machine_config &config)
+{
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+
+	if (sio1 == nullptr)
+		return;
+
+	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
+	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
+}
+
 void ksys573_state::drmn(machine_config &config)
 {
 	k573a(config);
 	cassx(config);
+
+	msu_local(config);
 }
 
 void ksys573_state::drmn2m(machine_config &config)
@@ -2808,6 +2867,8 @@ void ksys573_state::drmn2m(machine_config &config)
 	m_k573dio->output_callback().set(FUNC(ksys573_state::drmn_output_callback));
 
 	cassxzi(config);
+
+	msu_local(config);
 }
 
 void ksys573_state::drmn4m(machine_config &config)
@@ -2817,7 +2878,7 @@ void ksys573_state::drmn4m(machine_config &config)
 
 	casszi(config);
 
-	KONAMI_573_MULTI_SESSION_UNIT(config, "k573msu", 0);
+	msu_local(config);
 }
 
 void ksys573_state::drmn9m(machine_config &config)
@@ -2827,9 +2888,9 @@ void ksys573_state::drmn9m(machine_config &config)
 
 	casszi(config);
 
-	KONAMI_573_MULTI_SESSION_UNIT(config, "k573msu", 0);
-
 	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+
+	msu_local(config);
 }
 
 void ksys573_state::drmn10m(machine_config &config)
@@ -2839,9 +2900,9 @@ void ksys573_state::drmn10m(machine_config &config)
 
 	casszi(config);
 
-	KONAMI_573_MULTI_SESSION_UNIT(config, "k573msu", 0);
+	//KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 
-	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+	msu_local(config);
 }
 
 // Guitar Freaks
@@ -2864,6 +2925,7 @@ void ksys573_state::gtrfrk2ml(machine_config &config)
 	k573a(config);
 	cassyi(config);
 	pccard1_32mb(config); // HACK: The installation tries to check and erase 32mb but only flashes 16mb.
+	msu_remote(config);
 
 	// For Guitar Freaks 2nd Mix Link Ver 1 (memory cards) and Link Ver 2 (memory cards + controllers)
 	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
@@ -2874,6 +2936,7 @@ void ksys573_state::gtrfrk3m(machine_config &config)
 	k573d(config);
 	cassxzi(config);
 	pccard1_16mb(config);
+	msu_remote(config);
 
 	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
 }
@@ -2883,6 +2946,7 @@ void ksys573_state::gtrfrk5m(machine_config &config)
 	k573d(config);
 	casszi(config);
 	pccard1_32mb(config);
+	msu_remote(config);
 }
 
 void ksys573_state::gtrfrk7m(machine_config &config)
@@ -2890,6 +2954,7 @@ void ksys573_state::gtrfrk7m(machine_config &config)
 	k573d(config);
 	casszi(config);
 	pccard1_32mb(config);
+	msu_remote(config);
 }
 
 void ksys573_state::gtfrk10m(machine_config &config)
@@ -2897,6 +2962,7 @@ void ksys573_state::gtfrk10m(machine_config &config)
 	k573d(config);
 	casszi(config);
 	pccard1_32mb(config);
+	msu_remote(config);
 
 	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 }
@@ -2906,8 +2972,7 @@ void ksys573_state::gtfrk11m(machine_config &config)
 	k573d(config);
 	casszi(config);
 	pccard1_32mb(config);
-
-	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+	msu_remote(config);
 }
 
 // Miscellaneous
@@ -4404,7 +4469,7 @@ ROM_START( drmn4m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "a25jaa02", 0, BAD_DUMP SHA1(8a0b761d1c282d927e2daf92519654a1c91ee1ab) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "a25jba02", 0, BAD_DUMP SHA1(5f4aae359da610352c1004cfa1a32064d8f55d0e) )
 ROM_END
 
@@ -4420,7 +4485,7 @@ ROM_START( drmn5m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "b05jaa02", 0, BAD_DUMP SHA1(7a6e7940d1441cff1d9be1bc3affc029fe6dc9e4) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "b05jba02", 0, BAD_DUMP SHA1(822149db553ca78ad8174719a657dbbd2776b922) )
 ROM_END
 
@@ -4441,7 +4506,7 @@ ROM_START( drmn6m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "b16jaa02", 0, BAD_DUMP SHA1(fa0862a9bd3a48d4f6e7b44b11ad387acc05037e) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "b16jba02", 0, BAD_DUMP SHA1(07de74a3ca384407d99c433110085208a458653e) )
 ROM_END
 
@@ -4462,7 +4527,7 @@ ROM_START( drmn7m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "c07jca02", 0, SHA1(a81a35360933ab8a7630cf5e8a8c6988714cfa0d) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "c07jda02", 0, BAD_DUMP SHA1(7c22ebbda11bdaf85c3441d7a6f3497994cd957f) )
 ROM_END
 
@@ -4483,7 +4548,7 @@ ROM_START( drmn7ma )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "c07jaa02", 0, BAD_DUMP SHA1(96c410745d1fd14059bf11987655ed998a9b79dd) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "c07jba02", 0, BAD_DUMP SHA1(25e1a3ff7886c409d16e40ca1798b01b11546755) )
 ROM_END
 
@@ -4499,7 +4564,7 @@ ROM_START( drmn8m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "c38jaa02", 0, SHA1(9115252e6cc13ff90e73cd1a864e0d99e3c8b5ea) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "c38jba02", 0, SHA1(2a31335277929b2231b12ad950ab69e35b37d973) )
 ROM_END
 
@@ -4521,7 +4586,7 @@ ROM_START( drmn9m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "d09jaa02", 0, BAD_DUMP SHA1(33f3e48ed5a8becd8c4714413e454328d8d5baae) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "d09jba02", 0, BAD_DUMP SHA1(68324d474d89a9ddf5cadc9ab4a8d615b3739879) )
 ROM_END
 
@@ -4540,7 +4605,7 @@ ROM_START( drmn9ma )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "d09jaa02", 0, BAD_DUMP SHA1(33f3e48ed5a8becd8c4714413e454328d8d5baae) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "d09jba02", 0, BAD_DUMP SHA1(68324d474d89a9ddf5cadc9ab4a8d615b3739879) )
 ROM_END
 
@@ -4559,7 +4624,7 @@ ROM_START( drmn10m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "d40jaa02", 0, BAD_DUMP SHA1(68b2038f0cd2d461f608945d1e243f2b6979efaa) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "d40jba02", 0, BAD_DUMP SHA1(0ded9e0a6c77b181e7b6beb1dbdfa17dee4acd90) )
 ROM_END
 
@@ -6003,7 +6068,7 @@ ROM_START( pcnfrk4m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "a25aaa02", 0, BAD_DUMP SHA1(cea168d38a4052ef5f30dc00a80529bbd8a31097) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "a25aba02", 0, BAD_DUMP SHA1(eb8eed41c715f39a426433224671adc36d4b0262) )
 ROM_END
 
@@ -6126,7 +6191,7 @@ ROM_START( pcnfrk10m )
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "d40aaa02", 0, SHA1(638c19588c5f9967eb5623a3a979ac68e7c96dae) )
 
-	DISK_REGION( "multisession" )
+	DISK_REGION( "k573msu:ata_cdrom:0:cdrom" )
 	DISK_IMAGE_READONLY( "d40aba02", 0, NO_DUMP )
 ROM_END
 
