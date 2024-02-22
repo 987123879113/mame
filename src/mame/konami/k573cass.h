@@ -205,6 +205,8 @@ class konami573_cassette_zi_device: public device_t, public konami573_cassette_i
 public:
 	konami573_cassette_zi_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	auto d7_handler() { return m_d7_handler.bind(); }
+
 	virtual int read_line_ds2401() override;
 	virtual int read_line_secflash_sda() override;
 	virtual void write_line_d4(int state) override;
@@ -212,6 +214,7 @@ public:
 	virtual void write_line_d2(int state) override;
 	virtual void write_line_d3(int state) override;
 	virtual void write_line_zs01_sda(int state) override;
+	virtual void write_line_d7(int state) override;
 
 protected:
 	virtual void device_start() override ATTR_COLD;
@@ -220,6 +223,8 @@ protected:
 private:
 	required_device<zs01_device> m_zs01;
 	required_device<ds2401_device> m_ds2401;
+
+	devcb_write_line m_d7_handler;
 };
 
 
