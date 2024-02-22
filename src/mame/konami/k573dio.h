@@ -18,6 +18,10 @@ public:
 	void amap(address_map &map);
 	void set_ddrsbm_fpga(bool flag) { is_ddrsbm_fpga = flag; }
 
+	void explus_speed_normal();
+	void explus_speed_inc1();
+	void explus_speed_inc2();
+
 	uint16_t a00_r();
 	uint16_t a02_r();
 	uint16_t a04_r();

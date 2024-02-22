@@ -174,12 +174,28 @@ const tiny_rom_entry *k573dio_device::device_rom_region() const
 
 void k573dio_device::device_add_mconfig(machine_config &config)
 {
-	KONAMI_573_DIGITAL_FPGA(config, k573fpga);
+	KONAMI_573_DIGITAL_FPGA(config, k573fpga, XTAL(29'450'000));
 	k573fpga->set_ram(ram);
 	k573fpga->add_route(0, ":lspeaker", 1.0);
 	k573fpga->add_route(1, ":rspeaker", 1.0);
 
 	DS2401(config, digital_id);
+}
+
+void k573dio_device::explus_speed_normal()
+{
+	// The normal digital I/O board uses a 29.450 MHz clock but the modboard has a 29.500 MHz clock on it to replace it.
+	k573fpga->update_clock(29'500'000);
+}
+
+void k573dio_device::explus_speed_inc1()
+{
+	k573fpga->update_clock(33'000'000);
+}
+
+void k573dio_device::explus_speed_inc2()
+{
+	k573fpga->update_clock(36'000'000);
 }
 
 uint16_t k573dio_device::a00_r()
