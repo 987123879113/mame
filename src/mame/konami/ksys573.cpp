@@ -532,6 +532,15 @@ namespace {
 class ksys573_state : public driver_device
 {
 public:
+	INPUT_CHANGED_MEMBER(audio_offset)
+	{
+		auto fpga = subdevice<k573dio_device>("k573dio")->subdevice<k573fpga_device>("k573fpga");
+
+		if (fpga != nullptr) {
+			fpga->set_audio_offset(newval);
+		}
+	}
+
 	ksys573_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
@@ -2595,6 +2604,12 @@ void ksys573_state::k573d(machine_config &config)
 	konami573(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ksys573_state::konami573d_map);
 	KONAMI_573_DIGITAL_IO_BOARD(config, m_k573dio, XTAL(19'660'800));
+
+	// Set default value so as to clear offset between games when switching via GUI
+	auto fpga = subdevice<k573dio_device>("k573dio")->subdevice<k573fpga_device>("k573fpga");
+	if (fpga != nullptr) {
+		fpga->set_audio_offset(22);
+	}
 }
 
 // Variants with additional karaoke I/O board
@@ -3325,6 +3340,11 @@ static INPUT_PORTS_START( konami573 )
 	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_UNUSED )
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( k573dio )
+	PORT_START( "AUDIO_OFFSET3" )
+	PORT_BIT( 0xffffffff, 28, IPT_ADJUSTER ) PORT_NAME( "Audio Offset" ) PORT_MINMAX( 0x80000000, 0x7fffffff ) PORT_CHANGED_MEMBER(DEVICE_SELF, ksys573_state, audio_offset, 0)
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( fbaitbc )
 	PORT_INCLUDE( konami573 )
 
@@ -3349,6 +3369,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddr )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000f0f, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER( ddr_state, gn845pwbb_read )
@@ -3368,6 +3389,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddrsolo )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "P1 Left 1" )
@@ -3397,6 +3419,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddrsolo2 )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -3445,6 +3468,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( gtrfrks )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x10000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* SERVICE1 */
@@ -3482,6 +3506,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( dmx )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER( 1 ) PORT_NAME( "D-Sensor D1 L" ) /* P1 LEFT */
@@ -3518,6 +3543,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( drmn )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* COIN2 */
@@ -3662,6 +3688,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( mamboagg )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER( 1 ) PORT_NAME( "Right Pad 1 (Top Right)" ) /* COIN2 */
@@ -3754,6 +3781,7 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( mrtlbeat )
 	PORT_INCLUDE( konami573 )
+	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0xffff1f5f, IP_ACTIVE_LOW, IPT_UNUSED )
