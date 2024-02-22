@@ -10,12 +10,20 @@
 
 #include "logmacro.h"
 
+#include <algorithm>
+
 k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, KONAMI_573_DIGITAL_FPGA, tag, owner, clock),
 	ram(*this, finder_base::DUMMY_TAG),
 	mas3507d(*this, "mpeg"),
-	is_ddrsbm_fpga(false)
+	is_ddrsbm_fpga(false),
+	sample_skip_offset(attotime::zero)
 {
+}
+
+void k573fpga_device::set_audio_offset(int32_t offset)
+{
+	sample_skip_offset = attotime::from_msec(offset);
 }
 
 void k573fpga_device::update_clock(uint32_t speed)
@@ -117,7 +125,7 @@ void k573fpga_device::update_counter()
 uint32_t k573fpga_device::get_counter()
 {
 	update_counter();
-	return counter_value * 44100;
+	return std::max(0.0, counter_value - sample_skip_offset.as_double()) * 44100 * m_clock_scale;
 }
 
 uint32_t k573fpga_device::get_counter_diff()

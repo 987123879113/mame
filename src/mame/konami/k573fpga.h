@@ -48,6 +48,7 @@ public:
 
 	void reset_counter();
 
+	void set_audio_offset(int32_t offset);
 	void update_clock(uint32_t speed);
 
 protected:
@@ -108,6 +109,9 @@ private:
 
 	attotime counter_current, counter_base;
 	double counter_value;
+
+	// The higher the number, the more the chart/visuals will be delayed
+	attotime sample_skip_offset;
 };
 
 #endif // MAME_KONAMI_K573FPGA_H
