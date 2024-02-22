@@ -828,6 +828,7 @@ public:
 	// DDR analog
 	void ddr(machine_config &config);
 	void ddrk(machine_config &config);
+	void ddr2mc(machine_config &config);
 	void ddr2mc2(machine_config &config);
 	void ddr2ml(machine_config &config);
 	void ddrbocd(machine_config &config);
@@ -2740,6 +2741,26 @@ void ddr_state::ddrk(machine_config &config)
 {
 	k573k(config);
 	cassxi(config);
+
+	// Used for communication with external Karaoke machine
+	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
+	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
+}
+
+void ddr_state::ddr2mc(machine_config &config)
+{
+	k573a(config);
+	cassx(config);
+
+	// Used for IIDX session link
+	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
+	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 }
 
 void ddr_state::ddr2mc2(machine_config &config)
@@ -2748,6 +2769,13 @@ void ddr_state::ddr2mc2(machine_config &config)
 	cassx(config);
 
 	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
+
+	// Used for IIDX session link
+	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
+	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 }
 
 void ddr_state::ddr2ml(machine_config &config)
@@ -6681,7 +6709,7 @@ GAME( 1999, ddr2ml,    ddr2m,    ddr2ml,     ddr,       ddr_state,     init_ddr,
 GAME( 1999, ddr2mla,   ddr2m,    ddr2ml,     ddr,       ddr_state,     init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix - Link Ver (GE885 VER. JAB)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, ddr2mlb,   ddr2m,    ddr2ml,     ddr,       ddr_state,     init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix - Link Ver (GE885 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, ddrbocd,   ddr2m,    ddrbocd,    ddr,       ddr_state,     init_ddr,      ROT0,  "Konami", "Dance Dance Revolution Best of Cool Dancers (GE892 VER. JAA)", MACHINE_IMPERFECT_SOUND )
-GAME( 1999, ddr2mc,    ddr2m,    ddr,        ddr,       ddr_state,     init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix with beatmaniaIIDX CLUB VERSiON (GE896 VER. JAA)", MACHINE_IMPERFECT_SOUND )
+GAME( 1999, ddr2mc,    ddr2m,    ddr2mc,     ddr,       ddr_state,     init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix with beatmaniaIIDX CLUB VERSiON (GE896 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, ddr2mc2,   ddr2m,    ddr2mc2,    ddr,       ddr_state,     init_ddr,      ROT0,  "Konami", "Dance Dance Revolution 2nd Mix with beatmaniaIIDX substream CLUB VERSiON 2 (GE984 VER. JAA)", MACHINE_IMPERFECT_SOUND )
 GAME( 1999, pcnfrk,    sys573,   drmn,       drmn,      ksys573_state, init_drmn,     ROT0,  "Konami", "Percussion Freaks (GQ881 VER. EAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
 GAME( 1999, pcnfrka,   pcnfrk,   drmn,       drmn,      ksys573_state, init_drmn,     ROT0,  "Konami", "Percussion Freaks (GQ881 VER. AAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
