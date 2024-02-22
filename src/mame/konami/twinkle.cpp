@@ -1287,7 +1287,8 @@ void twinkle_state::twinkle(machine_config &config)
 	WATCHDOG_TIMER(config, "watchdog").set_time(attotime::from_msec(1200)); /* check TD pin on LTC1232 */
 
 	CY7C131(config, m_dpram); // or IDT7130 at some PCBs
-	m_dpram->intl_callback().set_inputline(m_audiocpu, M68K_IRQ_4);
+	m_dpram->intl_callback().set_inputline(m_audiocpu, M68K_IRQ_4); // address 0x3fe triggers M68K interrupt
+	// m_dpram->intr_callback().set_inputline(m_maincpu, M68K_IRQ_3); // address 0x3ff triggers PPC interrupt
 
 	NSCSI_BUS(config, "scsi");
 	NSCSI_CONNECTOR(config, "scsi:4").option_set("cdrom", NSCSI_XM5401).machine_config(
@@ -1327,13 +1328,13 @@ void twinkle_state::twinkle(machine_config &config)
 	SPEAKER(config, "speakerright").front_right();
 
 	spu_device &spu(SPU(config, "spu", XTAL(67'737'600)/2, subdevice<psxcpu_device>("maincpu")));
-	spu.add_route(0, "speakerleft", 0.75);
-	spu.add_route(1, "speakerright", 0.75);
+	spu.add_route(0, "speakerleft", 0.5);
+	spu.add_route(1, "speakerright", 0.5);
 
 	rf5c400_device &rf5c400(RF5C400(config, "rfsnd", XTAL(33'868'800)/2));
 	rf5c400.set_addrmap(0, &twinkle_state::rf5c400_map);
-	rf5c400.add_route(0, "speakerleft", 1.0);
-	rf5c400.add_route(1, "speakerright", 1.0);
+	rf5c400.add_route(0, "speakerleft", 0.45);
+	rf5c400.add_route(1, "speakerright", 0.45);
 }
 
 void twinkle_state::twinkle_dvd_type1(machine_config &config)
