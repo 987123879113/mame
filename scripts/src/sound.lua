@@ -1129,6 +1129,19 @@ end
 
 
 ---------------------------------------------------
+-- Toshiba TC9446F Audio Digital Processor for Decode of Dolby Digital (AC-3), MPEG2 Audio
+--@src/devices/sound/tc9446f.h,SOUNDS["TC9446F"] = true
+---------------------------------------------------
+
+if (SOUNDS["TC9446F"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/sound/tc9446f.cpp",
+		MAME_DIR .. "src/devices/sound/tc9446f.h",
+	}
+end
+
+
+---------------------------------------------------
 -- NEC uPD7752
 --@src/devices/sound/upd7752.h,SOUNDS["UPD7752"] = true
 ---------------------------------------------------
