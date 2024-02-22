@@ -528,6 +528,7 @@ public:
 	void gtrfrk2ml(machine_config &config);
 	void gtrfrk5m(machine_config &config);
 	void ddrs2k(machine_config &config);
+	void ddr5ms(machine_config &config);
 	void stepchmp(machine_config &config);
 	void animechmp(machine_config &config);
 	void salarymc(machine_config &config);
@@ -2766,6 +2767,17 @@ void ksys573_state::ddrs2k(machine_config &config)
 	cassyyi(config);
 }
 
+void ksys573_state::ddr5ms(machine_config &config)
+{
+	k573d(config);
+	m_k573dio->output_callback().set(FUNC(ksys573_state::ddrsolo_output_callback));
+
+	pccard2_32mb(config);
+	casszi(config);
+
+	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
+}
+
 void ksys573_state::ddr4ms(machine_config &config)
 {
 	k573d(config);
@@ -3280,6 +3292,27 @@ static INPUT_PORTS_START( ddrsolo )
 	PORT_BIT( 0x01000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* P2 BUTTON4 */
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER( 1 ) PORT_NAME( "P1 Select R" ) /* P2 BUTTON5 */
 	PORT_BIT( 0x08000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* P2 BUTTON6 */
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( ddrsolo2 )
+	PORT_INCLUDE( konami573 )
+
+	PORT_MODIFY( "IN1" )
+	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_MODIFY( "IN2" )
+	PORT_BIT( 0xffff10fc, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x00000001, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Up-Left" )
+	PORT_BIT( 0x00000002, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Up-Right" )
+	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Left" )
+	PORT_BIT( 0x00000200, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Right" )
+	PORT_BIT( 0x00000400, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Up" )
+	PORT_BIT( 0x00000800, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Down" )
+	PORT_BIT( 0x00002000, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Select L" )
+	PORT_BIT( 0x00004000, IP_ACTIVE_LOW, IPT_BUTTON1) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "Select R" )
+
+	PORT_MODIFY( "IN3" )
+	PORT_BIT( 0xfffffbff, IP_ACTIVE_LOW, IPT_UNUSED )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddrkara )
@@ -3829,6 +3862,64 @@ ROM_START( ddrextrm )
 	DISK_IMAGE_READONLY( "c36jaa02", 0, BAD_DUMP SHA1(edeb45fff0e66151b1ba2fd67542064ccddb031e) )
 ROM_END
 
+ROM_START( ddrexpro )
+	SYS573_BIOS_A
+
+	ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	ROM_LOAD( "gcc36ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(197845c2) SHA1(c6c1c192f69331232a93ec6c690257e57a244e25) )
+
+	ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	DISK_REGION( "runtime" )
+	DISK_IMAGE_READONLY( "extremepro-version2-cd", 0, SHA1(078eb08b6e0c8047ba68ba5e05f5377e0e17bc85) )
+ROM_END
+
+ROM_START( ddrexproc )
+	SYS573_BIOS_A
+
+	ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	ROM_LOAD( "gcc36ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(197845c2) SHA1(c6c1c192f69331232a93ec6c690257e57a244e25) )
+
+	ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	DISK_REGION( "runtime" )
+	DISK_IMAGE_READONLY( "extremepro-version2-clarity-cd", 0, SHA1(b13562f4be169048df4dfa624fe9f212bb924d97) )
+ROM_END
+
+ROM_START( ddrexplus )
+	SYS573_BIOS_A
+
+	ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	ROM_LOAD( "gcc36ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(197845c2) SHA1(c6c1c192f69331232a93ec6c690257e57a244e25) )
+
+	ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	DISK_REGION( "install" )
+	DISK_IMAGE_READONLY( "ddrexplus_install", 0, SHA1(d49e4a27dc36e6a9614490558a9a7ee7951caf3f) )
+
+	DISK_REGION( "runtime" )
+	DISK_IMAGE_READONLY( "ddrexplus_game", 0, SHA1(f58b0418b5fbe29eb1f84af42b55c53226c2e0ad) )
+ROM_END
+
+ROM_START( ddrmegamix )
+	SYS573_BIOS_A
+
+	ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	ROM_LOAD( "gcc36ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(197845c2) SHA1(c6c1c192f69331232a93ec6c690257e57a244e25) )
+
+	ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	ROM_LOAD( "gcc36ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	DISK_REGION( "install" )
+	DISK_IMAGE_READONLY( "ddrmegamix_install", 0, SHA1(f988b1007a4e55174e87dc0e3398c124341a7f84) )
+
+	DISK_REGION( "runtime" )
+	DISK_IMAGE_READONLY( "ddrmegamix_game", 0, SHA1(f73938832820b116635661f03057bc150b80c3df) )
+ROM_END
+
 ROM_START( ddru )
 	SYS573_BIOS_A
 
@@ -4243,6 +4334,19 @@ ROM_START( ddr5m )
 
 	DISK_REGION( "runtime" )
 	DISK_IMAGE_READONLY( "a27jaa02", 0, SHA1(70465669dfd48abf806cb58b2410ff4f1781f5f1) )
+ROM_END
+
+ROM_START( ddr5ms )
+	SYS573_BIOS_A
+
+	ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	ROM_LOAD( "gca27ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(0044c64d) SHA1(ac25b51125675ccca992d60b12396b3b370c6368) )
+
+	ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	ROM_LOAD( "gca27ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	DISK_REGION( "runtime" )
+	DISK_IMAGE_READONLY( "ddr5thsolo", 0, SHA1(c67f793d2f9a393dfb7f429976a638642f8e8f09) )
 ROM_END
 
 ROM_START( ddrbocd )
@@ -6555,3 +6659,9 @@ GAME( 2003, gtfrk10ma, gtfrk10m, gtfrk10m,   gtrfrks,   ksys573_state, empty_ini
 GAME( 2004, gtfrk11m,  sys573,   gtfrk11m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 11th Mix (G*D39 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2004, pcnfrk10m, sys573,   drmn10m,    drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 10th Mix (G*D40 VER. AAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2004, drmn10m,   pcnfrk10m,drmn10m,    drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 10th Mix (G*D40 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+
+GAME( 2021, ddr5ms,    ddr5m,    ddr5ms,     ddrsolo2,  ksys573_state, empty_init,    ROT0,  "hack",   "Dance Dance Revolution 5th Mix Solo (hack)", MACHINE_IMPERFECT_SOUND )
+GAME( 2018, ddrexpro,  sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Pro (hack, v2)", MACHINE_IMPERFECT_SOUND )
+GAME( 2019, ddrexproc, sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Clarity (hack)", MACHINE_IMPERFECT_SOUND )
+GAME( 2019, ddrexplus, sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Plus (hack)", MACHINE_IMPERFECT_SOUND )
+GAME( 200?, ddrmegamix,sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Megamix (hack)", MACHINE_IMPERFECT_SOUND )
