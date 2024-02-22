@@ -10,6 +10,7 @@
 #pragma once
 
 #include "cpu/tx3927/tx3927.h"
+#include "sound/tc9446f.h"
 
 
 
@@ -28,6 +29,7 @@ protected:
 
 private:
 	required_device<tx3927_device> m_maincpu;
+	required_device_array<tc9446f_device, 4> m_dsp;
 };
 
 #endif // MAME_KONAMI_K573MSU_H
