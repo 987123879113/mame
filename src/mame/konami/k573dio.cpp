@@ -133,6 +133,7 @@ k573dio_device::k573dio_device(const machine_config &mconfig, const char *tag, d
 	k573fpga(*this, "k573fpga"),
 	digital_id(*this, "digital_id"),
 	output_cb(*this),
+	m_network(*this, "dio_network%u", 0U),
 	is_ddrsbm_fpga(false)
 {
 }
@@ -158,6 +159,7 @@ void k573dio_device::device_reset()
 	fpga_counter = 0;
 
 	network_id = 0;
+	network_buffer_output_waiting_size = 0;
 
 	std::fill(std::begin(output_data), std::end(output_data), 0);
 }
@@ -180,6 +182,12 @@ void k573dio_device::device_add_mconfig(machine_config &config)
 	k573fpga->add_route(1, ":rspeaker", 1.0);
 
 	DS2401(config, digital_id);
+
+	for (int i = 0; i < m_network.size(); i++) {
+		BITBANGER(config, m_network[i], 0);
+	}
+
+	TIMER(config, "network_timer").configure_periodic(FUNC(k573dio_device::network_update_callback), attotime::from_hz(300));
 }
 
 void k573dio_device::explus_speed_normal()
@@ -470,27 +478,111 @@ void k573dio_device::output(int offset, uint16_t data)
 	output_data[offset] = data;
 }
 
+TIMER_DEVICE_CALLBACK_MEMBER(k573dio_device::network_update_callback)
+{
+	uint32_t len = 0;
+
+	for (auto i = 0; i < m_network.size(); i++) {
+		if (!m_network[i]->exists()) {
+			continue;
+		}
+
+		do {
+			uint8_t val = 0;
+			len = m_network[i]->input(&val, 1);
+
+			if (len == 0 || ((network_buffer_input[i].size() == 0 && val != 0xc0) || (network_buffer_input[i].size() > 0 && network_buffer_input[i].front() != 0xc0)))
+				continue;
+
+			// Found start of packet or continuation of an existing packet
+			network_buffer_input[i].push_back(val);
+
+			// If it's not potentially the end of the packet, just skip the logic to send
+			if (val != 0xc0 || network_buffer_input[i].size() <= 1 || network_buffer_input[i].front() != 0xc0 || network_buffer_input[i].back() != 0xc0)
+				continue;
+
+			if (network_buffer_input[i].size() == 2) {
+				// c0 c0 would be an empty packet (corrupt packet?) so discard the first byte
+				network_buffer_input[i].pop_front();
+				continue;
+			}
+
+			// Found end of packet, push all contents of temp buffer to main buffer
+			auto target_machine = network_buffer_input[i][1];
+			if (network_id != target_machine) {
+				// Only accept packets from other machines
+				network_buffer_muxed.insert(network_buffer_muxed.end(), network_buffer_input[i].begin(), network_buffer_input[i].end());
+			}
+
+			network_buffer_input[i].clear();
+		} while (len > 0);
+	}
+
+	if (network_buffer_output_queue.size() > 0) {
+		auto packet = network_buffer_output_queue.front();
+		network_buffer_output_queue.pop_front();
+
+		for (auto n : m_network) {
+			if (!n->exists()) {
+				continue;
+			}
+
+			for (auto c : packet) {
+				n->output(c);
+			}
+		}
+
+		network_buffer_output_waiting_size -= packet.size();
+	}
+}
+
 uint16_t k573dio_device::network_r()
 {
 	// Return a byte from the input buffer
-	return 0;
+
+	uint16_t val = 0;
+
+	if (network_buffer_muxed.size() > 0) {
+		val = network_buffer_muxed.front();
+		network_buffer_muxed.pop_front();
+	}
+
+	return val;
 }
 
 void k573dio_device::network_w(uint16_t data)
 {
 	// Write a byte to the output buffer
+
+	if ((network_buffer_output.size() == 0 && data != 0xc0) || (network_buffer_output.size() > 0 && network_buffer_output.front() != 0xc0))
+		return;
+
+	network_buffer_output.push_back(data);
+
+	if (data != 0xc0 || network_buffer_output.size() <= 1 || network_buffer_output.front() != 0xc0 || network_buffer_output.back() != 0xc0)
+		return;
+
+	if (network_buffer_output.size() == 2) {
+		// c0 c0 would be an empty packet (corrupt packet?) so discard the first byte
+		network_buffer_output.pop_front();
+		return;
+	}
+
+	network_buffer_output_waiting_size += network_buffer_output.size();
+	network_buffer_output_queue.push_back(network_buffer_output);
+	network_buffer_output.clear();
 }
 
 uint16_t k573dio_device::network_output_buf_size_r()
 {
 	// Number of bytes in the output buffer waiting to be sent
-	return 0;
+	return network_buffer_output_waiting_size;
 }
 
 uint16_t k573dio_device::network_input_buf_size_r()
 {
 	// Number of bytes in the input buffer waiting to be read
-	return 0;
+	return network_buffer_muxed.size();
 }
 
 void k573dio_device::network_id_w(uint16_t data)
