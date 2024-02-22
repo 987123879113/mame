@@ -74,7 +74,8 @@
 
 k573msu_device::k573msu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, KONAMI_573_MULTI_SESSION_UNIT, tag, owner, clock),
-  m_maincpu(*this, "maincpu")
+  m_maincpu(*this, "maincpu"),
+  m_dsp(*this, "dsp_%d", 0L)
 {
 }
 
@@ -86,6 +87,30 @@ void k573msu_device::device_add_mconfig(machine_config &config)
   m_maincpu->in_brcond<1>().set([]() { return 1; }); // writeback complete
   m_maincpu->in_brcond<2>().set([]() { return 1; }); // writeback complete
   m_maincpu->in_brcond<3>().set([]() { return 1; }); // writeback complete
+
+	auto& dsp0(TC9446F(config, "dsp_0", 0));
+	// dsp0.mpeg_frame_sync_cb().set(*this, FUNC(k573msu_device::mpeg_frame_sync<0>));
+	// dsp0.demand_cb().set(*this, FUNC(k573msu_device::audio_demand<0>));
+	dsp0.add_route(0, ":lspeaker", 0.65);
+	dsp0.add_route(1, ":rspeaker", 0.65);
+
+	auto& dsp1(TC9446F(config, "dsp_1", 0));
+	// dsp1.mpeg_frame_sync_cb().set(*this, FUNC(k573msu_device::mpeg_frame_sync<1>));
+	// dsp1.demand_cb().set(*this, FUNC(k573msu_device::audio_demand<1>));
+	dsp1.add_route(0, ":lspeaker", 0.65);
+	dsp1.add_route(1, ":rspeaker", 0.65);
+
+	auto& dsp2(TC9446F(config, "dsp_2", 0));
+	// dsp2.mpeg_frame_sync_cb().set(*this, FUNC(k573msu_device::mpeg_frame_sync<2>));
+	// dsp2.demand_cb().set(*this, FUNC(k573msu_device::audio_demand<2>));
+	dsp2.add_route(0, ":lspeaker", 0.65);
+	dsp2.add_route(1, ":rspeaker", 0.65);
+
+	auto& dsp3(TC9446F(config, "dsp_3", 0));
+	// dsp3.mpeg_frame_sync_cb().set(*this, FUNC(k573msu_device::mpeg_frame_sync<3>));
+	// dsp3.demand_cb().set(*this, FUNC(k573msu_device::audio_demand<3>));
+	dsp3.add_route(0, ":lspeaker", 0.65);
+	dsp3.add_route(1, ":rspeaker", 0.65);
 }
 
 void k573msu_device::device_start()
