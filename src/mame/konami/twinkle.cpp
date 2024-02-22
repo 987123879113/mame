@@ -817,24 +817,38 @@ uint8_t twinkle_state::twinkle_io_r(offs_t offset)
 				data = m_in[0]->read();
 				break;
 
+			// TODO: These should be rewritten to use ioports
 			case 0x0f:
-				data = m_in[1]->read();
+				data = ioport(
+					((ioport("TURNTABLES")->read() >> 4) & 0x0f) == 0
+					? "IN1"
+					: "IN1_DIGITAL"
+				)->read();
 				break;
 
 			case 0x17:
-				data = m_in[2]->read();
+				data = ioport(
+					(ioport("TURNTABLES")->read() & 0x0f) == 0
+					? "IN2"
+					: "IN2_DIGITAL"
+				)->read();
 				break;
 
 			case 0x1f:
 				data = m_in[3]->read();
+				output().set_value("vol1", data & 0x0f);
+				output().set_value("vol2", (data >> 4) & 0x0f);
 				break;
 
 			case 0x27:
 				data = m_in[4]->read();
+				output().set_value("vol3", data & 0x0f);
+				output().set_value("vol4", (data >> 4) & 0x0f);
 				break;
 
 			case 0x2f:
 				data = m_in[5]->read();
+				output().set_value("vol5", data & 0x0f);
 				break;
 
 			default:
@@ -1424,6 +1438,14 @@ void twinkle_state::twinklei2(machine_config &config)
 }
 
 static INPUT_PORTS_START( twinkle )
+	PORT_START( "TURNTABLES" )
+	PORT_CONFNAME( 0x0f, 0x01, "P1 Turntable" )
+	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)" )
+	PORT_CONFSETTING( 0x01, "Digital Input (LR2/Sim)" )
+
+	PORT_CONFNAME( 0xf0, 0x10, "P2 Turntable" )
+	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)" )
+	PORT_CONFSETTING( 0x10, "Digital Input (LR2/Sim)" )
 
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1)
@@ -1434,11 +1456,17 @@ static INPUT_PORTS_START( twinkle )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE1)
 	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNKNOWN)
 
-	PORT_START("IN1")
-	PORT_BIT( 0xff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(2) PORT_NAME("2P Table") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
-
 	PORT_START("IN2")
-	PORT_BIT( 0xff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(1) PORT_NAME("1P Table") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+	PORT_BIT( 0xff, 0x00, IPT_POSITIONAL ) PORT_PLAYER(1) PORT_NAME("1P Turntable (Analog)") PORT_WRAPS PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("IN2_DIGITAL")
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_PLAYER(1) PORT_NAME("1P Turntable (Digital)") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(75) PORT_KEYDELTA(2)
+
+	PORT_START("IN1")
+	PORT_BIT( 0xff, 0x00, IPT_POSITIONAL ) PORT_PLAYER(2) PORT_NAME("2P Turntable (Analog)") PORT_WRAPS PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(100) PORT_KEYDELTA(10)
+
+	PORT_START("IN1_DIGITAL")
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_PLAYER(2) PORT_NAME("2P Turntable (Digital)") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(75) PORT_KEYDELTA(2)
 
 	PORT_START("IN3")
 	PORT_BIT( 0x0f, 0x00, IPT_AD_STICK_Y) PORT_NAME("Volume 1") PORT_MINMAX(0x00,0x0f) PORT_SENSITIVITY(100) PORT_KEYDELTA(10) PORT_CENTERDELTA(0)
