@@ -73,8 +73,19 @@
 */
 
 k573msu_device::k573msu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	device_t(mconfig, KONAMI_573_MULTI_SESSION_UNIT, tag, owner, clock)
+	device_t(mconfig, KONAMI_573_MULTI_SESSION_UNIT, tag, owner, clock),
+  m_maincpu(*this, "maincpu")
 {
+}
+
+void k573msu_device::device_add_mconfig(machine_config &config)
+{
+  TX3927(config, m_maincpu, 25_MHz_XTAL); // TODO: Fix clock
+  // m_maincpu->set_addrmap(AS_PROGRAM, &k573msu_device::amap);
+  m_maincpu->in_brcond<0>().set([]() { return 1; }); // writeback complete
+  m_maincpu->in_brcond<1>().set([]() { return 1; }); // writeback complete
+  m_maincpu->in_brcond<2>().set([]() { return 1; }); // writeback complete
+  m_maincpu->in_brcond<3>().set([]() { return 1; }); // writeback complete
 }
 
 void k573msu_device::device_start()
