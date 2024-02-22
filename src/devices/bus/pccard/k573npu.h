@@ -4,26 +4,30 @@
  * Konami 573 Network PCB Unit
  *
  */
-#ifndef MAME_BUS_PCCARD_K573NPU_H
-#define MAME_BUS_PCCARD_K573NPU_H
+#ifndef MAME_KONAMI_K573NPU_H
+#define MAME_KONAMI_K573NPU_H
 
 #pragma once
 
-#include "pccard.h"
+#include "cpu/tx3927/tx3927.h"
 
-class k573npu_device : public device_t,
-	public device_pccard_interface
+
+
+DECLARE_DEVICE_TYPE(KONAMI_573_NETWORK_PCB_UNIT, k573npu_device)
+
+class k573npu_device : public device_t
 {
 public:
 	k573npu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
 protected:
-	virtual const tiny_rom_entry *device_rom_region() const override;
 	virtual void device_start() override;
+	virtual void device_add_mconfig(machine_config &config) override;
 
-	void maincpu_program_map(address_map &map);
+	virtual const tiny_rom_entry *device_rom_region() const override;
+
+private:
+	required_device<tx3927_device> m_maincpu;
 };
 
-DECLARE_DEVICE_TYPE(KONAMI_573_NETWORK_PCB_UNIT, k573npu_device)
-
-#endif // MAME_BUS_PCCARD_K573NPU_H
+#endif // MAME_KONAMI_K573NPU_H
