@@ -44,7 +44,6 @@ public:
 	virtual ~cdrom_image_device();
 
 	void set_interface(const char *interface) { m_interface = interface; }
-	void enable_raw_images(bool mode) { m_enable_raw_images = mode; }
 
 	// device_image_interface implementation
 	virtual std::pair<std::error_condition, std::string> call_load() override;
@@ -92,7 +91,6 @@ protected:
 	std::unique_ptr<dvdrom_file> m_dvdrom_handle;
 	const char  *m_extension_list;
 	const char  *m_interface;
-	bool        m_enable_raw_images;
 };
 
 class gdrom_image_device : public cdrom_image_device

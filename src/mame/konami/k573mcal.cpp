@@ -26,14 +26,6 @@
 
 #include "multibyte.h"
 
-#define LOG_CMD  (1 << 0)
-// #define VERBOSE      (LOG_CMD)
-// #define LOG_OUTPUT_STREAM std::cout
-
-#include "logmacro.h"
-
-#define LOGCMD(...)    LOGMASKED(LOG_CMD, __VA_ARGS__)
-
 k573mcal_device::k573mcal_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	jvs_device(mconfig, KONAMI_573_MASTER_CALENDAR, tag, owner, clock),
 	m_in1(*this, "IN1"),
@@ -82,11 +74,6 @@ uint8_t k573mcal_device::comm_method_version()
 
 int k573mcal_device::handle_message(const uint8_t* send_buffer, uint32_t send_size, uint8_t*& recv_buffer)
 {
-	LOGCMD("k573mcal msg: ");
-	for (uint32_t i = 0; i < send_size; i++)
-		LOGCMD("%02x ", send_buffer[i]);
-	LOGCMD("\n");
-
 	switch (send_buffer[0]) {
 	case 0xf0:
 		// msg: f0 d9

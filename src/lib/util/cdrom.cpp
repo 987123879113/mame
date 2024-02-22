@@ -231,15 +231,7 @@ cdrom_file::cdrom_file(std::string_view inputfile)
  * @return  null if it fails, else a cdrom_file*.
  */
 
-cdrom_file::cdrom_file(chd_file* _chd, bool is_raw)
-{
-	if (is_raw)
-		this->cdrom_open_raw(_chd);
-	else
-		this->cdrom_open(_chd);
-}
-
-void cdrom_file::cdrom_open(chd_file *_chd)
+cdrom_file::cdrom_file(chd_file *_chd)
 {
 	chd = _chd;
 
@@ -321,48 +313,6 @@ void cdrom_file::cdrom_open(chd_file *_chd)
 	track.logframes = 0;
 }
 
-void cdrom_file::cdrom_open_raw(chd_file *_chd)
-{
-	chd = _chd;
-
-	uint32_t physofs = 0, chdofs = 0, logofs = 0;
-
-	/* Currently DVDs are stored as HDD CHDs which do not have a TOC so generete a single track TOC */
-	cdtoc.numtrks = 1;
-
-	track_info &track = cdtoc.tracks[0];
-	track.trktype = CD_TRACK_RAW_DVD;
-	track.subtype = CD_SUB_NONE;
-	track.datasize = DVD_FRAME_SIZE;
-	track.subsize = 0;
-	track.frames = chd->logical_bytes() / track.datasize;
-	track.extraframes = 0;
-	track.pregap = 0;
-	track.pgtype = 0;
-	track.pgdatasize = 0;
-	track.postgap = 0;
-	track.physframeofs = physofs;
-	track.chdframeofs = chdofs;
-	track.logframeofs = logofs;
-
-	// postgap counts against the next track
-	logofs  += track.postgap;
-	logofs  += track.postgap;
-	physofs += track.frames;
-	chdofs  += track.frames;
-	chdofs  += track.extraframes;
-	logofs  += track.frames;
-
-	// fill out dummy entries for the last track to help our search
-	track_info &track2 = cdtoc.tracks[cdtoc.numtrks];
-	track2.physframeofs = physofs;
-	track2.logframeofs = logofs;
-	track2.chdframeofs = chdofs;
-	track2.logframes = 0;
-
-	LOG(("CD has %d tracks\n", cdtoc.numtrks));
-}
-
 
 /*-------------------------------------------------
     destructor - "close" a CD-ROM file
@@ -428,14 +378,7 @@ std::error_condition cdrom_file::read_partial_sector(void *dest, uint32_t lbasec
 			chdsector += cdtoc.tracks[tracknum].pregap;
 		}
 
-		if (cdtoc.tracks[0].trktype == CD_TRACK_RAW_DVD)
-		{
-			result = chd->read_bytes(uint64_t(chdsector) * uint64_t(DVD_FRAME_SIZE) + startoffs, dest, length);
-		}
-		else
-		{
-			result = chd->read_bytes(uint64_t(chdsector) * uint64_t(FRAME_SIZE) + startoffs, dest, length);
-		}
+		result = chd->read_bytes(uint64_t(chdsector) * uint64_t(FRAME_SIZE) + startoffs, dest, length);
 
 		// swap CDDA in the case of LE GDROMs
 		if ((cdtoc.flags & CD_FLAG_GDROMLE) && (cdtoc.tracks[tracknum].trktype == CD_TRACK_AUDIO))
@@ -514,7 +457,7 @@ bool cdrom_file::read_data(uint32_t lbasector, void *buffer, uint32_t datatype, 
 	// copy out the requested sector
 	uint32_t tracktype = cdtoc.tracks[tracknum].trktype;
 
-	if ((datatype == tracktype) || (datatype == CD_TRACK_RAW_DONTCARE) || (tracktype == CD_TRACK_RAW_DVD))
+	if ((datatype == tracktype) || (datatype == CD_TRACK_RAW_DONTCARE))
 	{
 		assert(cdtoc.tracks[tracknum].datasize != 0);
 		return !read_partial_sector(buffer, lbasector, chdsector, tracknum, 0, cdtoc.tracks[tracknum].datasize, phys);

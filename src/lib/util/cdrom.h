@@ -30,8 +30,6 @@ public:
 
 	static constexpr uint32_t METADATA_WORDS   = 1 + MAX_TRACKS * 6;
 
-	static constexpr uint32_t DVD_FRAME_SIZE   = 2048;
-
 	enum
 	{
 		CD_TRACK_MODE1 = 0,         /* mode 1 2048 bytes/sector */
@@ -43,8 +41,7 @@ public:
 		CD_TRACK_MODE2_RAW,         /* mode 2 2352 bytes/sector */
 		CD_TRACK_AUDIO,             /* redbook audio track 2352 bytes/sector (588 samples) */
 
-		CD_TRACK_RAW_DONTCARE,      /* special flag for cdrom_read_data: just return me whatever is there */
-		CD_TRACK_RAW_DVD            /* Raw DVDs are stored as HDD CHDs. Similar to CD_TRACK_RAW_DONTCARE but generates a fake TOC */
+		CD_TRACK_RAW_DONTCARE       /* special flag for cdrom_read_data: just return me whatever is there */
 	};
 
 	enum
@@ -117,13 +114,10 @@ public:
 		track_input_entry track[MAX_TRACKS];
 	};
 
-	
-	cdrom_file(chd_file *chd, bool is_raw=false);
+
+	cdrom_file(chd_file *chd);
 	cdrom_file(std::string_view inputfile);
 	~cdrom_file();
-
-	void cdrom_open(chd_file *chd);
-	void cdrom_open_raw(chd_file *chd);
 
 
 	/* core read access */
