@@ -30,6 +30,8 @@ public:
 	auto vblank_callback() { return m_vblank_handler.bind(); }
 	void set_vram_size(int size) { vramSize = size; }
 
+	void set_twinkle_hacks(bool enabled) { m_twinkle_hacks = enabled; }
+
 	void write(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	uint32_t read(offs_t offset, uint32_t mem_mask = ~0);
 	void dma_read( uint32_t *ram, uint32_t n_address, int32_t n_size );
@@ -37,6 +39,8 @@ public:
 	void lightgun_set( int, int );
 
 	static constexpr feature_type imperfect_features() { return feature::GRAPHICS; }
+
+	uint32_t update_screen(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 protected:
 	static constexpr unsigned MAX_LEVEL = 32;
@@ -292,8 +296,9 @@ private:
 
 	devcb_write_line m_vblank_handler;
 
+	bool m_twinkle_hacks;
+
 	void vblank(screen_device &screen, bool vblank_state);
-	uint32_t update_screen(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 #if defined(PSXGPU_DEBUG_VIEWER) && PSXGPU_DEBUG_VIEWER
 	void DebugMeshInit();
