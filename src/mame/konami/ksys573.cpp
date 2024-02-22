@@ -618,6 +618,10 @@ public:
 	void msu_local(machine_config &config);
 	void msu_remote(machine_config &config);
 
+	uint8_t explus_speed_inc1();
+	uint8_t explus_speed_inc2();
+	uint8_t explus_speed_normal();
+
 	void init_serlamp();
 	void init_hyperbbc();
 	void init_drmn();
@@ -713,6 +717,8 @@ private:
 	void cdrom_dma_read( uint32_t *ram, uint32_t n_address, int32_t n_size );
 	void cdrom_dma_write( uint32_t *ram, uint32_t n_address, int32_t n_size );
 
+	void sys573_vblank(int state);
+
 	void zi_cassette_install(device_t* device);
 	void stepchmp_cassette_install(device_t* device);
 	void animechmp_cassette_install(device_t *device);
@@ -781,6 +787,8 @@ private:
 	int m_jvs_output_idx_w, m_jvs_output_len_w;
 	uint8_t m_jvs_input_buffer[512];
 	uint8_t m_jvs_output_buffer[512];
+
+	bool is_ddrexplus_init_done;
 
 	required_device<ram_device> m_ram;
 	required_device<address_map_bank_device> m_flashbank;
@@ -1173,6 +1181,8 @@ void ksys573_state::machine_start()
 
 void ksys573_state::machine_reset()
 {
+	is_ddrexplus_init_done = false;
+
 	m_n_security_control = 0;
 	m_control = 0;
 
@@ -1188,6 +1198,47 @@ void ksys573_state::machine_reset()
 	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
 	if (sio1 != nullptr)
 		sio1->write_dsr(0);
+}
+
+uint8_t ksys573_state::explus_speed_inc1()
+{
+	subdevice<k573dio_device>("k573dio")->explus_speed_inc1();
+	return 0x00;
+}
+
+uint8_t ksys573_state::explus_speed_inc2()
+{
+	subdevice<k573dio_device>("k573dio")->explus_speed_inc2();
+	return 0x55;
+}
+
+uint8_t ksys573_state::explus_speed_normal()
+{
+	subdevice<k573dio_device>("k573dio")->explus_speed_normal();
+	return 0xaa;
+}
+
+void ksys573_state::sys573_vblank(int state)
+{
+	if(strcmp(machine().system().name, "ddrexplus") == 0)
+	{
+		if (!is_ddrexplus_init_done) {
+			m_maincpu->space(AS_PROGRAM).install_read_handler(0x1fc4080f, 0x1fc40810, read8smo_delegate(*this, FUNC(ksys573_state::explus_speed_inc1)));
+			m_maincpu->space(AS_PROGRAM).install_read_handler(0x1fc40ebe, 0x1fc40ebf, read8smo_delegate(*this, FUNC(ksys573_state::explus_speed_normal)));
+			m_maincpu->space(AS_PROGRAM).install_read_handler(0x1fc41340, 0x1fc41341, read8smo_delegate(*this, FUNC(ksys573_state::explus_speed_inc2)));
+			is_ddrexplus_init_done = true;
+		}
+
+		uint32_t *p_n_psxram = (uint32_t*)m_ram->pointer();
+
+		// Hack until a proper modboard BIOS can be found.
+		// The install CD checks the last byte of the BIOS checksum
+		// to determine if it's the proper BIOS or not.
+		if(p_n_psxram[0x30bc40 / 4] == 0x10430005)
+		{
+			p_n_psxram[0x30bc40 / 4] = 0x10000005;
+		}
+	}
 }
 
 // H8 check at startup (JVS related)
@@ -2515,7 +2566,8 @@ void ksys573_state::konami573(machine_config &config, bool no_cdrom)
 	/* video hardware */
 	CXD8561Q(config, "gpu", XTAL(53'693'175), 0x200000, m_maincpu.target()).set_screen("screen");
 
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	auto &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.screen_vblank().set(FUNC(ksys573_state::sys573_vblank));
 
 	/* sound hardware */
 	SPEAKER(config, "lspeaker").front_left();

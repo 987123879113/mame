@@ -18,9 +18,20 @@ k573fpga_device::k573fpga_device(const machine_config &mconfig, const char *tag,
 {
 }
 
+void k573fpga_device::update_clock(uint32_t speed)
+{
+	// For the DDR Extreme Plus hack.
+	// The game is capable of switching between 3 different crystals to change the playback speed.
+	double scale = speed / double(clock());
+	counter_current = counter_base = machine().time();
+	set_clock_scale(scale);
+	mas3507d->set_clock_scale(scale);
+	m_stream_timer->adjust(attotime::never);
+}
+
 void k573fpga_device::device_add_mconfig(machine_config &config)
 {
-	MAS3507D(config, mas3507d);
+	MAS3507D(config, mas3507d, 29'450'000);
 	mas3507d->mpeg_frame_sync_cb().set(*this, FUNC(k573fpga_device::mpeg_frame_sync));
 	mas3507d->demand_cb().set(*this, FUNC(k573fpga_device::mas3507d_demand));
 }
