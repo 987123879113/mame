@@ -13,6 +13,7 @@
 
 #include "bus/psx/ctlrport.h"
 #include "bus/psx/parallel.h"
+#include "bus/rs232/rs232.h"
 #include "cpu/m6805/m6805.h"
 #include "cpu/psx/psx.h"
 #include "imagedev/cdromimg.h"
@@ -514,6 +515,13 @@ void psx1_state::psx_base(machine_config &config)
 	sio0.dtr_handler().set("controllers", FUNC(psxcontrollerports_device::write_dtr));
 	sio0.sck_handler().set("controllers", FUNC(psxcontrollerports_device::write_sck));
 	sio0.txd_handler().set("controllers", FUNC(psxcontrollerports_device::write_txd));
+
+	auto& sio1(*m_maincpu->subdevice<psxsio1_device>("sio1"));
+	rs232_port_device& rs232(RS232_PORT(config, "rs232", default_rs232_devices, nullptr));
+	rs232.rxd_handler().set(sio1, FUNC(psxsio1_device::write_rxd));
+	rs232.dsr_handler().set(sio1, FUNC(psxsio1_device::write_dsr));
+	sio1.txd_handler().set(rs232, FUNC(rs232_port_device::write_txd));
+	sio1.dtr_handler().set(rs232, FUNC(rs232_port_device::write_dtr));
 
 	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
 

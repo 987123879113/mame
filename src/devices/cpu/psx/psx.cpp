@@ -1755,8 +1755,8 @@ void psxcpu_device::psxcpu_internal_map(address_map &map)
 	/* 1f801018 dv delay */
 	map(0x1f801020, 0x1f801023).rw(FUNC(psxcpu_device::com_delay_r), FUNC(psxcpu_device::com_delay_w));
 	map(0x1f801024, 0x1f80102f).ram();
-	map(0x1f801040, 0x1f80104f).rw("sio0", FUNC(psxsio_device::read), FUNC(psxsio_device::write));
-	map(0x1f801050, 0x1f80105f).rw("sio1", FUNC(psxsio_device::read), FUNC(psxsio_device::write));
+	map(0x1f801040, 0x1f80104f).rw("sio0", FUNC(psxsio0_device::read), FUNC(psxsio0_device::write));
+	map(0x1f801050, 0x1f80105f).rw("sio1", FUNC(psxsio1_device::read), FUNC(psxsio1_device::write));
 	map(0x1f801060, 0x1f801063).rw(FUNC(psxcpu_device::ram_config_r), FUNC(psxcpu_device::ram_config_w));
 	map(0x1f801064, 0x1f80106f).ram();
 	map(0x1f801070, 0x1f801077).rw("irq", FUNC(psxirq_device::read), FUNC(psxirq_device::write));
