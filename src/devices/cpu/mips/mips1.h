@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "machine/ram.h"
+
 class mips1core_device_base : public cpu_device
 {
 public:

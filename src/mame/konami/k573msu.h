@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "cpu/tx3927/tx3927.h"
+
 
 
 DECLARE_DEVICE_TYPE(KONAMI_573_MULTI_SESSION_UNIT, k573msu_device)
@@ -20,8 +22,12 @@ public:
 
 protected:
 	virtual void device_start() override;
+	virtual void device_add_mconfig(machine_config &config) override;
 
 	virtual const tiny_rom_entry *device_rom_region() const override;
+
+private:
+	required_device<tx3927_device> m_maincpu;
 };
 
 #endif // MAME_KONAMI_K573MSU_H

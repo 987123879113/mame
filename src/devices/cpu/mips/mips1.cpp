@@ -11,6 +11,7 @@
  *  - R3041 features
  *
  */
+
 #include "emu.h"
 #include "mips1.h"
 #include "mips1dsm.h"
@@ -20,7 +21,10 @@
 #define LOG_IOP     (1U << 2)
 #define LOG_RISCOS  (1U << 3)
 
+#include <iostream>
+
 //#define VERBOSE     (LOG_GENERAL|LOG_TLB)
+#define LOG_OUTPUT_STREAM std::cout
 
 #include "logmacro.h"
 
@@ -461,6 +465,13 @@ void mips1core_device_base::execute_run()
 				case 0x0d: // BREAK
 					generate_exception(EXCEPTION_BREAK);
 					break;
+				case 0x0e: // SDBBP
+					// TODO: Implement properly?
+					generate_exception(EXCEPTION_BREAK);
+					break;
+				case 0x0f:
+					// SYNC
+					break;
 				case 0x10: // MFHI
 					m_r[RDREG] = m_hi;
 					break;
@@ -476,6 +487,7 @@ void mips1core_device_base::execute_run()
 				case 0x18: // MULT
 					{
 						u64 product = mul_32x32(m_r[RSREG], m_r[RTREG]);
+						m_r[RDREG] = product & 0xffffffff;
 
 						m_lo = product;
 						m_hi = product >> 32;
@@ -485,6 +497,7 @@ void mips1core_device_base::execute_run()
 				case 0x19: // MULTU
 					{
 						u64 product = mulu_32x32(m_r[RSREG], m_r[RTREG]);
+						m_r[RDREG] = product & 0xffffffff;
 
 						m_lo = product;
 						m_hi = product >> 32;
@@ -570,7 +583,7 @@ void mips1core_device_base::execute_run()
 				 * instruction if the branch is not taken, whereas the former
 				 * execute the delay slot instruction regardless.
 				 */
-				switch (RTREG & 0x1d)
+				switch (RTREG & 0x1f)
 				{
 				case 0x00: // BLTZ
 					if (s32(m_r[RSREG]) < 0)
@@ -586,20 +599,70 @@ void mips1core_device_base::execute_run()
 						m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
 					}
 					break;
-				case 0x10: // BLTZAL
+				case 0x02: // BLTZL
 					if (s32(m_r[RSREG]) < 0)
 					{
 						m_branch_state = BRANCH;
 						m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
-						m_r[31] = m_pc + 8;
+					}
+					else
+					{
+						m_pc += 4;
 					}
 					break;
-				case 0x11: // BGEZAL
+				case 0x03: // BGEZL
 					if (s32(m_r[RSREG]) >= 0)
 					{
 						m_branch_state = BRANCH;
 						m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
-						m_r[31] = m_pc + 8;
+					}
+					else
+					{
+						m_pc += 4;
+					}
+					break;
+				case 0x10: // BLTZAL
+					m_r[31] = m_pc + 8;
+
+					if (s32(m_r[RSREG]) < 0)
+					{
+						m_branch_state = BRANCH;
+						m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+					}
+					break;
+				case 0x11: // BGEZAL
+					m_r[31] = m_pc + 8;
+
+					if (s32(m_r[RSREG]) >= 0)
+					{
+						m_branch_state = BRANCH;
+						m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+					}
+					break;
+				case 0x12: // BLTZALL
+					m_r[31] = m_pc + 8;
+
+					if (s32(m_r[RSREG]) < 0)
+					{
+						m_branch_state = BRANCH;
+						m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+					}
+					else
+					{
+						m_pc += 4;
+					}
+					break;
+				case 0x13: // BGEZALL
+					m_r[31] = m_pc + 8;
+
+					if (s32(m_r[RSREG]) >= 0)
+					{
+						m_branch_state = BRANCH;
+						m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+					}
+					else
+					{
+						m_pc += 4;
 					}
 					break;
 				default:
@@ -691,6 +754,70 @@ void mips1core_device_base::execute_run()
 			case 0x13: // COP3
 				handle_cop3(op);
 				break;
+			case 0x14: // BEQL
+				if (m_r[RSREG] == m_r[RTREG])
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
+			case 0x15: // BNEL
+				if (m_r[RSREG] != m_r[RTREG])
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
+			case 0x16: // BLEZL
+				if (s32(m_r[RSREG]) <= 0)
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
+			case 0x17: // BGTZL
+				if (s32(m_r[RSREG]) > 0)
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
+			case 0x1c: // MADD/MADDU
+				{
+					// Note: "To guarantee correct operation even if an interrupt occurs,
+					// neither of the two instructions following MADD should be DIV or DIVU
+					// instructions which modify the HI and LO register contents"
+					u64 product = 0;
+
+					if (op & 1) // MADDU
+						product += mulu_32x32(m_r[RSREG], m_r[RTREG]);
+					else // MADD
+						product += mul_32x32(m_r[RSREG], m_r[RTREG]);
+
+					product += (uint64_t(m_hi) << 32) + m_lo;
+
+					m_lo = product;
+					m_hi = product >> 32;
+					m_r[RDREG] = m_lo;
+					m_icount -= 11;
+				}
+				break;
 			case 0x20: // LB
 				load<u8>(SIMMVAL + m_r[RSREG], [this, op](s8 temp) { m_r[RTREG] = temp; });
 				break;
@@ -726,6 +853,8 @@ void mips1core_device_base::execute_run()
 				break;
 			case 0x2e: // SWR
 				swr(op);
+				break;
+			case 0x2f: // CACHE
 				break;
 			case 0x31: // LWC1
 				handle_cop1(op);
@@ -815,7 +944,7 @@ mips1core_device_base::translate_result mips1core_device_base::translate(int int
 			{
 			case 0x80000000: // kseg0: unmapped, cached, privileged
 				address &= ~0xe0000000;
-				return m_cache;
+				return m_cpurev == 0x3927 ? UNCACHED : m_cache;
 
 			case 0xa0000000: // kseg1: unmapped, uncached, privileged
 				address &= ~0xe0000000;
@@ -836,6 +965,11 @@ mips1core_device_base::translate_result mips1core_device_base::translate(int int
 	else
 		// kuseg physical addresses have a 1GB offset
 		address += 0x40000000;
+
+	if (m_cpurev == 0x3927) {
+		// TX3927 peripherals
+		return UNCACHED;
+	}
 
 	return m_cache;
 }
@@ -1065,6 +1199,28 @@ void mips1core_device_base::handle_cop0(u32 const op)
 				m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
 			}
 			break;
+		case 0x02: // BC0FL
+			if (!m_in_brcond[0]())
+			{
+				m_branch_state = BRANCH;
+				m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+			}
+			else
+			{
+				m_pc += 4;
+			}
+			break;
+		case 0x03: // BC0TL
+			if (m_in_brcond[0]())
+			{
+				m_branch_state = BRANCH;
+				m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+			}
+			else
+			{
+				m_pc += 4;
+			}
+			break;
 		default:
 			generate_exception(EXCEPTION_INVALIDOP);
 			break;
@@ -1155,6 +1311,28 @@ void mips1core_device_base::handle_cop2(u32 const op)
 					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
 				}
 				break;
+			case 0x02: // BC2FL
+				if (!m_in_brcond[2]())
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
+			case 0x03: // BC2TL
+				if (m_in_brcond[2]())
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
 			default:
 				generate_exception(EXCEPTION_INVALIDOP);
 				break;
@@ -1190,6 +1368,28 @@ void mips1core_device_base::handle_cop3(u32 const op)
 				{
 					m_branch_state = BRANCH;
 					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				break;
+			case 0x02: // BC3FL
+				if (!m_in_brcond[3]())
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
+			case 0x03: // BC3TL
+				if (m_in_brcond[3]())
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
 				}
 				break;
 			default:
@@ -1794,6 +1994,28 @@ void mips1_device_base::handle_cop1(u32 const op)
 					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
 				}
 				break;
+			case 0x02: // BC1FL
+				if (!(m_fcr31 & FCR31_C))
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
+			case 0x03: // BC1TL
+				if (m_fcr31 & FCR31_C)
+				{
+					m_branch_state = BRANCH;
+					m_branch_target = m_pc + 4 + (s32(SIMMVAL) << 2);
+				}
+				else
+				{
+					m_pc += 4;
+				}
+				break;
 
 			default:
 				// unimplemented operation
@@ -2289,7 +2511,7 @@ mips1core_device_base::translate_result mips1_device_base::translate(int intenti
 			{
 			case 0x80000000: // kseg0: unmapped, cached, privileged
 				address &= ~0xe0000000;
-				return m_cache;
+				return m_cpurev == 0x3927 ? UNCACHED : m_cache;
 
 			case 0xa0000000: // kseg1: unmapped, uncached, privileged
 				address &= ~0xe0000000;
@@ -2306,6 +2528,11 @@ mips1core_device_base::translate_result mips1_device_base::translate(int intenti
 
 			return ERROR;
 		}
+	}
+
+	if (m_cpurev == 0x3927) {
+		// TX3927 peripherals
+		return UNCACHED;
 	}
 
 	// key is a combination of VPN and ASID
