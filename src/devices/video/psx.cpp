@@ -47,6 +47,7 @@ psxgpu_device::psxgpu_device(const machine_config &mconfig, device_type type, co
 	, device_video_interface(mconfig, *this)
 	, device_palette_interface(mconfig, *this)
 	, m_vblank_handler(*this)
+	, m_twinkle_hacks(false)
 {
 }
 
@@ -57,6 +58,10 @@ void psxgpu_device::device_start()
 	for( int n_colour = 0; n_colour < 0x10000; n_colour++ )
 	{
 		set_pen_color( n_colour, pal555(n_colour,0, 5, 10) );
+	}
+
+	if (m_twinkle_hacks == true) {
+		set_pen_color( 0, rgb_t(0, 0, 0, 0) ); // Hack for Twinkle
 	}
 
 	if (type() == CXD8538Q)
