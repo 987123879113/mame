@@ -644,8 +644,10 @@ public:
 		m_spectrum_analyzer(*this, "spectrum_analyzer"),
 		m_duart_midi(*this, "duart_midi"),
 		m_io(*this, "IO%u", 1U),
-		m_io_turntables(*this, "TURNTABLE_P%u", 1U),
-		m_io_effects(*this, "EFFECT%u", 1U)
+		m_io_turntables_digital(*this, "TURNTABLE_P%u_DIGITAL", 1U),
+		m_io_turntables_analog(*this, "TURNTABLE_P%u_ANALOG", 1U),
+		m_io_effects(*this, "EFFECT%u", 1U),
+		m_turntable_switch(*this, "TURNTABLES")
 	{ }
 
 	void firebeat_bm3(machine_config &config);
@@ -668,8 +670,10 @@ private:
 	required_device<pc16552_device> m_duart_midi;
 
 	required_ioport_array<4> m_io;
-	required_ioport_array<2> m_io_turntables;
+	required_ioport_array<2> m_io_turntables_digital;
+	required_ioport_array<2> m_io_turntables_analog;
 	required_ioport_array<7> m_io_effects;
+	optional_ioport m_turntable_switch;
 
 	void floppy_irq_callback(int state);
 };
@@ -1492,10 +1496,10 @@ uint16_t firebeat_bm3_state::sensor_r(offs_t offset)
 		case 1: return m_io[1]->read() | 0x0100;
 		case 2: return m_io[2]->read() | 0x0100;
 		case 3: return m_io[3]->read() | 0x0100;
-		case 5: return (m_io_turntables[0]->read() >> 8) | 0x0100;
-		case 6: return (m_io_turntables[0]->read() & 0xff) | 0x0100;
-		case 7: return (m_io_turntables[1]->read() >> 8) | 0x0100;
-		case 8: return (m_io_turntables[1]->read() & 0xff) | 0x0100;
+		case 5: return (((m_turntable_switch->read() & 0x0f) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[0]->read() >> 8) | 0x0100;
+		case 6: return (((m_turntable_switch->read() & 0x0f) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[0]->read() & 0xff) | 0x0100;
+		case 7: return (((m_turntable_switch->read() & 0xf0) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[1]->read() >> 8) | 0x0100;
+		case 8: return (((m_turntable_switch->read() & 0xf0) == 0 ? m_io_turntables_analog : m_io_turntables_digital)[1]->read() & 0xff) | 0x0100;
 		case 9: return m_io_effects[0]->read() | 0x0100;
 		case 10: return m_io_effects[1]->read() | 0x0100;
 		case 11: return m_io_effects[2]->read() | 0x0100;
@@ -2181,6 +2185,15 @@ static INPUT_PORTS_START(bm3)
 	PORT_INCLUDE( firebeat )
 	PORT_INCLUDE( firebeat_spu )
 
+	PORT_START("TURNTABLES")
+	PORT_CONFNAME(0x0f, 0x01, "P1 Turntable")
+	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)")
+	PORT_CONFSETTING( 0x01, "Digital Input (LR2/Sim)")
+
+	PORT_CONFNAME(0xf0, 0x10, "P2 Turntable")
+	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)")
+	PORT_CONFSETTING( 0x10, "Digital Input (LR2/Sim)")
+
 	PORT_START("IN0")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE) PORT_NAME(DEF_STR(Test))              // Test
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_NAME("Service")                // Service
@@ -2214,11 +2227,17 @@ static INPUT_PORTS_START(bm3)
 	PORT_START("IO4")
 	PORT_BIT( 0xffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
-	PORT_START("TURNTABLE_P1")
-	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(1) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
+	PORT_START("TURNTABLE_P1_ANALOG")
+	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_PLAYER(1) PORT_NAME("1P Table (Analog)") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(25) PORT_KEYDELTA(10)
 
-	PORT_START("TURNTABLE_P2")
-	PORT_BIT( 0x03ff, 0x00, IPT_TRACKBALL_X) PORT_PLAYER(2) PORT_NAME("Turntable") PORT_MINMAX(0x00,0x3ff) PORT_SENSITIVITY(100) PORT_KEYDELTA(15)
+	PORT_START("TURNTABLE_P1_DIGITAL")
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_PLAYER(1) PORT_NAME("1P Table (Digital)") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(75) PORT_KEYDELTA(2)
+
+	PORT_START("TURNTABLE_P2_ANALOG")
+	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_PLAYER(2) PORT_NAME("2P Table (Analog)") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(25) PORT_KEYDELTA(10)
+
+	PORT_START("TURNTABLE_P2_DIGITAL")
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_PLAYER(2) PORT_NAME("2P Table (Digital)") PORT_MINMAX(0x00,0xff) PORT_SENSITIVITY(75) PORT_KEYDELTA(2)
 
 	PORT_START("EFFECT1")
 	PORT_BIT( 0x001f, 0x00, IPT_DIAL) PORT_NAME("Effect 1") PORT_MINMAX(0x00,0x1f) PORT_SENSITIVITY(10) PORT_KEYDELTA(1)

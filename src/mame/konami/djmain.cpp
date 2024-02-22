@@ -99,7 +99,9 @@ public:
 		, m_ata(*this, "ata")
 		, m_gfxdecode(*this, "gfxdecode")
 		, m_palette(*this, "palette")
-		, m_turntable(*this, "TT%u", 1U)
+		, m_turntable_digital(*this, "TT%u_DIGITAL", 1U)
+		, m_turntable_analog(*this, "TT%u_ANALOG", 1U)
+		, m_turntable_switch(*this, "TURNTABLES")
 		, m_sndram(*this, "sndram")
 		, m_leds(*this, "led%u", 0U)
 		, m_right_red_hlt(*this, "right-red-hlt")
@@ -172,7 +174,9 @@ private:
 	required_device<ata_interface_device> m_ata;
 	required_device<gfxdecode_device> m_gfxdecode;
 	required_device<palette_device> m_palette;
-	optional_ioport_array<2> m_turntable;
+	optional_ioport_array<2> m_turntable_digital;
+	optional_ioport_array<2> m_turntable_analog;
+	optional_ioport m_turntable_switch;
 	required_shared_ptr<uint8_t> m_sndram;
 	output_finder<3> m_leds;
 	output_finder<> m_right_red_hlt;
@@ -511,8 +515,11 @@ uint32_t djmain_state::turntable_r(offs_t offset, uint32_t mem_mask)
 	{
 		uint8_t pos;
 		int delta;
+		int turntable_switch;
 
-		pos = m_turntable[m_turntable_select].read_safe(0);
+		turntable_switch = m_turntable_switch ? m_turntable_switch->read() : 0;
+		pos = ((turntable_switch & (0x0f << (4 * m_turntable_select))) == 0 ? m_turntable_analog : m_turntable_digital)[m_turntable_select].read_safe(0);
+
 		delta = pos - m_turntable_last_pos[m_turntable_select];
 		if (delta < -128)
 			delta += 256;
@@ -727,6 +734,15 @@ void djmain_state::k054539_map(address_map &map)
 //--------- beatmania
 
 static INPUT_PORTS_START( beatmania_btn ) // and turntables
+	PORT_START("TURNTABLES")
+	PORT_CONFNAME(0x0f, 0x01, "P1 Turntable")
+	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)")
+	PORT_CONFSETTING( 0x01, "Digital Input (LR2/Sim)")
+
+	PORT_CONFNAME(0xf0, 0x10, "P2 Turntable")
+	PORT_CONFSETTING( 0x00, "Analog Input (Infinitas)")
+	PORT_CONFSETTING( 0x10, "Digital Input (LR2/Sim)")
+
 	PORT_START("BTN1")
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1)
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1)
@@ -754,10 +770,16 @@ static INPUT_PORTS_START( beatmania_btn ) // and turntables
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_START("UNK2")
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_START("TT1")       /* turn table 1P */
-	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(30) PORT_KEYDELTA(15) PORT_PLAYER(1)
-	PORT_START("TT2")       /* turn table 2P */
-	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(30) PORT_KEYDELTA(15) PORT_PLAYER(2)
+
+	PORT_START("TT1_ANALOG")       /* turn table 1P */
+	PORT_BIT( 0xff, 0x00, IPT_POSITIONAL ) PORT_MINMAX(0x00, 0xff) PORT_WRAPS PORT_SENSITIVITY(30) PORT_KEYDELTA(15) PORT_PLAYER(1) PORT_NAME("1P Turntable (Analog)")
+	PORT_START("TT1_DIGITAL")       /* turn table 1P */
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_MINMAX(0x00, 0xff) PORT_SENSITIVITY(30) PORT_KEYDELTA(15) PORT_PLAYER(1) PORT_NAME("1P Turntable (Digital)")
+
+	PORT_START("TT2_ANALOG")       /* turn table 2P */
+	PORT_BIT( 0xff, 0x00, IPT_POSITIONAL ) PORT_MINMAX(0x00, 0xff) PORT_WRAPS PORT_SENSITIVITY(30) PORT_KEYDELTA(15) PORT_PLAYER(2) PORT_NAME("2P Turntable (Analog)")
+	PORT_START("TT2_DIGITAL")       /* turn table 2P */
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_MINMAX(0x00, 0xff) PORT_SENSITIVITY(30) PORT_KEYDELTA(15) PORT_PLAYER(2) PORT_NAME("2P Turntable (Digital)")
 INPUT_PORTS_END
 
 #ifdef PRIORITY_EASINESS_TO_PLAY
