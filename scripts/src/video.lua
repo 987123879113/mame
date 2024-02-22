@@ -1696,3 +1696,16 @@ if (VIDEOS["ZR36110"]~=null) then
 		MAME_DIR .. "src/devices/video/zr36110.h",
 	}
 end
+
+
+--------------------------------------------------
+--
+--@src/devices/video/pl_mpeg.h,VIDEOS["PL_MPEG"] = true
+--------------------------------------------------
+
+if (VIDEOS["PL_MPEG"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/video/pl_mpeg.cpp",
+		MAME_DIR .. "src/devices/video/pl_mpeg.h",
+	}
+end
