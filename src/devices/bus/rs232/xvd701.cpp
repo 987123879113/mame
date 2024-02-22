@@ -2,6 +2,8 @@
 // copyright-holders:smf, DragonMinded, windyfairy
 
 #include "emu.h"
+#include "rendutil.h"
+
 #include "xvd701.h"
 
 #define LOG_COMMAND    (1U << 1)
@@ -13,10 +15,37 @@
 #define LOGCMD(...)    LOGMASKED(LOG_COMMAND, __VA_ARGS__)
 
 
+void app_on_video(plm_t *mpeg, plm_frame_t *frame, void *user)
+{
+	jvc_xvd701_device *self = (jvc_xvd701_device*)user;
+	if (self->m_video_bitmap == nullptr)
+	{
+		// No output video surface
+		return;
+	}
+
+	plm_frame_to_bgra(frame, self->m_rgb_data, frame->width * 4);
+
+	bitmap_rgb32 video_frame = bitmap_rgb32(
+		(uint32_t*)self->m_rgb_data,
+		frame->width,
+		frame->height,
+		frame->width
+	);
+
+	copybitmap(
+		*self->m_video_bitmap,
+		video_frame,
+		0, 0, 0, 0,
+		rectangle(0, self->m_video_bitmap->width(), 0, self->m_video_bitmap->height())
+	);
+}
+
 jvc_xvd701_device::jvc_xvd701_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, JVC_XVD701, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
 	device_rs232_port_interface(mconfig, *this),
+	m_data_folder(nullptr),
 	m_media_type(JVC_MEDIA_VCD), // TODO: This should be changed based on the type of disc inserted or else seeking won't work properly
 	m_response_index(0),
 	m_timer_response(nullptr)
@@ -59,6 +88,9 @@ void jvc_xvd701_device::device_start()
 	output_cts(0);
 
 	m_timer_response = timer_alloc(FUNC(jvc_xvd701_device::send_response), this);
+
+	if (m_data_folder == nullptr)
+		m_data_folder = "";
 }
 
 void jvc_xvd701_device::device_reset()
@@ -71,6 +103,9 @@ void jvc_xvd701_device::device_reset()
 	m_is_powered = false;
 	m_chapter = 0;
 	m_playback_status = STATUS_STOP;
+	m_plm = nullptr;
+	m_rgb_data = nullptr;
+	m_wait_timer = 0;
 }
 
 void jvc_xvd701_device::tra_callback()
@@ -110,8 +145,25 @@ TIMER_CALLBACK_MEMBER(jvc_xvd701_device::send_response)
 {
 	if (m_response_index < sizeof(m_response) && is_transmit_register_empty())
 	{
-//      printf("sending %02x\n", m_response[m_response_index]);
+		// printf("sending %02x\n", m_response[m_response_index]);
 		transmit_register_setup(m_response[m_response_index++]);
+	}
+}
+
+void jvc_xvd701_device::decode_next_frame(double elapsed_time)
+{
+	if (m_playback_status == STATUS_PLAYING && m_wait_timer > 0)
+	{
+		m_wait_timer -= elapsed_time;
+	}
+
+	if (m_wait_timer <= 0 && m_plm != nullptr && m_playback_status == STATUS_PLAYING && !plm_has_ended(m_plm))
+	{
+		plm_decode(m_plm, elapsed_time);
+	}
+	else
+	{
+		m_video_bitmap->fill(0xff000000); // Fill with solid black since nothing should be displaying now
 	}
 }
 
@@ -123,7 +175,30 @@ bool jvc_xvd701_device::seek_chapter(int chapter)
 		return false;
 	}
 
+	// printf("Trying to play chapter %d\n", chapter);
 	m_chapter = chapter;
+
+	auto filename_fmt = util::string_format("videos_iidx/%s%strack%d.mpg", m_data_folder ? m_data_folder : "", m_data_folder ? "/" : "", chapter);
+	auto filename = filename_fmt.c_str();
+	m_plm = plm_create_with_filename(filename);
+	// printf("Trying to load %s\n", filename);
+	if (!m_plm)
+	{
+		printf("Couldn't open %s\n", filename);
+		return false;
+	}
+
+	plm_set_audio_enabled(m_plm, false);
+	plm_video_set_no_delay(m_plm->video_decoder, true); // The videos are encoded with "-bf 0"
+
+	if (m_rgb_data != nullptr)
+		free(m_rgb_data);
+
+	int num_pixels = plm_get_width(m_plm) * plm_get_height(m_plm);
+	m_rgb_data = (uint8_t*)malloc(num_pixels * 4);
+	plm_set_video_decode_callback(m_plm, app_on_video, this);
+
+	m_wait_timer = 0.2; // Trying to match sync to Mobo Moga on 5th and 8th styles. Adjust if you find it too out of sync.
 
 	if (m_playback_status != STATUS_PAUSE)
 		m_playback_status = STATUS_PLAYING;
@@ -173,6 +248,12 @@ void jvc_xvd701_device::rcv_complete()
 		{
 			// FF FF 21 0C 44 60 00 00 00 00 31 STOP
 			LOGCMD("xvd701: Playback STOP\n");
+
+			if (m_plm != nullptr)
+			{
+				plm_destroy(m_plm);
+				m_plm = nullptr;
+			}
 
 			m_playback_status = STATUS_STOP;
 			create_packet(STATUS_OK, NO_RESPONSE);
