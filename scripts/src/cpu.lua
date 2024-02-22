@@ -3005,6 +3005,29 @@ if opt_tool(CPUS, "TX0") then
 end
 
 --------------------------------------------------
+-- Toshiba TX3927
+--@src/devices/cpu/tx3927/tx3927.h,CPUS["TX3927"] = true
+--------------------------------------------------
+
+if CPUS["TX3927"] then
+	files {
+		MAME_DIR .. "src/devices/cpu/mips/mips1.cpp",
+		MAME_DIR .. "src/devices/cpu/mips/mips1.h",
+		MAME_DIR .. "src/devices/cpu/tx3927/tx3927.cpp",
+		MAME_DIR .. "src/devices/cpu/tx3927/tx3927.h",
+		MAME_DIR .. "src/devices/cpu/tx3927/sio.cpp",
+		MAME_DIR .. "src/devices/cpu/tx3927/sio.h",
+	}
+end
+
+if opt_tool(CPUS, "TX3927") then
+	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mips/mips1dsm.cpp")
+	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/mips/mips1dsm.h")
+-- 	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/tx3927/tx3927asm.cpp")
+-- 	table.insert(disasm_files , MAME_DIR .. "src/devices/cpu/tx3927/tx3927dasm.h")
+end
+
+--------------------------------------------------
 -- Zilog Z80
 --@src/devices/cpu/z80/z80.h,CPUS["Z80"] = true
 --@src/devices/cpu/z80/tmpz84c011.h,CPUS["Z80"] = true
