@@ -362,6 +362,8 @@ private:
 	void scsi_dma_write(uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size);
 	void scsi_drq(int state);
 
+	TIMER_CALLBACK_MEMBER(spu_dma_callback);
+
 	void main_map(address_map &map);
 	void rf5c400_map(address_map &map);
 	void sound_map(address_map &map);
@@ -414,6 +416,8 @@ private:
 	int m_output_bits = 0;
 	int m_output_cs = 0;
 	int m_output_clock = 0;
+
+	emu_timer *m_spu_dma_timer;
 
 	bool m_videomixer_mix_enabled;
 	uint16_t m_videomixer_addr_offset;
@@ -636,6 +640,8 @@ void twinkle_state::machine_start()
 	save_item(NAME(m_videomixer_contrast));
 	save_item(NAME(m_videomixer_saturation));
 	save_item(NAME(m_videomixer_hue));
+
+	m_spu_dma_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(twinkle_state::spu_dma_callback), this));
 
 	// TODO: This is bad
 	m_xvd701_player = subdevice<jvc_xvd701_device>("rs232_dvd:xvd701");
@@ -1141,19 +1147,27 @@ void twinkle_state::spu_ata_dmarq(int state)
 		if (m_spu_ata_dmarq)
 		{
 			m_ata->write_dmack(ASSERT_LINE);
-
-			while (m_spu_ata_dmarq)
-			{
-				uint16_t data = m_ata->read_dma();
-				//printf("spu_ata_dmarq %08x %04x\n", m_spu_ata_dma * 2, data);
-				m_waveram[m_wave_bank+m_spu_ata_dma] = data; //(data >> 8) | (data << 8);
-				m_spu_ata_dma++;
-				// bp 4a0e ;bmiidx4 checksum
-				// bp 4d62 ;bmiidx4 dma
-			}
-
-			m_ata->write_dmack(CLEAR_LINE);
+			m_spu_dma_timer->adjust(attotime::zero);
 		}
+	}
+}
+
+TIMER_CALLBACK_MEMBER(twinkle_state::spu_dma_callback)
+{
+	uint16_t data = m_ata->read_dma();
+	m_waveram[m_wave_bank+m_spu_ata_dma] = data;
+	m_spu_ata_dma++;
+
+	if (m_spu_ata_dmarq)
+	{
+		// This timer adjust value was picked because
+		// it reduces stuttering issues/performance issues
+		m_spu_dma_timer->adjust(attotime::from_nsec(150));
+	}
+	else
+	{
+		m_ata->write_dmack(CLEAR_LINE);
+		m_spu_dma_timer->enable(false);
 	}
 }
 
@@ -1198,14 +1212,13 @@ void twinkle_state::sound_map(address_map &map)
 	map(0x100000, 0x13ffff).ram();
 	map(0x200000, 0x200001).portr("SPU_DSW");
 	map(0x220000, 0x220001).w(FUNC(twinkle_state::spu_led_w));
-	map(0x230000, 0x230003).w(FUNC(twinkle_state::twinkle_spu_ctrl_w));
+	map(0x230000, 0x230001).w(FUNC(twinkle_state::twinkle_spu_ctrl_w));
 	map(0x240000, 0x240003).w(FUNC(twinkle_state::spu_ata_dma_low_w)).nopr();
 	map(0x250000, 0x250003).w(FUNC(twinkle_state::spu_ata_dma_high_w)).nopr();
 	map(0x260000, 0x260001).w(FUNC(twinkle_state::spu_wavebank_w)).nopr();
 	map(0x280000, 0x2807ff).rw(m_dpram, FUNC(cy7c131_device::left_r), FUNC(cy7c131_device::left_w)).umask16(0x00ff);
 	map(0x300000, 0x30000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
-	// 34000E = ???
-	map(0x34000e, 0x34000f).nopw();
+	map(0x340000, 0x34000f).rw(m_ata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
 	map(0x400000, 0x400fff).rw("rfsnd", FUNC(rf5c400_device::rf5c400_r), FUNC(rf5c400_device::rf5c400_w));
 	map(0x800000, 0xffffff).rw(FUNC(twinkle_state::twinkle_waveram_r), FUNC(twinkle_state::twinkle_waveram_w));
 }
@@ -1270,7 +1283,12 @@ void twinkle_state::twinkle(machine_config &config)
 
 	M68000(config, m_audiocpu, 32000000/2);    /* 16.000 MHz */
 	m_audiocpu->set_addrmap(AS_PROGRAM, &twinkle_state::sound_map);
-	m_audiocpu->set_periodic_int(FUNC(twinkle_state::irq1_line_assert), attotime::from_hz(60));
+
+	// This timer value needs to be adjusted to stop BGMs from loop before DMAs start happening at the end of songs.
+	// If the timer is too high then keysounds will also start to cut off.
+	// There has to be a logical way to derive this timer speed but I have no idea what.
+	// 60.5 loops garbage before DMAs
+	m_audiocpu->set_periodic_int(FUNC(twinkle_state::irq1_line_assert), attotime::from_hz(60.925));
 
 	WATCHDOG_TIMER(config, "watchdog").set_time(attotime::from_msec(1200)); /* check TD pin on LTC1232 */
 
