@@ -27,10 +27,6 @@ license:CC0-1.0
 	<element name="key2-7"><text string="key 2-7" state="1"/></element>
 	<element name="unknown3"><text string="unknown3" state="1"/></element>
 	<element name="unknown4"><text string="unknown4" state="1"/></element>
-	<element name="1p"><text string="1p" state="1"/></element>
-	<element name="2p"><text string="2p" state="1"/></element>
-	<element name="effect"><text string="effect" state="1"/></element>
-	<element name="vefx"><text string="vefx" state="1"/></element>
 	<element name="credit"><text string="credit" state="1"/></element>
 	<element name="neonlamp"><text string="neon" state="1"/></element>
 	<element name="unknown1"><text string="unknown1" state="1"/></element>
@@ -53,6 +49,428 @@ license:CC0-1.0
 	<element name="spu_led6"><text string="spu 7" state="1"/></element>
 	<element name="spu_led7"><text string="spu 8" state="1"/></element>
 
+	<element name="start_text">
+		<text string="start">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="button_text">
+		<text string="button">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="effect_text">
+		<text string="effect">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="onoff_text">
+		<text string="on/off">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="vefx_text">
+		<text string="VEFX">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="change_text">
+		<text string="change">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="loweq_text">
+		<text string="low EQ">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="hieq_text">
+		<text string="hi EQ">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="track_text">
+		<text string="track">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="play_text">
+		<text string="play">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="volume_text">
+		<text string="volume">
+			<color red="1.0" green="1.0" blue="1.0"/>
+		</text>
+	</element>
+
+	<element name="red_button">
+		<rect state="0">
+			<color red="1.0" green="1.0" blue="1.0" />
+		</rect>
+		<rect state="1">
+			<color red="1.0" green="0.0" blue="0.0" />
+		</rect>
+	</element>
+
+	<element name="slider_bg">
+		<rect>
+			<color red="0.2" green="0.2" blue="0.2" />
+		</rect>
+	</element>
+
+	<element name="vol1">
+		<rect state="15">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.00" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="14">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.066" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="13">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.133" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="12">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.2" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="11">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.266" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="10">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.333" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="9">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.4" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="8">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.466" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="7">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.533" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="6">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.6" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="5">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.666" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="4">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.733" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="3">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.8" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="2">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.866" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="1">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.933" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="0">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="1" width="1.0" height="0.25"/>
+		</rect>
+	</element>
+
+	<element name="vol2">
+		<rect state="15">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.00" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="14">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.066" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="13">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.133" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="12">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.2" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="11">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.266" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="10">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.333" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="9">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.4" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="8">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.466" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="7">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.533" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="6">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.6" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="5">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.666" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="4">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.733" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="3">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.8" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="2">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.866" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="1">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.933" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="0">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="1" width="1.0" height="0.25"/>
+		</rect>
+	</element>
+
+	<element name="vol3">
+		<rect state="15">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.00" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="14">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.066" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="13">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.133" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="12">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.2" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="11">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.266" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="10">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.333" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="9">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.4" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="8">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.466" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="7">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.533" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="6">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.6" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="5">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.666" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="4">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.733" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="3">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.8" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="2">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.866" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="1">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.933" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="0">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="1" width="1.0" height="0.25"/>
+		</rect>
+	</element>
+
+	<element name="vol4">
+		<rect state="15">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.00" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="14">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.066" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="13">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.133" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="12">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.2" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="11">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.266" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="10">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.333" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="9">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.4" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="8">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.466" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="7">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.533" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="6">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.6" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="5">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.666" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="4">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.733" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="3">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.8" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="2">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.866" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="1">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.933" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="0">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="1" width="1.0" height="0.25"/>
+		</rect>
+	</element>
+
+	<element name="vol5">
+		<rect state="15">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.00" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="14">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.066" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="13">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.133" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="12">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.2" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="11">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.266" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="10">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.333" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="9">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.4" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="8">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.466" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="7">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.533" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="6">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.6" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="5">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.666" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="4">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.733" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="3">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.8" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="2">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.866" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="1">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="0.933" width="1.0" height="0.25"/>
+		</rect>
+		<rect state="0">
+			<color red="1.0" green="1.0" blue="1.0" />
+			<bounds x="0.00" y="1" width="1.0" height="0.25"/>
+		</rect>
+	</element>
+
+	<element name="static_black">
+		<rect>
+			<color red="0.0" green="0.0" blue="0.0" />
+		</rect>
+	</element>
+
 	<element name="led">
 		<led16seg>
 			<color red="1.0" green="0.1" blue="0.15" />
@@ -61,9 +479,82 @@ license:CC0-1.0
 
 	<view name="Lamps">
 		<screen index="0">
-			<bounds left="0" top="0" right="426" bottom="240"/>
+			<bounds left="0" top="0" right="640" bottom="360"/>
 		</screen>
 
+		<element name="led0" ref="led" state="0">
+			<bounds x="160" y="372" width="32" height="64"/>
+		</element>
+		<element name="led1" ref="led" state="0">
+			<bounds x="196" y="372" width="32" height="64"/>
+		</element>
+		<element name="led2" ref="led" state="0">
+			<bounds x="232" y="372" width="32" height="64"/>
+		</element>
+		<element name="led3" ref="led" state="0">
+			<bounds x="268" y="372" width="32" height="64"/>
+		</element>
+		<element name="led4" ref="led" state="0">
+			<bounds x="304" y="372" width="32" height="64"/>
+		</element>
+		<element name="led5" ref="led" state="0">
+			<bounds x="340" y="372" width="32" height="64"/>
+		</element>
+		<element name="led6" ref="led" state="0">
+			<bounds x="376" y="372" width="32" height="64"/>
+		</element>
+		<element name="led7" ref="led" state="0">
+			<bounds x="412" y="372" width="32" height="64"/>
+		</element>
+		<element name="led8" ref="led" state="0">
+			<bounds x="448" y="372" width="32" height="64"/>
+		</element>
+
+		<element name="1p_text1" ref="start_text"><bounds x="104" y="496" width="48" height="16"/></element>
+		<element name="1p_text2" ref="button_text"><bounds x="100" y="504" width="48" height="16"/></element>
+		<element name="1p" ref="red_button"><bounds x="144" y="496" width="24" height="24"/></element>
+
+		<element name="2p_text1" ref="start_text"><bounds x="490" y="496" width="48" height="16"/></element>
+		<element name="2p_text2" ref="button_text"><bounds x="496" y="504" width="48" height="16"/></element>
+		<element name="2p" ref="red_button"><bounds x="472" y="496" width="24" height="24" /></element>
+
+
+		<element name="effect_text1" ref="effect_text"><bounds x="219" y="448" width="24" height="16"/></element>
+		<element name="effect_text2" ref="onoff_text"><bounds x="218" y="458" width="26" height="16"/></element>
+		<element name="effect" ref="red_button"><bounds x="218" y="472" width="24" height="24" /></element>
+
+		<element name="vefx_text1" ref="vefx_text"><bounds x="218" y="496" width="20" height="16"/></element>
+		<element name="vefx_text2" ref="change_text"><bounds x="216" y="506" width="28" height="16"/></element>
+		<element name="vefx" ref="red_button"><bounds x="218" y="520" width="24" height="24" /></element>
+
+		<!-- Sliders -->
+		<element name="vol1_text1" ref="vefx_text"><bounds x="266" y="452" width="26" height="16"/></element>
+		<element name="vol1_bg" ref="slider_bg"><bounds x="268" y="472" width="16" height="72"/></element>
+		<element name="vol1" ref="vol1"><bounds x="268" y="472" width="16" height="72"/></element>
+
+		<element name="vol2_text1" ref="loweq_text"><bounds x="304" y="452" width="32" height="16"/></element>
+		<element name="vol2_bg" ref="slider_bg"><bounds x="304" y="472" width="16" height="72"/></element>
+		<element name="vol2" ref="vol2"><bounds x="304" y="472" width="16" height="72"/></element>
+
+		<element name="vol3_text1" ref="hieq_text"><bounds x="340" y="452" width="26" height="16"/></element>
+		<element name="vol3_bg" ref="slider_bg"><bounds x="340" y="472" width="16" height="72"/></element>
+		<element name="vol3" ref="vol3"><bounds x="340" y="472" width="16" height="72"/></element>
+
+		<element name="vol4_text1" ref="track_text"><bounds x="374" y="448" width="26" height="16"/></element>
+		<element name="vol4_text2" ref="volume_text"><bounds x="375" y="456" width="32" height="16"/></element>
+		<element name="vol4_bg" ref="slider_bg"><bounds x="376" y="472" width="16" height="72"/></element>
+		<element name="vol4" ref="vol4"><bounds x="376" y="472" width="16" height="72"/></element>
+
+		<element name="vol5_text1" ref="play_text"><bounds x="411" y="448" width="26" height="16"/></element>
+		<element name="vol5_text2" ref="volume_text"><bounds x="411" y="456" width="32" height="16"/></element>
+		<element name="vol5_bg" ref="slider_bg"><bounds x="412" y="472" width="16" height="72"/></element>
+		<element name="vol5" ref="vol5"><bounds x="412" y="472" width="16" height="72"/></element>
+
+		<element name="led-padding" ref="static_black">
+			<bounds x="0" y="544" width="640" height="32"/>
+		</element>
+
+<!--
 		<element name="1p" ref="1p"><bounds x="0" y="240" width="48" height="16"/></element>
 		<element name="2p" ref="2p"><bounds x="0" y="256" width="48" height="16"/></element>
 		<element name="effect" ref="effect"><bounds x="0" y="272" width="48" height="16"/></element>
@@ -83,34 +574,6 @@ license:CC0-1.0
 		<element name="spotlight5" ref="spotlight5"><bounds x="192" y="256" width="48" height="16"/></element>
 		<element name="spotlight6" ref="spotlight6"><bounds x="192" y="272" width="48" height="16"/></element>
 		<element name="spotlight7" ref="spotlight7"><bounds x="192" y="288" width="48" height="16"/></element>
-
-		<element name="led0" ref="led" state="0">
-			<bounds x="0" y="304" width="32" height="64"/>
-		</element>
-		<element name="led1" ref="led" state="0">
-			<bounds x="32" y="304" width="32" height="64"/>
-		</element>
-		<element name="led2" ref="led" state="0">
-			<bounds x="64" y="304" width="32" height="64"/>
-		</element>
-		<element name="led3" ref="led" state="0">
-			<bounds x="96" y="304" width="32" height="64"/>
-		</element>
-		<element name="led4" ref="led" state="0">
-			<bounds x="128" y="304" width="32" height="64"/>
-		</element>
-		<element name="led5" ref="led" state="0">
-			<bounds x="160" y="304" width="32" height="64"/>
-		</element>
-		<element name="led6" ref="led" state="0">
-			<bounds x="192" y="304" width="32" height="64"/>
-		</element>
-		<element name="led7" ref="led" state="0">
-			<bounds x="224" y="304" width="32" height="64"/>
-		</element>
-		<element name="led8" ref="led" state="0">
-			<bounds x="256" y="304" width="32" height="64"/>
-		</element>
 
 		<element name="key1-1" ref="key1-1"><bounds x="0" y="368" width="48" height="16"/></element>
 		<element name="key1-2" ref="key1-2"><bounds x="0" y="384" width="48" height="16"/></element>
@@ -150,5 +613,6 @@ license:CC0-1.0
 		<element name="spu_led5" ref="spu_led5"><bounds x="160" y="448" width="24" height="16"/></element>
 		<element name="spu_led6" ref="spu_led6"><bounds x="192" y="448" width="24" height="16"/></element>
 		<element name="spu_led7" ref="spu_led7"><bounds x="224" y="448" width="24" height="16"/></element>
+-->
 	</view>
 </mamelayout>
