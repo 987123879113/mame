@@ -119,9 +119,6 @@ Color bar check background in VJ for example enables the video stream so will sh
 
 #include <algorithm>
 
-#define PL_MPEG_IMPLEMENTATION
-#include "pl_mpeg/pl_mpeg.h"
-
 #define LOG_VIDEO              (1U << 1)
 #define LOG_DMA                (1U << 2)
 #define LOG_VERBOSE_VIDEO      (1U << 3)
