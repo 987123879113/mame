@@ -400,6 +400,7 @@ Notes: (all ICs shown)
 #include "k573npu.h"
 
 #include "k573martial.h"
+#include "k573rental.h"
 
 #include "cpu/psx/psx.h"
 #include "bus/ata/ataintf.h"
@@ -3124,9 +3125,21 @@ void ksys573_state::mamboagg(machine_config &config)
 
 void ksys573_state::mamboagga(machine_config &config)
 {
+	// e-Amusement version checks the cabinet type through a device presumably connected to the serial port on the security catridge, similar to
+	// how GFDM connects the MSU and card readers through the network port on the security cartridge.
+	// Data is transmitted via PSX SIO1 to the serial device.
+	// During boot it will send "a5 c0" and wants to see a string of "a5 c0" back (at least repeated 3 times) before it will pass the e-Amusement 2
+	// communication error screen. I didn't observe any communication on serial after that, but I couldn't get in-game to test further.
+	// Arcade operators must input passwords to increase the rental credits allotted to the machine. The game is not playable without rental credits.
 	mamboagg(config);
 
-	// TODO: Rental serial device needs to be attached here
+	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
+	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
+	rs232_network.option_add("k573rental", KONAMI_573_EAMUSE_RENTAL_DEVICE);
+	rs232_network.set_default_option("k573rental");
 }
 
 void ksys573_state::kicknkick(machine_config &config)
