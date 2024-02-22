@@ -48,6 +48,8 @@ public:
 
 	void reset_counter();
 
+	void update_clock(uint32_t speed);
+
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
