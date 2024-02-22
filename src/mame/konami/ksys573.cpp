@@ -918,6 +918,7 @@ void ksys573_state::konami573_map(address_map &map)
 	map(0x1f480000, 0x1f48000f).rw(m_ata, FUNC(ata_interface_device::cs0_r), FUNC(ata_interface_device::cs0_w));
 	map(0x1f4c0000, 0x1f4c000f).rw(m_ata, FUNC(ata_interface_device::cs1_r), FUNC(ata_interface_device::cs1_w));
 	map(0x1f500000, 0x1f500001).rw(FUNC(ksys573_state::control_r), FUNC(ksys573_state::control_w));    // Konami can't make a game without a "control" register.
+	map(0x1f520000, 0x1f520003).nopw();                // Related to JVS
 	map(0x1f560000, 0x1f560001).w(FUNC(ksys573_state::atapi_reset_w));
 	map(0x1f5c0000, 0x1f5c0003).nopw();                // watchdog?
 	map(0x1f600000, 0x1f600003).portw("LAMPS");
@@ -2524,8 +2525,8 @@ double ksys573_state::analogue_inputs_callback(uint8_t input)
 void ksys573_state::cr589_config(device_t *device)
 {
 	auto cdda = device->subdevice<cdda_device>("cdda");
-	cdda->add_route(0, "^^lspeaker", 1.0);
-	cdda->add_route(1, "^^rspeaker", 1.0);
+	cdda->add_route(0, "^^lspeaker", 0.65);
+	cdda->add_route(1, "^^rspeaker", 0.65);
 
 	auto cdrom = device->subdevice<cdrom_image_device>("image");
 	cdrom->add_region("install");
@@ -2576,7 +2577,10 @@ void ksys573_state::konami573(machine_config &config, bool no_cdrom)
 	/* video hardware */
 	CXD8561Q(config, "gpu", XTAL(53'693'175), 0x200000, m_maincpu.target()).set_screen("screen");
 
+	// Try using raw screen parameters for more accurate timings
+	// TODO: Verify how much this actually changes things
 	auto &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_raw(XTAL(53'693'175) / 8, 640, 0, 640, 240, 0, 240);
 	screen.screen_vblank().set(FUNC(ksys573_state::sys573_vblank));
 
 	/* sound hardware */
@@ -2584,8 +2588,8 @@ void ksys573_state::konami573(machine_config &config, bool no_cdrom)
 	SPEAKER(config, "rspeaker").front_right();
 
 	spu_device &spu(SPU(config, "spu", XTAL(67'737'600)/2, m_maincpu.target()));
-	spu.add_route(0, "lspeaker", 1.0);
-	spu.add_route(1, "rspeaker", 1.0);
+	spu.add_route(0, "lspeaker", 0.65);
+	spu.add_route(1, "rspeaker", 0.65);
 
 	M48T58(config, "m48t58", 0);
 
@@ -3189,7 +3193,6 @@ void ksys573_state::gchgchmp(machine_config &config)
 
 void pnchmn_state::pnchmn(machine_config &config)
 {
-
 	konami573(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &pnchmn_state::konami573a_map);
 
@@ -3292,6 +3295,9 @@ static INPUT_PORTS_START( konami573 )
 //  PORT_BIT( 0x00002000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x00004000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "cassette", konami573_cassette_slot_device, read_line_ds2401 )
 //  PORT_BIT( 0x00008000, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_CONFNAME( 0x00008000, 0x00008000, "Master Calendar Network?" )
+	PORT_CONFSETTING(          0x00008000, DEF_STR( Off ) )
+	PORT_CONFSETTING(          0x00000000, DEF_STR( On ) )
 	PORT_BIT( 0x00010000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "adc0834", adc083x_device, do_read )
 //  PORT_BIT( 0x00020000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x00040000, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER( "cassette", konami573_cassette_slot_device, read_line_secflash_sda )
