@@ -159,6 +159,11 @@ TIMER_CALLBACK_MEMBER(midiin_device::midi_update)
 				}
 			}
 		}
+
+		// Send active sense command to let receiver know a MIDI device is connected still.
+		// This is an optional command that only some devices implement.
+		// Required by Keyboardmania to determine if a keyboard is connected or not.
+		xmit_char(0xfe);
 	}
 }
 
