@@ -77,7 +77,7 @@ void rtl8139_pci_device::device_reset()
 	command = 0x0000;
 	status = 0x0200;
 
-	remap_cb();
+	// remap_cb();
 }
 
 void rtl8139_pci_device::config_map(address_map &map)

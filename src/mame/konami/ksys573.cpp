@@ -3107,6 +3107,8 @@ void ksys573_state::gtfrk11m(machine_config &config)
 	casszi(config);
 	pccard1_32mb(config);
 	msu_remote(config);
+
+	KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 }
 
 // Miscellaneous

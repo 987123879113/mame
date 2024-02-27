@@ -2899,6 +2899,8 @@ if CPUS["TX3927"] then
 		MAME_DIR .. "src/devices/cpu/mips/mips1.h",
 		MAME_DIR .. "src/devices/cpu/tx3927/tx3927.cpp",
 		MAME_DIR .. "src/devices/cpu/tx3927/tx3927.h",
+		MAME_DIR .. "src/devices/cpu/tx3927/tx3927_pci.cpp",
+		MAME_DIR .. "src/devices/cpu/tx3927/tx3927_pci.h",
 		MAME_DIR .. "src/devices/cpu/tx3927/sio.cpp",
 		MAME_DIR .. "src/devices/cpu/tx3927/sio.h",
 	}

@@ -13,7 +13,7 @@
 
 #include <cstdarg>
 
-#define VERBOSE_LEVEL 0
+#define VERBOSE_LEVEL 3
 
 inline void ds2401_device::verboselog(int n_level, const char *s_fmt, ...)
 {
@@ -47,7 +47,7 @@ ds2401_device::ds2401_device(const machine_config &mconfig, const char *tag, dev
 void ds2401_device::device_start()
 {
 	t_samp = attotime::from_usec( 30);
-	t_rdv  = attotime::from_usec( 30);
+	t_rdv  = attotime::from_usec( 100);
 	t_rstl = attotime::from_usec(480);
 	t_pdh  = attotime::from_usec( 30);
 	t_pdl  = attotime::from_usec(120);
@@ -171,7 +171,7 @@ TIMER_CALLBACK_MEMBER(ds2401_device::main_tick)
 
 void ds2401_device::write(int state)
 {
-	verboselog(1, "write(%d)\n", state);
+	verboselog(1, "write(%d, %d, %d)\n", m_rx, state, m_state);
 
 	if(!state && m_rx)
 	{
@@ -231,7 +231,7 @@ void ds2401_device::write(int state)
 
 int ds2401_device::read()
 {
-	verboselog(2, "read %d\n", m_tx && m_rx);
+	// verboselog(2, "read %d\n", m_tx && m_rx);
 	return m_tx && m_rx;
 }
 

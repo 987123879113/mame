@@ -82,7 +82,12 @@
   with 2 capacitors on the VHDCI side of the board and 6 ferrite bead chips (ZBDS5101-8PT).
   Card is marked "K5010-2501 Ver 1.1 CARD-BUS".
 
+
+  Note: Serial NG error message displaying because timer is too slow and the ds2401's serial read times out
+
 */
+
+#include "bus/pci/pci_slot.h"
 
 k573npu_device::k573npu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, KONAMI_573_NETWORK_PCB_UNIT, tag, owner, clock),
@@ -111,9 +116,9 @@ void k573npu_device::device_add_mconfig(machine_config& config)
 	m_maincpu->in_brcond<2>().set([]() { return 1; }); // writeback complete
 	m_maincpu->in_brcond<3>().set([]() { return 1; }); // writeback complete
 
-	DS2401(config, digital_id);
+  PCI_SLOT(config, "maincpu:pci:01.0", pci_cards, 15, 0, 1, 2, 3, "rtl8139");
 
-	//pci_bus_legacy_device& pcibus(PCI_BUS_LEGACY(config, "pcibus", 0, 0));
+	DS2401(config, digital_id);
 }
 
 uint16_t k573npu_device::fpgasoft_read(offs_t offset, uint16_t mem_mask)

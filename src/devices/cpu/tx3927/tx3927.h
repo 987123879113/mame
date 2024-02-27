@@ -8,6 +8,7 @@
 
 #include "cpu/mips/mips1.h"
 #include "cpu/tx3927/sio.h"
+#include "cpu/tx3927/tx3927_pci.h"
 #include "machine/ram.h"
 
 class tx3927_device : public mips1_device_base
@@ -73,8 +74,6 @@ private:
 		COP0_PRId     = 15,
 	};
 
-	required_device_array<tx3927_sio, 2> m_sio;
-
 	void update_timer_speed();
 	void update_rom_config(int idx);
 
@@ -96,11 +95,11 @@ private:
 	uint32_t irc_read(offs_t offset, uint32_t mem_mask);
 	void irc_write(offs_t offset, uint32_t data, uint32_t mem_mask);
 
-	uint32_t pci_read(offs_t offset, uint32_t mem_mask);
-	void pci_write(offs_t offset, uint32_t data, uint32_t mem_mask);
-
 	uint32_t pio_read(offs_t offset, uint32_t mem_mask);
 	void pio_write(offs_t offset, uint32_t data, uint32_t mem_mask);
+
+	required_device<tx3927_pci_device> m_pci;
+	required_device_array<tx3927_sio, 2> m_sio;
 
 	// ROM
 	uint32_t m_rom_rccr[8];
@@ -161,27 +160,6 @@ private:
 
 	// PIO
 	uint32_t m_pio_flags[64] = {};
-
-	// PCIC
-	uint32_t m_pci_istat;
-	uint16_t m_pci_pcistat;
-	uint16_t m_pcicmd;
-	uint32_t m_pci_iba; // I/O Space Base Address
-	uint32_t m_pci_mba; // Memory Base Address
-	uint16_t m_pci_svid; // System Vendor ID
-	uint16_t m_pci_ssvid; // Subsystem Vendor ID
-	uint8_t m_pci_ml; // Maximum Latency
-	uint8_t m_pci_mg; // Minimum Grant
-	uint8_t m_pci_ip; // Interrupt Pin
-	uint8_t m_pci_il; // Interrupt Line
-	uint32_t m_ipcidata; // Initiator Indirect Data
-	uint8_t m_pci_icmd; // Initiator Indirect Command
-	uint8_t m_pci_ibe; // Initiator Indirect Byte Enable
-	uint32_t m_pci_lbc; // Local Bus Control Register (LBC)
-	uint32_t m_pci_mmas; // Initiator Memory Mapping Address Size
-	uint32_t m_pci_iomas; // Initiator IO Mapping Address Size
-	uint32_t m_pci_ipciaddr; // Initiator Indirect Address
-	uint32_t m_pci_ipcidata; // Initiator Indirect Data
 };
 
 DECLARE_DEVICE_TYPE(TX3927,      tx3927_device)

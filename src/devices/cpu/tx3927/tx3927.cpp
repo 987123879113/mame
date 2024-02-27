@@ -42,6 +42,7 @@ DEFINE_DEVICE_TYPE(TX3927,      tx3927_device,    "tx3927",  "Toshiba TX3927")
 tx3927_device::tx3927_device(const machine_config& mconfig, const char* tag, device_t* owner, uint32_t clock, size_t icache_size, size_t dcache_size) :
 	mips1_device_base(mconfig, TX3927, tag, owner, clock, 0x3927, icache_size, dcache_size, false),
 	m_program_config("program", ENDIANNESS_BIG, 32, 32, 0, address_map_constructor(FUNC(tx3927_device::amap), this)),
+	m_pci(*this, "pci:00.0"),
 	m_sio(*this, "sio%d", 0L)
 {
 }
@@ -49,6 +50,9 @@ tx3927_device::tx3927_device(const machine_config& mconfig, const char* tag, dev
 void tx3927_device::device_add_mconfig(machine_config& config)
 {
 	mips1core_device_base::device_add_mconfig(config);
+
+	PCI_ROOT(config, "pci", 0);
+	TX3927_PCI(config, m_pci, 0);
 
 	TX3927_SIO(config, "sio0", 0);
 	TX3927_SIO(config, "sio1", 0);
@@ -87,26 +91,6 @@ void tx3927_device::device_reset()
 	m_tear = 0;
 	m_pdcr = 0;
 
-	m_pci_istat = 0;
-	m_pci_pcistat = 0x210;
-	m_pcicmd = 0;
-	m_pci_iba = 0;
-	m_pci_mba = 0;
-	m_pci_svid = 0;
-	m_pci_ssvid = 0;
-	m_pci_ml = 0xff;
-	m_pci_mg = 0xff;
-	m_pci_ip = 0x01;
-	m_pci_il = 0x00;
-	m_ipcidata = 0;
-	m_pci_icmd = 0;
-	m_pci_ibe = 0;
-	m_pci_lbc = 0;
-	m_pci_mmas = 0;
-	m_pci_iomas = 0;
-	m_pci_ipciaddr = 0;
-	m_pci_ipcidata = 0;
-
 	std::fill(std::begin(m_rom_rccr), std::end(m_rom_rccr), 0x1fc30000);
 	m_rom_rccr[0] = 0x1fc3e280; // Should have BAI, B16, BBC, BME set based on input pins
 	update_rom_config(0);
@@ -125,7 +109,7 @@ void tx3927_device::amap(address_map& map)
 	map(0xfffe9000, 0xfffe9fff).rw(FUNC(tx3927_device::rom_read), FUNC(tx3927_device::rom_write));
 	map(0xfffeb000, 0xfffebfff).rw(FUNC(tx3927_device::dma_read), FUNC(tx3927_device::dma_write));
 	map(0xfffec000, 0xfffecfff).rw(FUNC(tx3927_device::irc_read), FUNC(tx3927_device::irc_write));
-	map(0xfffed000, 0xfffedfff).rw(FUNC(tx3927_device::pci_read), FUNC(tx3927_device::pci_write));
+	map(0xfffed000, 0xfffedfff).m(m_pci, FUNC(tx3927_pci_device::config_map));
 	map(0xfffee000, 0xfffeefff).rw(FUNC(tx3927_device::ccfg_read), FUNC(tx3927_device::ccfg_write));
 	map(0xfffef000, 0xfffef2ff).rw(FUNC(tx3927_device::tmr_read), FUNC(tx3927_device::tmr_write));
 	map(0xfffef300, 0xfffef3ff).rw(m_sio[0], FUNC(tx3927_sio::read), FUNC(tx3927_sio::write));
@@ -632,168 +616,6 @@ void tx3927_device::irc_write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			auto source = BIT(m_irc_irscr, 0, 4);
 			trigger_irq(source, CLEAR_LINE);
 		}
-		break;
-	}
-}
-
-uint32_t tx3927_device::pci_read(offs_t offset, uint32_t mem_mask)
-{
-	auto r = 0;
-
-	switch (offset * 4) {
-	case 0x00: {
-		// +002 Device ID Register (DID)
-		// +000 Vendor ID Register (VID)
-		constexpr uint16_t device_id = 0x000a; // TX3927
-		constexpr uint16_t vendor_id = 0x102f; // Toshiba
-		return (device_id << 16) | vendor_id;
-	}
-
-	case 0x04: {
-		// +006 PCI Status Register (PCISTAT)
-		// +004 PCI Command Register (PCICMD)
-		return (m_pci_pcistat << 16) | m_pcicmd;
-	}
-
-	case 0x08: {
-		// +00b Class Code Register (CC)
-		// +00a Subclass Code Register (SCC)
-		// +009 Register-Level Programming Interface Register (RLPI)
-		// +008 Revision ID Register (RID)
-		constexpr uint8_t class_code = 0x06;
-		constexpr uint8_t subclass_code = 0x00;
-		constexpr uint8_t rlpi = 0x00; // Register-Level Programming Interface
-		constexpr uint8_t rev_id = 0; // ?
-		return (class_code << 24) | (subclass_code << 16) | (rlpi << 8) | rev_id;
-	}
-
-	case 0x0c: {
-		// +00e Header Type Register (HT)
-		// +00d Master Latency Timer Register (MLT)
-		// +00c Cache Line Size Register
-		constexpr uint8_t mfht = 0; // Multi-Function and Header Type
-		constexpr uint8_t mlt = 0x1f; // Master Latency Timer Count Value
-		constexpr uint8_t cls = 0;
-		return (mfht << 16) | (mlt << 8) | cls;
-	}
-
-	case 0x10: {
-		// +010 Target I/O Base Address Register (IOBA)
-		constexpr uint8_t imai = 1; //  I/O Base Address Indicator
-		return (m_pci_iba << 2) | imai;
-	}
-
-	case 0x14: {
-		// +014 Target Memory Base Address Register (MBA)
-		constexpr uint8_t pf = 1; // Prefetchable
-		constexpr uint8_t mty = 0; // Memory Type
-		constexpr uint8_t mbai = 0; // Memory Base Address Indicator
-		return (m_pci_mba << 4) | (pf << 3) | (mty << 1) | mbai;
-	}
-
-	case 0x2c: {
-		// +02e System Vendor ID Register (SVID)
-		// +02c Subsystem Vendor ID Register (SSVID)
-		return (m_pci_svid << 16) | m_pci_ssvid;
-	}
-
-	case 0x34: {
-		// +037 Capabilities Pointer (CAPPTR)
-		constexpr uint8_t capptr = 0xe0;
-		return capptr;
-	}
-
-	case 0x3c: {
-		// +03f Maximum Latency Register (ML)
-		// +03e Minimum Grant Register (MG)
-		// +03d Interrupt Pin Register (IP)
-		// +03c Interrupt Line Register (IL)
-		return (m_pci_ml << 24) | (m_pci_mg << 16) | (m_pci_ip << 8) | m_pci_il;
-	}
-
-	case 0x44:
-		r = m_pci_istat;
-		break;
-
-	case 0x154: {
-		// Initiator Indirect Data Register (IPCIDATA)
-		return m_ipcidata;
-	}
-
-	case 0x158: {
-		// Initiator Indirect Command/Byte Enable Register (IPCICBE)
-		return (m_pci_icmd << 4) | m_pci_ibe;
-	}
-	}
-
-	LOGMASKED(LOG_TX39_PCI, "%s: pci_read %08x %08x\n", machine().describe_context().c_str(), offset * 4, r);
-
-	return r;
-}
-
-void tx3927_device::pci_write(offs_t offset, uint32_t data, uint32_t mem_mask)
-{
-	LOGMASKED(LOG_TX39_PCI, "%s: pci_write %08x %08x\n", machine().describe_context().c_str(), offset * 4, data);
-
-	switch (offset * 4) {
-	case 0x04:
-		// PCI Status Register (PCISTAT)
-		m_pci_pcistat = (m_pci_pcistat & 0x065f) | data;
-		break;
-
-	case 0x3c:
-		// +03f Maximum Latency Register (ML)
-		// +03e Minimum Grant Register (MG)
-		// +03d Interrupt Pin Register (IP)
-		// +03c Interrupt Line Register (IL)
-		m_pci_ml = (data >> 24) & 0xff;
-		m_pci_mg = (data >> 16) & 0xff;
-		m_pci_ip = (data >> 8) & 0xff;
-		m_pci_il = data & 0xff;
-		break;
-
-	case 0x44:
-		// ISTAT register
-		if (BIT(data, 12))
-			m_pci_istat &= ~(1 << 12);
-
-		if (BIT(data, 10))
-			m_pci_istat &= ~(1 << 10);
-
-		if (BIT(data, 9))
-			m_pci_istat &= ~(1 << 9);
-		break;
-
-	case 0x128:
-		// Local Bus Control Register (LBC)
-		m_pci_lbc = data & 0xfffffffc;
-		break;
-
-	case 0x148:
-		// Initiator Memory Mapping Address Size Register (MMAS)
-		m_pci_mmas = data & 0xfffffffc;
-		break;
-
-	case 0x14c:
-		// Initiator I/O Mapping Address Size Register (IOMAS)
-		m_pci_iomas = data & 0xfffffffc;
-		break;
-
-	case 0x150:
-		// Initiator Indirect Address Register (IPCIADDR)
-		m_pci_ipciaddr = data;
-		break;
-
-	case 0x154:
-		// Initiator Indirect Data Register (IPCIDATA)
-		m_pci_ipcidata = data;
-		break;
-
-	case 0x158:
-		// Initiator Indirect Command/Byte Enable Register (IPCICBE)
-		m_pci_icmd = (data >> 4) & 0x0f;
-		m_pci_ibe = data & 0x0f;
-		m_pci_istat |= 1 << 12;
 		break;
 	}
 }
