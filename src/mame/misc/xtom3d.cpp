@@ -16,8 +16,6 @@ TODO:
 - Voodoo Banshee doesn't handle VGA legacy modes correctly (including PCI VGA control),
   so these will currently black screen until they completes bootstrap;
 - xtom3d: fog wraps around instead of being more linear;
-- pumpit1: flickers at start of any song without any feedback, abruptly throws steps with working
-  playback, ends with silence and steps still going;
 - pumpit1: backface culling in Non-Stop Remix (verify);
 - Both games keep repeating YMZ samples in sound test (verify);
 - Pump it Up: every CD after pumpit1 are really multisession disks, which is unsupported
@@ -713,14 +711,51 @@ ROM_START( pumpit1 )
 	DISK_IMAGE_READONLY( "19990930", 0, BAD_DUMP SHA1(a848061806c56ba30c75a24233300f175fb3eb9d) )
 ROM_END
 
+ROM_START( pumpit2 )
+	PUMPITUP_BIOS
+
+	DISK_REGION( PCI_IDE_ID":ide1:0:cdrom" )
+	DISK_IMAGE_READONLY( "20000228", 0, BAD_DUMP SHA1(65ef25f6345078d594f5021d95cde288b8ed9276) )
+ROM_END
+
+ROM_START( pumpit2a )
+	PUMPITUP_BIOS
+
+	DISK_REGION( PCI_IDE_ID":ide1:0:cdrom" )
+	DISK_IMAGE_READONLY( "19991228", 0, BAD_DUMP SHA1(34c6908f6c01d93b70f4340daa5e84847d28f8c9) )
+ROM_END
+
+ROM_START( pumpit3 )
+	PUMPITUP_BIOS
+
+	DISK_REGION( PCI_IDE_ID":ide1:0:cdrom" )
+	DISK_IMAGE_READONLY( "20000603", 0, BAD_DUMP SHA1(719e7c15edf9dcefaa33387d901a116dd4645715) )
+ROM_END
+
+ROM_START( pumpit3a )
+	PUMPITUP_BIOS
+
+	DISK_REGION( PCI_IDE_ID":ide1:0:cdrom" )
+	DISK_IMAGE_READONLY( "20000508", 0, BAD_DUMP SHA1(333ec834127d118d282a0df4b11cf26782903f2a) )
+ROM_END
+
+ROM_START( pumpito )
+	PUMPITUP_BIOS
+
+	DISK_REGION( PCI_IDE_ID":ide1:0:cdrom" )
+	DISK_IMAGE_READONLY( "20000827", 0, BAD_DUMP SHA1(fcfb8071894f129b200911a6532a70f9ee4a88aa) )
+ROM_END
+
 } // anonymous namespace
 
 GAME(1999, xtom3d, 0, xtom3d, 0, xtom3d_state, empty_init, ROT0, "Andamiro / Jamie System Development", "X Tom 3D", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS )
 GAME(1999, pumpitup, 0,        pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump It Up BIOS", MACHINE_NOT_WORKING | MACHINE_IS_BIOS_ROOT )
 GAME(1999, pumpit1,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump It Up: The 1st Dance Floor (ver 0.53.1999.9.31)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_TIMING )
-//GAME(1999, pumpit2,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up: The 2nd Dance Floor", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-//GAME(1999, pumpit3,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up The O.B.G: The 3rd Dance Floor", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-//GAME(2000, pumpito,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up The O.B.G: The Season Evolution Dance Floor", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+GAME(1999, pumpit2,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up: The 2nd Dance Floor (Feb 28 2000)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+GAME(1999, pumpit2a, pumpit2,  pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up: The 2nd Dance Floor (Dec 27 1999)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+GAME(1999, pumpit3,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up The O.B.G: The 3rd Dance Floor (v3.04, Jun 02 2000)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+GAME(1999, pumpit3a, pumpit3,  pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up The O.B.G: The 3rd Dance Floor (v3.03, May 07 2000)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+GAME(2000, pumpito,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up The O.B.G: The Season Evolution Dance Floor", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
 //GAME(2000, pumpitc,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up: The Collection", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
 //GAME(2000, pumpitpc, pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up: The Perfect Collection", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
 //GAME(2001, pumpite,  pumpitup, pumpitup, 0, xtom3d_state, empty_init, ROT0, "Andamiro", "Pump it Up Extra", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
