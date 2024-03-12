@@ -3,6 +3,7 @@
 #include "emu.h"
 #include "atapicdr.h"
 #include "gdrom.h"
+#include "speaker.h"
 
 #define SCSI_SENSE_ASC_MEDIUM_NOT_PRESENT 0x3a
 #define SCSI_SENSE_ASC_NOT_READY_TO_READY_TRANSITION 0x28
@@ -58,7 +59,18 @@ void atapi_cdrom_device::device_add_mconfig(machine_config &config)
 		GDROM(config, "image").set_interface("cdrom");
 	else
 		CDROM(config, "image").set_interface("cdrom");
-	CDDA(config, "cdda").set_cdrom_tag("image");
+
+
+	auto &cdda(CDDA(config, "cdda"));
+	cdda.set_cdrom_tag("image");
+
+	auto &speakerl(SPEAKER(config, "lspeaker_cdda"));
+	speakerl.front_left();
+	auto &speakerr(SPEAKER(config, "rspeaker_cdda"));
+	speakerr.front_right();
+
+	cdda.add_route(0, speakerl, 1.0);
+	cdda.add_route(1, speakerr, 1.0);
 }
 
 void atapi_cdrom_device::device_start()
