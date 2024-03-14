@@ -18,9 +18,13 @@ public:
 	void start_audio(uint32_t startlba, uint32_t numblocks);
 	void stop_audio();
 	void pause_audio(int pause);
+	void set_audio_scan(int32_t offset, uint32_t play_length = 6);
+	void stop_audio_scan();
 	int16_t get_channel_sample(int channel);
 
 	uint32_t get_audio_lba();
+	int is_scanning() { return m_audio_scan_offset != 0; }
+
 	int audio_active();
 	int audio_paused();
 	int audio_ended();
@@ -51,6 +55,10 @@ private:
 	int16_t               m_audio_data[2];
 
 	uint32_t              m_sequence_counter;
+
+	int32_t               m_audio_scan_offset;
+	uint32_t              m_audio_scan_play_length;
+	uint32_t              m_audio_scan_next_lba;
 
 	devcb_write_line m_audio_end_cb;
 };
