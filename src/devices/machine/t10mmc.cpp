@@ -5,26 +5,25 @@
 
 #include "multibyte.h"
 
-static int to_msf_raw(int frame)
+static int32_t to_msf_raw(int32_t frame)
 {
-	int m = frame / (75 * 60);
-	int s = (frame / 75) % 60;
-	int f = frame % 75;
-
+	const int m = (frame / (75 * 60)) % 100;
+	const int s = (frame / 75) % 60;
+	const int f = frame % 75;
 	return (m << 16) | (s << 8) | f;
 }
 
-static int to_msf(int frame)
+static int32_t to_msf(int32_t frame)
 {
-	int adjusted_frame = frame + 150;
-	if (frame <= -151)
+	int32_t adjusted_frame = frame + 150;
+	if (adjusted_frame < 0)
 		adjusted_frame += 450000;
 	return to_msf_raw(adjusted_frame);
 }
 
-static int to_lba(int msf)
+static int32_t to_lba(int32_t msf)
 {
-	int lba = cdrom_file::msf_to_lba(msf) - 150;
+	int32_t lba = cdrom_file::msf_to_lba(msf) - 150;
 	if (BIT(msf, 16, 8) >= 90) // 90:00:00 and later
 		lba -= 450000;
 	return lba;
@@ -256,6 +255,16 @@ void t10mmc::ExecCommand()
 			length = 4 + (8 * 1);
 			break;
 
+		case TOC_FORMAT_FULL_TOC:
+		{
+			const int total_tracks = m_image->get_last_track();
+			const int total_sessions = m_image->get_last_session();
+			const int total_a0s = total_sessions * 3; // every session has a set of a0/a1/a2
+			const int total_b0s = (total_sessions - 1) * 2; // every additional session starts with a b0/c0 set
+			length = 4 + (11 * (total_tracks + total_a0s + total_b0s));
+			break;
+		}
+
 		default:
 			m_device->logerror("T10MMC: Unhandled READ TOC format %d\n", toc_format());
 			length = 0;
@@ -301,6 +310,7 @@ void t10mmc::ExecCommand()
 		else if (m_lba == 0xffffffff)
 		{
 			m_device->logerror("T10MMC: play audio from current not implemented!\n");
+			m_lba = m_cdda->get_audio_lba();
 		}
 
 		//m_device->logerror("T10MMC: PLAY AUDIO(10) at LBA %x for %x blocks\n", m_lba, m_blocks);
@@ -334,23 +344,19 @@ void t10mmc::ExecCommand()
 			break;
 		}
 
-		const uint32_t msf_start = get_u24be(&command[3]);
+		uint32_t msf_start = get_u24be(&command[3]);
 		const uint32_t msf_end = get_u24be(&command[6]);
 
-		int32_t lba_start = to_lba(msf_start);
-		int32_t lba_end = to_lba(msf_end);
-
-		// LBA valid range is technically -45150 to 404849 but negatives are not handled anywhere
-		if (lba_start < 0 || lba_end < 0)
+		if (msf_start == 0xffffff)
 		{
-			m_device->logerror("T10MMC: tried playing audio from lba %d to %d\n", lba_start, lba_end);
-			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
-			set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE);
-			break;
+			// when start MSF is set to all FFs, the starting address becomes the current optical head location
+			m_lba = m_cdda->get_audio_lba();
+			msf_start = to_msf(m_lba);
 		}
 
-		m_lba = lba_start;
-		m_blocks = lba_end - lba_start;
+		// note: BeOS's CD player sends the start MSF + a large end MSF (99:59:71) when a scan is ended and it wants to resume playback
+		m_lba = to_lba(msf_start);
+		m_blocks = cdrom_file::msf_to_lba(msf_end - msf_start);
 
 		if (m_lba == 0)
 		{
@@ -365,21 +371,7 @@ void t10mmc::ExecCommand()
 		//m_device->logerror("T10MMC: PLAY AUDIO MSF at LBA %x (track %d) for %x blocks (MSF %02d:%02d:%02d - %02d:%02d:%02d)\n",
 			//m_lba, trk + 1, m_blocks, command[3], command[4], command[5], command[6], command[7], command[8]);
 
-		if (msf_start == msf_end)
-		{
-			// audio start operation does not happen but also isn't an error
-			m_device->logerror("T10MMC: track is not played\n");
-			m_status_code = SCSI_STATUS_CODE_GOOD;
-			m_audio_sense = SCSI_SENSE_ASC_ASCQ_NO_SENSE;
-		}
-		else if (msf_start == 0xffffff)
-		{
-			// when start MSF is set to all FFs, the starting address becomes the current optical head location
-			m_device->logerror("T10MMC: play audio from current not implemented!\n");
-			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
-			set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_AUDIO_PLAY_OPERATION_STOPPED_DUE_TO_ERROR);
-		}
-		else if (msf_start > msf_end)
+		if (msf_start > msf_end)
 		{
 			m_device->logerror("T10MMC: track starts after requested end time!\n");
 			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
@@ -469,7 +461,8 @@ void t10mmc::ExecCommand()
 	case T10MMC_CMD_PAUSE_RESUME:
 		if (m_image)
 		{
-			m_cdda->pause_audio((command[8] & 0x01) ^ 0x01);
+			const int resume = (command[8] & 1) == 1;
+			m_cdda->pause_audio(!resume);
 		}
 
 		//m_device->logerror("T10MMC: PAUSE/RESUME: %s\n", command[8]&1 ? "RESUME" : "PAUSE");
@@ -479,6 +472,8 @@ void t10mmc::ExecCommand()
 		break;
 
 	case T10MMC_CMD_STOP_PLAY_SCAN:
+		m_last_lba = m_cdda->get_audio_lba();
+
 		abort_audio();
 
 		//m_device->logerror("T10MMC: STOP_PLAY_SCAN\n");
@@ -522,6 +517,7 @@ void t10mmc::ExecCommand()
 		else if (m_lba == 0xffffffff)
 		{
 			m_device->logerror("T10MMC: play audio from current not implemented!\n");
+			m_lba = m_cdda->get_audio_lba();
 		}
 
 		//m_device->logerror("T10MMC: PLAY AUDIO(12) at LBA %x for %x blocks\n", m_lba, m_blocks);
@@ -575,11 +571,63 @@ void t10mmc::ExecCommand()
 		m_transfer_length = m_blocks * m_sector_bytes;
 		break;
 
+	case T10MMC_CMD_SCAN:
+	{
+		const int direction = BIT(command[1], 4); // 0 = forward, 1 = reverse
+		const uint32_t start_addr = get_u32be(&command[2]);
+		const int scan_type = BIT(command[9], 6, 2); // 0 = lba, 1 = msf, 2 = track num, 3 = reserved
+
+		m_device->logerror("T10MMC: SCAN direction %d type %d addr %06x\n", direction, scan_type, start_addr);
+
+		uint32_t lba = 0;
+		switch (scan_type)
+		{
+			case 0: // lba
+				lba = start_addr;
+				break;
+			case 1: // msf
+				lba = to_lba(start_addr & 0xffffff);
+				break;
+			case 2: // track number
+				lba = m_image->get_track_start(start_addr & 0xff);
+				break;
+			default:
+				m_device->logerror("T10MMC: unsupported scan type! %d\n", scan_type);
+				break;
+		}
+
+		const int trk = m_image->get_track(m_lba);
+		if (m_image->get_track_type(trk) != cdrom_file::CD_TRACK_AUDIO)
+		{
+			m_device->logerror("T10MMC: scan target track is NOT audio!\n");
+			set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_ILLEGAL_MODE_FOR_THIS_TRACK);
+			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
+		}
+		else
+		{
+			const uint32_t disc_end_lba = m_image->get_track_start(m_image->get_last_track());
+			m_cdda->start_audio(lba, disc_end_lba - lba);
+			m_cdda->set_audio_scan(direction ? -150 : 190); // recommended values in t10 docs for forward and reverse
+
+			m_audio_sense = SCSI_SENSE_ASC_ASCQ_AUDIO_PLAY_OPERATION_IN_PROGRESS;
+			m_status_code = SCSI_STATUS_CODE_GOOD;
+		}
+
+		break;
+	}
+
 	case T10MMC_CMD_SET_CD_SPEED:
 		m_device->logerror("T10MMC: SET CD SPEED to %d kbytes/sec.\n", get_u16be(&command[2]));
 		m_phase = SCSI_PHASE_STATUS;
 		m_status_code = SCSI_STATUS_CODE_GOOD;
 		m_transfer_length = 0;
+		break;
+
+	case T10MMC_CMD_MECHANISM_STATUS:
+		m_phase = SCSI_PHASE_DATAIN;
+		m_status_code = SCSI_STATUS_CODE_GOOD;
+		m_transfer_length = get_u16be(&command[8]);
+		m_device->logerror("T10MMC: MECHANISM STATUS requested %d bytes\n", m_transfer_length);
 		break;
 
 	case T10MMC_CMD_READ_CD:
@@ -892,6 +940,36 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 		}
 		break;
 
+	case T10MMC_CMD_MECHANISM_STATUS:
+	{
+		uint8_t status_header[8];
+		size_t transfer_len = get_u16be(&command[8]);
+
+		if (transfer_len == 0)
+			break;
+
+		std::fill_n(&data[0], transfer_len, 0);
+		std::fill(std::begin(status_header), std::end(status_header), 0);
+
+		put_u24be(&status_header[2], m_last_lba);
+
+		if (m_cdda->is_scanning())
+		{
+			status_header[1] |= 2 << 5; // scanning flag
+		}
+		else if (m_cdda->audio_active())
+		{
+			// cdrdao checks this flag after starting an audio track to play for 1 block to
+			// determine when it can read the sub q channel data when finding tracks and indexes
+			m_last_lba = m_cdda->get_audio_lba();
+			status_header[1] |= 1 << 5; // playing (audio or data) flag
+		}
+
+		std::copy_n(std::begin(status_header), std::min(std::size(status_header), transfer_len), &data[0]);
+
+		break;
+	}
+
 	case T10MMC_CMD_READ_CD:
 		//m_device->logerror("T10MMC: read CD %x dataLength lba=%x\n", dataLength, m_lba);
 		if ((m_image) && (m_blocks))
@@ -970,8 +1048,7 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					{
 						m_device->logerror("T10MMC: header data is not available for track type %d, inserting fake header data\n", track_type);
 
-						uint32_t msf = to_msf(m_lba);
-						put_u24be(&data[data_idx], msf);
+						put_u24be(&data[data_idx], to_msf(m_lba));
 						data[data_idx+3] = 2; // mode 2
 					}
 					else
@@ -1134,14 +1211,13 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					return;
 				}
 
-				m_device->logerror("T10MMC: READ SUB-CHANNEL Time = %x, SUBQ = %x\n", command[1], command[2]);
-
 				bool msf = (command[1] & 0x2) != 0;
 
 				data[0]= 0x00;
 
-				int audio_active = m_cdda->audio_active();
-				if (audio_active)
+				const int audio_active = m_cdda->audio_active();
+				const int audio_is_scanning = m_cdda->is_scanning();
+				if (audio_active || audio_is_scanning)
 				{
 					// if audio is playing, get the latest LBA from the CDROM layer
 					m_last_lba = m_cdda->get_audio_lba();
@@ -1168,14 +1244,18 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					}
 				}
 
+				m_device->logerror("T10MMC: READ SUB-CHANNEL Time = %x, SUBQ = %x, LBA = %d)\n", msf, command[2], m_last_lba);
+
 				if (command[2] & 0x40)
 				{
+					int track = m_image->get_track(m_last_lba);
+
 					data[2] = 0;
-					data[3] = 12;       // data length
+					data[3] = 12; // data length
 					data[4] = 0x01; // sub-channel format code
-					data[5] = 0x10 | (audio_active ? 0 : 4);
-					data[6] = m_image->get_track(m_last_lba) + 1; // track
-					data[7] = 0;    // index
+					data[5] = m_image->get_adr_control(track);
+					data[6] = track + 1; // track
+					data[7] = m_image->get_track_index(m_last_lba); // index
 
 					uint32_t frame = m_last_lba;
 
@@ -1275,33 +1355,154 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 
 			case TOC_FORMAT_SESSIONS:
 				{
+					auto toc = m_image->get_toc();
+					int tracks = toc_tracks();
+					uint32_t first_track_last_session = 0;
+
+					for (int i = 0; i < tracks; i++)
+					{
+						if (toc.tracks[i].session == m_image->get_last_session() - 1)
+							first_track_last_session = i;
+					}
+
 					int len = 2 + (8 * 1);
 
 					int dptr = 0;
 					put_u16be(&data[dptr], len);
 					dptr += 2;
 					data[dptr++] = 1;
-					data[dptr++] = 1;
+					data[dptr++] = m_image->get_last_session();
 
 					data[dptr++] = 0;
-					data[dptr++] = m_image->get_adr_control(0);
-					data[dptr++] = 1;
+					data[dptr++] = m_image->get_adr_control(first_track_last_session);
+					data[dptr++] = first_track_last_session + 1; // First Track Number In Last Complete Session
 					data[dptr++] = 0;
 
-					uint32_t tstart = m_image->get_track_start(0);
+					uint32_t tstart = m_image->get_track_start(first_track_last_session);
 
 					if (msf)
 					{
 						tstart = to_msf(tstart);
 					}
 
-					put_u32be(&data[dptr], tstart);
+					put_u32be(&data[dptr], tstart); // Start Address of First Track in Last Session
 					dptr += 4;
 				}
 				break;
 
+			case TOC_FORMAT_FULL_TOC:
+			{
+				auto toc = m_image->get_toc();
+
+				const uint32_t tracks = m_image->get_last_track();
+				const uint32_t total_sessions = m_image->get_last_session();
+				const int total_a0s = total_sessions * 3; // every session has a set of a0/a1/a2
+				const int total_b0s = (total_sessions - 1) * 2; // every additional session starts with a b0/c0 set
+				const int len = 2 + (11 * (tracks + total_a0s + total_b0s));
+
+				int dptr = 0;
+				put_u16be(&data[dptr], len);
+				dptr += 2;
+				data[dptr++] = 1;
+				data[dptr++] = total_sessions;
+
+				int cur_track = 0;
+				for (uint32_t cur_session = 0; cur_session < total_sessions; cur_session++)
+				{
+					if (toc.tracks[cur_track].session != cur_session)
+						continue;
+
+					int last_track_in_session = cur_track;
+					for (int i = cur_track; i < tracks && toc.tracks[i].session == cur_session; i++)
+						last_track_in_session = i;
+
+					// point 0xa0, first track number in session
+					data[dptr++] = toc.tracks[cur_track].session + 1;
+					data[dptr++] = m_image->get_adr_control(cur_track);
+					data[dptr++] = 0;
+					data[dptr++] = 0xa0;
+					put_u24be(&data[dptr], 0);
+					dptr += 3;
+					data[dptr++] = 0;
+					data[dptr++] = cur_track + 1; // first track number in session
+					data[dptr++] = 0;
+					data[dptr++] = 0;
+
+					// point 0xa1, last track number in session
+					data[dptr++] = toc.tracks[cur_track].session + 1;
+					data[dptr++] = m_image->get_adr_control(last_track_in_session);
+					data[dptr++] = 0;
+					data[dptr++] = 0xa1;
+					put_u24be(&data[dptr], 0);
+					dptr += 3;
+					data[dptr++] = 0;
+					data[dptr++] = last_track_in_session + 1; // last track number in session
+					data[dptr++] = 0;
+					data[dptr++] = 0;
+
+					// point 0xa2, start of lead-out
+					// should start from index 0 so subtract pregap if available
+					const uint32_t leadout_addr = m_image->get_track_start(last_track_in_session) + toc.tracks[last_track_in_session].frames - toc.tracks[last_track_in_session].pregap;
+					data[dptr++] = toc.tracks[cur_track].session + 1;
+					data[dptr++] = m_image->get_adr_control(last_track_in_session);
+					data[dptr++] = 0;
+					data[dptr++] = 0xa2;
+					put_u24be(&data[dptr], 0);
+					dptr += 3;
+					data[dptr++] = 0;
+					put_u24be(&data[dptr], to_msf(leadout_addr)); // Track start time
+					dptr += 3;
+
+					while (cur_track < tracks && toc.tracks[cur_track].session == cur_session)
+					{
+						data[dptr++] = toc.tracks[cur_track].session + 1;
+						data[dptr++] = m_image->get_adr_control(cur_track);
+						data[dptr++] = 0;
+						data[dptr++] = cur_track + 1;
+						put_u24be(&data[dptr], 0);
+						dptr += 3;
+						data[dptr++] = 0;
+						put_u24be(&data[dptr], to_msf(m_image->get_track_start(cur_track))); // Track start time
+						dptr += 3;
+
+						cur_track++;
+					}
+
+					if (cur_session + 1 < total_sessions)
+					{
+						const uint32_t leadout_addr = m_image->get_track_start(tracks - 1) + toc.tracks[tracks - 1].frames - toc.tracks[tracks - 1].pregap;
+
+						// point 0xb0, info about next session
+						data[dptr++] = cur_session + 1;
+						data[dptr++] = (m_image->get_adr_control(cur_track - 1) & 0x0f) | 0x50;
+						data[dptr++] = 0;
+						data[dptr++] = 0xb0;
+						put_u24be(&data[dptr], to_msf(m_image->get_track_start(cur_track))); // start time for the next possible session's program area
+						dptr += 3;
+						data[dptr++] = (total_sessions - (cur_session + 1)) * 2; // the number of different Mode-5 pointers present from this point, inclusive
+						put_u24be(&data[dptr], to_msf(leadout_addr)); // the maximum possible start time of the outermost Lead-out
+						dptr += 3;
+
+						// point 0xc0, start time of first lead-in of the disc
+						data[dptr++] = cur_session + 1;
+						data[dptr++] = (m_image->get_adr_control(0) & 0x0f) | 0x50;
+						data[dptr++] = 0;
+						data[dptr++] = 0xc0;
+						put_u24be(&data[dptr], 0);
+						dptr += 3;
+						data[dptr++] = 0;
+						// Hardcode a value of 95:00:00 because that's the most common value I've seen on various multisession CD dumps
+						put_u24be(&data[dptr], 0x5f0000); // Start time of the first Lead-in area of the disc
+						dptr += 3;
+					}
+				}
+
+				break;
+			}
+
 			default:
 				m_device->logerror("T10MMC: Unhandled READ TOC format %d\n", toc_format());
+				put_u16be(&data[0], 0); // set len to 0
 				break;
 			}
 		}
