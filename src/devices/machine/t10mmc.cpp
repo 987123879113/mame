@@ -5,26 +5,25 @@
 
 #include "multibyte.h"
 
-static int to_msf_raw(int frame)
+static int32_t to_msf_raw(int32_t frame)
 {
-	int m = frame / (75 * 60);
-	int s = (frame / 75) % 60;
-	int f = frame % 75;
-
+	const int m = (frame / (75 * 60)) % 100;
+	const int s = (frame / 75) % 60;
+	const int f = frame % 75;
 	return (m << 16) | (s << 8) | f;
 }
 
-static int to_msf(int frame)
+static int32_t to_msf(int32_t frame)
 {
-	int adjusted_frame = frame + 150;
-	if (frame <= -151)
+	int32_t adjusted_frame = frame + 150;
+	if (adjusted_frame < 0)
 		adjusted_frame += 450000;
 	return to_msf_raw(adjusted_frame);
 }
 
-static int to_lba(int msf)
+static int32_t to_lba(int32_t msf)
 {
-	int lba = cdrom_file::msf_to_lba(msf) - 150;
+	int32_t lba = cdrom_file::msf_to_lba(msf) - 150;
 	if (BIT(msf, 16, 8) >= 90) // 90:00:00 and later
 		lba -= 450000;
 	return lba;
@@ -301,6 +300,7 @@ void t10mmc::ExecCommand()
 		else if (m_lba == 0xffffffff)
 		{
 			m_device->logerror("T10MMC: play audio from current not implemented!\n");
+			m_lba = m_cdda->get_audio_lba();
 		}
 
 		//m_device->logerror("T10MMC: PLAY AUDIO(10) at LBA %x for %x blocks\n", m_lba, m_blocks);
@@ -334,23 +334,19 @@ void t10mmc::ExecCommand()
 			break;
 		}
 
-		const uint32_t msf_start = get_u24be(&command[3]);
+		uint32_t msf_start = get_u24be(&command[3]);
 		const uint32_t msf_end = get_u24be(&command[6]);
 
-		int32_t lba_start = to_lba(msf_start);
-		int32_t lba_end = to_lba(msf_end);
-
-		// LBA valid range is technically -45150 to 404849 but negatives are not handled anywhere
-		if (lba_start < 0 || lba_end < 0)
+		if (msf_start == 0xffffff)
 		{
-			m_device->logerror("T10MMC: tried playing audio from lba %d to %d\n", lba_start, lba_end);
-			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
-			set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE);
-			break;
+			// when start MSF is set to all FFs, the starting address becomes the current optical head location
+			m_lba = m_cdda->get_audio_lba();
+			msf_start = to_msf(m_lba);
 		}
 
-		m_lba = lba_start;
-		m_blocks = lba_end - lba_start;
+		// note: BeOS's CD player sends the start MSF + a large end MSF (99:59:71) when a scan is ended and it wants to resume playback
+		m_lba = to_lba(msf_start);
+		m_blocks = cdrom_file::msf_to_lba(msf_end - msf_start);
 
 		if (m_lba == 0)
 		{
@@ -365,21 +361,7 @@ void t10mmc::ExecCommand()
 		//m_device->logerror("T10MMC: PLAY AUDIO MSF at LBA %x (track %d) for %x blocks (MSF %02d:%02d:%02d - %02d:%02d:%02d)\n",
 			//m_lba, trk + 1, m_blocks, command[3], command[4], command[5], command[6], command[7], command[8]);
 
-		if (msf_start == msf_end)
-		{
-			// audio start operation does not happen but also isn't an error
-			m_device->logerror("T10MMC: track is not played\n");
-			m_status_code = SCSI_STATUS_CODE_GOOD;
-			m_audio_sense = SCSI_SENSE_ASC_ASCQ_NO_SENSE;
-		}
-		else if (msf_start == 0xffffff)
-		{
-			// when start MSF is set to all FFs, the starting address becomes the current optical head location
-			m_device->logerror("T10MMC: play audio from current not implemented!\n");
-			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
-			set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_AUDIO_PLAY_OPERATION_STOPPED_DUE_TO_ERROR);
-		}
-		else if (msf_start > msf_end)
+		if (msf_start > msf_end)
 		{
 			m_device->logerror("T10MMC: track starts after requested end time!\n");
 			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
@@ -469,7 +451,8 @@ void t10mmc::ExecCommand()
 	case T10MMC_CMD_PAUSE_RESUME:
 		if (m_image)
 		{
-			m_cdda->pause_audio((command[8] & 0x01) ^ 0x01);
+			const int resume = (command[8] & 1) == 1;
+			m_cdda->pause_audio(!resume);
 		}
 
 		//m_device->logerror("T10MMC: PAUSE/RESUME: %s\n", command[8]&1 ? "RESUME" : "PAUSE");
@@ -479,6 +462,8 @@ void t10mmc::ExecCommand()
 		break;
 
 	case T10MMC_CMD_STOP_PLAY_SCAN:
+		m_last_lba = m_cdda->get_audio_lba();
+
 		abort_audio();
 
 		//m_device->logerror("T10MMC: STOP_PLAY_SCAN\n");
@@ -522,6 +507,7 @@ void t10mmc::ExecCommand()
 		else if (m_lba == 0xffffffff)
 		{
 			m_device->logerror("T10MMC: play audio from current not implemented!\n");
+			m_lba = m_cdda->get_audio_lba();
 		}
 
 		//m_device->logerror("T10MMC: PLAY AUDIO(12) at LBA %x for %x blocks\n", m_lba, m_blocks);
@@ -574,6 +560,51 @@ void t10mmc::ExecCommand()
 		m_status_code = SCSI_STATUS_CODE_GOOD;
 		m_transfer_length = m_blocks * m_sector_bytes;
 		break;
+
+	case T10MMC_CMD_SCAN:
+	{
+		const int direction = BIT(command[1], 4); // 0 = forward, 1 = reverse
+		const uint32_t start_addr = get_u32be(&command[2]);
+		const int scan_type = BIT(command[9], 6, 2); // 0 = lba, 1 = msf, 2 = track num, 3 = reserved
+
+		m_device->logerror("T10MMC: SCAN direction %d type %d addr %06x\n", direction, scan_type, start_addr);
+
+		uint32_t lba = 0;
+		switch (scan_type)
+		{
+			case 0: // lba
+				lba = start_addr;
+				break;
+			case 1: // msf
+				lba = to_lba(start_addr & 0xffffff);
+				break;
+			case 2: // track number
+				lba = m_image->get_track_start(start_addr & 0xff);
+				break;
+			default:
+				m_device->logerror("T10MMC: unsupported scan type! %d\n", scan_type);
+				break;
+		}
+
+		const int trk = m_image->get_track(m_lba);
+		if (m_image->get_track_type(trk) != cdrom_file::CD_TRACK_AUDIO)
+		{
+			m_device->logerror("T10MMC: scan target track is NOT audio!\n");
+			set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_ILLEGAL_MODE_FOR_THIS_TRACK);
+			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
+		}
+		else
+		{
+			const uint32_t disc_end_lba = m_image->get_track_start(m_image->get_last_track());
+			m_cdda->start_audio(lba, disc_end_lba - lba);
+			m_cdda->set_audio_scan(direction ? -150 : 190); // recommended values in t10 docs for forward and reverse
+
+			m_audio_sense = SCSI_SENSE_ASC_ASCQ_AUDIO_PLAY_OPERATION_IN_PROGRESS;
+			m_status_code = SCSI_STATUS_CODE_GOOD;
+		}
+
+		break;
+	}
 
 	case T10MMC_CMD_SET_CD_SPEED:
 		m_device->logerror("T10MMC: SET CD SPEED to %d kbytes/sec.\n", get_u16be(&command[2]));
@@ -1134,14 +1165,13 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					return;
 				}
 
-				m_device->logerror("T10MMC: READ SUB-CHANNEL Time = %x, SUBQ = %x\n", command[1], command[2]);
-
 				bool msf = (command[1] & 0x2) != 0;
 
 				data[0]= 0x00;
 
-				int audio_active = m_cdda->audio_active();
-				if (audio_active)
+				const int audio_active = m_cdda->audio_active();
+				const int audio_is_scanning = m_cdda->is_scanning();
+				if (audio_active || audio_is_scanning)
 				{
 					// if audio is playing, get the latest LBA from the CDROM layer
 					m_last_lba = m_cdda->get_audio_lba();
@@ -1167,6 +1197,8 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 						data[1] = 0x15; // No current audio status to return
 					}
 				}
+
+				m_device->logerror("T10MMC: READ SUB-CHANNEL Time = %x, SUBQ = %x, LBA = %d)\n", msf, command[2], m_last_lba);
 
 				if (command[2] & 0x40)
 				{
