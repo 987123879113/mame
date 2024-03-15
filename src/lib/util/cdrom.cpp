@@ -892,12 +892,12 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 	/* start with no tracks */
 	for (toc.numtrks = 0; toc.numtrks < MAX_TRACKS; toc.numtrks++)
 	{
-		int tracknum, frames, pregap, postgap, padframes;
+		int tracknum, frames, pregap, postgap, padframes, control;
 		char type[16], subtype[16], pgtype[16], pgsub[16];
 		track_info *track;
 
 		tracknum = -1;
-		frames = pregap = postgap = padframes = 0;
+		frames = pregap = postgap = padframes = control = 0;
 		std::fill(std::begin(type), std::end(type), 0);
 		std::fill(std::begin(subtype), std::end(subtype), 0);
 		std::fill(std::begin(pgtype), std::end(pgtype), 0);
@@ -937,6 +937,8 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 			return chd_file::error::INVALID_DATA;
 
 		track = &toc.tracks[tracknum - 1];
+
+		track->control_flags = control;
 
 		/* extract the track type and determine the data size */
 		track->trktype = CD_TRACK_MODE1;
@@ -2418,6 +2420,29 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 				frames = msf_to_frames( token );
 
 				outtoc.tracks[trknum].postgap = frames;
+			}
+			else if (!strcmp(token, "FLAGS"))
+			{
+				outtoc.tracks[trknum].control_flags = 0;
+
+				/* keep looping over remaining tokens in FLAGS line until there's no more to read */
+				while (i < std::size(linebuffer))
+				{
+					int last_idx = i;
+
+					TOKENIZE
+
+					if (i == last_idx)
+						break;
+
+					if (!strcmp(token, "DCP"))
+						outtoc.tracks[trknum].control_flags |= CD_FLAG_CONTROL_DIGITAL_COPY_PERMITTED;
+					else if (!strcmp(token, "4CH"))
+						outtoc.tracks[trknum].control_flags |= CD_FLAG_CONTROL_4CH;
+					else if (!strcmp(token, "PRE"))
+						outtoc.tracks[trknum].control_flags |= CD_FLAG_CONTROL_PREEMPHASIS;
+					// else if (!strcmp(token, "SCMS")) // not part of control but is in flags list
+				}
 			}
 		}
 	}
