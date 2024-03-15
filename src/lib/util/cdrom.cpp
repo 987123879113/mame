@@ -180,6 +180,9 @@ cdrom_file::cdrom_file(std::string_view inputfile)
 			track.logframeofs = track.pregap;
 		}
 
+		if (cdtrack_info.track[i].leadin != -1)
+			logofs += cdtrack_info.track[i].leadin;
+
 		track.physframeofs = physofs;
 		track.chdframeofs = 0;
 		track.logframeofs += logofs;
@@ -190,6 +193,9 @@ cdrom_file::cdrom_file(std::string_view inputfile)
 
 		physofs += track.frames;
 		logofs  += track.frames;
+
+		if (cdtrack_info.track[i].leadout != -1)
+			logofs += cdtrack_info.track[i].leadout;
 
 		if (EXTRA_VERBOSE)
 			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n",
@@ -278,6 +284,9 @@ cdrom_file::cdrom_file(chd_file *_chd)
 			track.logframeofs = track.pregap;
 		}
 
+		if (cdtrack_info.track[i].leadin != -1)
+			logofs += cdtrack_info.track[i].leadin;
+
 		track.physframeofs = physofs;
 		track.chdframeofs = chdofs;
 		track.logframeofs += logofs;
@@ -290,6 +299,9 @@ cdrom_file::cdrom_file(chd_file *_chd)
 		chdofs  += track.frames;
 		chdofs  += track.extraframes;
 		logofs  += track.frames;
+
+		if (cdtrack_info.track[i].leadout != -1)
+			logofs += cdtrack_info.track[i].leadout;
 
 		if (EXTRA_VERBOSE)
 			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n",
@@ -2244,6 +2256,8 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 	std::string path = std::string(tocfname);
 	const bool is_gdrom = is_gdicue(tocfname);
 	enum gdi_area current_area = SINGLE_DENSITY;
+	bool is_multibin = false;
+	int leadin = -1;
 
 	FILE *infile = fopen(path.c_str(), "rt");
 	if (!infile)
@@ -2301,6 +2315,33 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 					if (sessionnum >= 1) /* don't consider it a multisession CD unless there's actually more than 1 session */
 						outtoc.flags |= CD_FLAG_MULTISESSION;
 				}
+				else if (!strncmp(linebuffer+i, "LEAD-OUT", 8))
+				{
+					/*
+					IsoBuster and ImgBurn (single bin file) - Lead-out time is the start of the lead-out
+					lead-out time - MSF of last track of session = size of last track
+
+					Redump and DiscImageCreator (multiple bins) - Lead-out time is the duration of just the lead-out
+					*/
+					TOKENIZE
+
+					/* get lead-out time */
+					TOKENIZE
+					int leadout_offset = msf_to_frames( token );
+					outinfo.track[trknum].leadout = leadout_offset;
+				}
+				else if (!strncmp(linebuffer+i, "LEAD-IN", 7))
+				{
+					/*
+					IsoBuster and ImgBurn (single bin file) - Not used?
+					Redump and DiscImageCreator (multiple bins) - Lead-in time is the duration of just the lead-in
+					*/
+					TOKENIZE
+
+					/* get lead-in time */
+					TOKENIZE
+					leadin = msf_to_frames( token );
+				}
 				else if (is_gdrom && !strncmp(linebuffer+i, "SINGLE-DENSITY AREA", 19))
 				{
 					/* single-density area starts LBA = 0 */
@@ -2318,7 +2359,10 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 				TOKENIZE
 
 				/* keep the filename */
+				std::string prevfname = lastfname;
 				lastfname.assign(path).append(token);
+				if (prevfname.length() > 0 && lastfname.compare(prevfname) != 0)
+					is_multibin = true;
 
 				/* get the file type */
 				TOKENIZE
@@ -2367,6 +2411,10 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 				outtoc.tracks[trknum].multicuearea = is_gdrom ? current_area : 0;
 				outinfo.track[trknum].offset = 0;
 				std::fill(std::begin(outinfo.track[trknum].idx), std::end(outinfo.track[trknum].idx), -1);
+
+				outinfo.track[trknum].leadout = -1;
+				outinfo.track[trknum].leadin = leadin; /* use previously saved lead-in value */
+				leadin = -1;
 
 				if (wavlen != 0)
 				{
@@ -2548,6 +2596,46 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 			outtoc.tracks[trknum].frames = tlen / (outtoc.tracks[trknum].datasize + outtoc.tracks[trknum].subsize);
 			outinfo.track[trknum].offset = 0;
 		}
+
+		if (trknum > 0 && outinfo.track[trknum-1].leadout != -1 && !is_multibin)
+		{
+			outinfo.track[trknum].offset += outinfo.track[trknum-1].leadout;
+			outtoc.tracks[trknum].frames -= outinfo.track[trknum-1].leadout;
+		}
+
+		if (outinfo.track[trknum].leadout != -1 && !is_multibin)
+		{
+			/* if a lead-out time is specified in a multisession CD then the size of the previous track needs to be trimmed to use the lead-out time instead of the idx0 of the next track */
+			const int endframes = outinfo.track[trknum].leadout - outinfo.track[trknum].idx[0];
+			if (outtoc.tracks[trknum].frames >= endframes)
+			{
+				/*
+				TODO: DiscImageCreator has the lead-out/lead-in sectors stripped from the .img and ImgBurn has them included (dummy data only?)
+				How should those be handled?
+				*/
+				outtoc.tracks[trknum].frames = endframes;
+
+				if (trknum + 1 < outtoc.numtrks)
+					outinfo.track[trknum].leadout = outinfo.track[trknum+1].idx[0] - outinfo.track[trknum].leadout;
+			}
+		}
+		else if (outinfo.track[trknum].leadout == -1 && is_multibin)
+		{
+			if (trknum + 1 < outtoc.numtrks && outtoc.tracks[trknum].session != outtoc.tracks[trknum+1].session)
+				outinfo.track[trknum].leadout = outtoc.tracks[trknum].session == 0 ? 6750 : 2250; /* lead-out, first session gap (1m30s0f) is longer than the rest (0m30s0f) */
+		}
+
+		if (trknum > 0 && outtoc.tracks[trknum].session != outtoc.tracks[trknum-1].session)
+		{
+			if (is_multibin)
+			{
+				outtoc.tracks[trknum].pregap += 150;
+				outtoc.tracks[trknum].frames += 150;
+			}
+		}
+
+		if (is_multibin && outinfo.track[trknum].leadin == -1 && trknum > 0 && outtoc.tracks[trknum].session != outtoc.tracks[trknum-1].session)
+			outinfo.track[trknum].leadin = 4500; // lead-in (1m0s0f)
 	}
 
 	if (is_gdrom)

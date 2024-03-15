@@ -118,12 +118,13 @@ public:
 	struct track_input_entry
 	{
 		track_input_entry() { reset(); }
-		void reset() { fname.clear(); offset = 0; swap = false; std::fill(std::begin(idx), std::end(idx), -1); }
+		void reset() { fname.clear(); offset = 0; leadin = leadout = -1; swap = false; std::fill(std::begin(idx), std::end(idx), -1); }
 
 		std::string fname;      // filename for each track
 		uint32_t offset;      // offset in the data file for each track
 		bool swap;          // data needs to be byte swapped
 		int32_t idx[MAX_INDEX + 1];
+		int32_t leadin, leadout; // TODO: these should be their own tracks entirely
 	};
 
 	struct track_input_info
