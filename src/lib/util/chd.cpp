@@ -38,6 +38,7 @@
 const char *HARD_DISK_METADATA_FORMAT = "CYLS:%d,HEADS:%d,SECS:%d,BPS:%d";
 const char *CDROM_TRACK_METADATA_FORMAT = "TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d";
 const char *CDROM_TRACK_METADATA2_FORMAT = "TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d";
+const char *CDROM_TRACK_METADATA3_FORMAT = "TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d SESSION:%d CONTROL:%d";
 const char *GDROM_TRACK_METADATA_FORMAT = "TRACK:%d TYPE:%s SUBTYPE:%s FRAMES:%d PAD:%d PREGAP:%d PGTYPE:%s PGSUB:%s POSTGAP:%d";
 const char *AV_METADATA_FORMAT = "FPS:%d.%06d WIDTH:%d HEIGHT:%d INTERLACED:%d CHANNELS:%d SAMPLERATE:%d";
 
@@ -1746,6 +1747,7 @@ uint32_t chd_file::guess_unitbytes()
 	if (!read_metadata(CDROM_OLD_METADATA_TAG, 0, metadata) ||
 		!read_metadata(CDROM_TRACK_METADATA_TAG, 0, metadata) ||
 		!read_metadata(CDROM_TRACK_METADATA2_TAG, 0, metadata) ||
+		!read_metadata(CDROM_TRACK_METADATA3_TAG, 0, metadata) ||
 		!read_metadata(GDROM_OLD_METADATA_TAG, 0, metadata) ||
 		!read_metadata(GDROM_TRACK_METADATA_TAG, 0, metadata))
 		return cdrom_file::FRAME_SIZE;
@@ -3333,7 +3335,8 @@ bool chd_file::is_cd() const
 	metadata_entry metaentry;
 	return metadata_find(CDROM_OLD_METADATA_TAG, 0, metaentry)
 		|| metadata_find(CDROM_TRACK_METADATA_TAG, 0, metaentry)
-		|| metadata_find(CDROM_TRACK_METADATA2_TAG, 0, metaentry);
+		|| metadata_find(CDROM_TRACK_METADATA2_TAG, 0, metaentry)
+		|| metadata_find(CDROM_TRACK_METADATA3_TAG, 0, metaentry);
 }
 
 bool chd_file::is_gd() const

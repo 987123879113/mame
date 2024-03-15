@@ -229,6 +229,8 @@ constexpr chd_metadata_tag CDROM_TRACK_METADATA_TAG = CHD_MAKE_TAG('C','H','T','
 extern const char *CDROM_TRACK_METADATA_FORMAT;
 constexpr chd_metadata_tag CDROM_TRACK_METADATA2_TAG = CHD_MAKE_TAG('C','H','T','2');
 extern const char *CDROM_TRACK_METADATA2_FORMAT;
+constexpr chd_metadata_tag CDROM_TRACK_METADATA3_TAG = CHD_MAKE_TAG('C','H','T','3');
+extern const char *CDROM_TRACK_METADATA3_FORMAT;
 constexpr chd_metadata_tag GDROM_OLD_METADATA_TAG = CHD_MAKE_TAG('C','H','G','T');
 constexpr chd_metadata_tag GDROM_TRACK_METADATA_TAG = CHD_MAKE_TAG('C', 'H', 'G', 'D');
 extern const char *GDROM_TRACK_METADATA_FORMAT;

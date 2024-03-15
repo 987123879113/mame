@@ -931,6 +931,11 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 			if (sscanf(metadata.c_str(), CDROM_TRACK_METADATA2_FORMAT, &tracknum, type, subtype, &frames, &pregap, pgtype, pgsub, &postgap) != 8)
 				return chd_file::error::INVALID_DATA;
 		}
+		else if (!chd->read_metadata(CDROM_TRACK_METADATA3_TAG, toc.numtrks, metadata))
+		{
+			if (sscanf(metadata.c_str(), CDROM_TRACK_METADATA3_FORMAT, &tracknum, type, subtype, &frames, &pregap, pgtype, pgsub, &postgap, &session, &control) != 10)
+				return chd_file::error::INVALID_DATA;
+		}
 		else
 		{
 			/* fall through to GD-ROM detection */
@@ -1101,11 +1106,23 @@ std::error_condition cdrom_file::write_metadata(chd_file *chd, const toc &toc)
 				strcpy(submode, get_type_string(toc.tracks[i].pgtype));
 			}
 
-			metadata = util::string_format(CDROM_TRACK_METADATA2_FORMAT, i + 1, get_type_string(toc.tracks[i].trktype),
-					get_subtype_string(toc.tracks[i].subtype), toc.tracks[i].frames, toc.tracks[i].pregap,
-					submode, get_subtype_string(toc.tracks[i].pgsub),
-					toc.tracks[i].postgap);
-			err = chd->write_metadata(CDROM_TRACK_METADATA2_TAG, i, metadata);
+			if (toc.flags & CD_FLAG_MULTISESSION)
+			{
+				// Currently primary advantage to CHT3 is multisession support so don't force its use for non-multisession CDs for now
+				metadata = util::string_format(CDROM_TRACK_METADATA3_FORMAT, i + 1, get_type_string(toc.tracks[i].trktype),
+						get_subtype_string(toc.tracks[i].subtype), toc.tracks[i].frames, toc.tracks[i].pregap,
+						submode, get_subtype_string(toc.tracks[i].pgsub),
+						toc.tracks[i].postgap, toc.tracks[i].session, toc.tracks[i].control_flags);
+				err = chd->write_metadata(CDROM_TRACK_METADATA3_TAG, i, metadata);
+			}
+			else
+			{
+				metadata = util::string_format(CDROM_TRACK_METADATA2_FORMAT, i + 1, get_type_string(toc.tracks[i].trktype),
+						get_subtype_string(toc.tracks[i].subtype), toc.tracks[i].frames, toc.tracks[i].pregap,
+						submode, get_subtype_string(toc.tracks[i].pgsub),
+						toc.tracks[i].postgap);
+				err = chd->write_metadata(CDROM_TRACK_METADATA2_TAG, i, metadata);
+			}
 		}
 		if (err)
 			return err;
