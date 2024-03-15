@@ -192,7 +192,9 @@ cdrom_file::cdrom_file(std::string_view inputfile)
 		logofs  += track.frames;
 
 		if (EXTRA_VERBOSE)
-			printf("Track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n", i+1,
+			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n",
+				track.session,
+				i+1,
 				track.trktype,
 				track.subtype,
 				track.datasize,
@@ -290,7 +292,9 @@ cdrom_file::cdrom_file(chd_file *_chd)
 		logofs  += track.frames;
 
 		if (EXTRA_VERBOSE)
-			printf("Track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n", i+1,
+			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n",
+				track.session,
+				i+1,
 				track.trktype,
 				track.subtype,
 				track.datasize,
@@ -888,16 +892,17 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 	std::error_condition err;
 
 	toc.flags = 0;
+	toc.numsessions = 1;
 
 	/* start with no tracks */
 	for (toc.numtrks = 0; toc.numtrks < MAX_TRACKS; toc.numtrks++)
 	{
-		int tracknum, frames, pregap, postgap, padframes, control;
+		int tracknum, frames, pregap, postgap, padframes, session, control;
 		char type[16], subtype[16], pgtype[16], pgsub[16];
 		track_info *track;
 
 		tracknum = -1;
-		frames = pregap = postgap = padframes = control = 0;
+		frames = pregap = postgap = padframes = session = control = 0;
 		std::fill(std::begin(type), std::end(type), 0);
 		std::fill(std::begin(subtype), std::end(subtype), 0);
 		std::fill(std::begin(pgtype), std::end(pgtype), 0);
@@ -936,9 +941,16 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 		if (tracknum == 0 || tracknum > MAX_TRACKS)
 			return chd_file::error::INVALID_DATA;
 
+		if (session > 0)
+			toc.flags |= CD_FLAG_MULTISESSION;
+
 		track = &toc.tracks[tracknum - 1];
 
+		track->session = session;
 		track->control_flags = control;
+
+		if (session + 1 > toc.numsessions)
+			toc.numsessions = session + 1;
 
 		/* extract the track type and determine the data size */
 		track->trktype = CD_TRACK_MODE1;
@@ -996,6 +1008,7 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 
 	for (int i = 0; i < MAX_TRACKS; i++)
 	{
+		toc.tracks[i].session = 0;
 		toc.tracks[i].trktype = *mrp++;
 		toc.tracks[i].subtype = *mrp++;
 		toc.tracks[i].datasize = *mrp++;
@@ -1885,6 +1898,7 @@ std::error_condition cdrom_file::parse_nero(std::string_view tocfname, toc &outt
 //          printf("Start track %d  End track: %d\n", start, end);
 
 			outtoc.numtrks = (end-start) + 1;
+			outtoc.numsessions = 1;
 
 			uint32_t offset = 0;
 			for (int track = start; track <= end; track++)
@@ -2023,6 +2037,7 @@ std::error_condition cdrom_file::parse_iso(std::string_view tocfname, toc &outto
 
 
 	outtoc.numtrks = 1;
+	outtoc.numsessions = 1;
 
 	outinfo.track[0].fname = tocfname;
 	outinfo.track[0].offset = 0;
@@ -2195,6 +2210,7 @@ std::error_condition cdrom_file::parse_gdi(std::string_view tocfname, toc &outto
 
 	/* store the number of tracks found */
 	outtoc.numtrks = numtracks;
+	outtoc.numsessions = 1;
 
 	return std::error_condition();
 }
@@ -2221,7 +2237,7 @@ std::error_condition cdrom_file::parse_gdi(std::string_view tocfname, toc &outto
 
 std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outtoc, track_input_info &outinfo)
 {
-	int i, trknum;
+	int i, trknum, sessionnum;
 	char token[512];
 	std::string lastfname;
 	uint32_t wavlen, wavoffs;
@@ -2242,6 +2258,7 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 	outinfo.reset();
 
 	trknum = -1;
+	sessionnum = 0;
 	wavoffs = wavlen = 0;
 
 	if (is_gdrom)
@@ -2267,13 +2284,24 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 
 			if (!strcmp(token, "REM"))
 			{
-				/* TODO: sessions are notated using REM commands: "REM SESSION 01" */
-
 				/* skip to actual data of REM command */
 				while (i < std::size(linebuffer) && isspace((uint8_t)linebuffer[i]))
 					i++;
 
-				if (is_gdrom && !strncmp(linebuffer+i, "SINGLE-DENSITY AREA", 19))
+				if (!strncmp(linebuffer+i, "SESSION", 7))
+				{
+					/* IsoBuster extension */
+					TOKENIZE
+
+					/* get the session number */
+					TOKENIZE
+
+					sessionnum = strtoul(token, nullptr, 10) - 1;
+
+					if (sessionnum >= 1) /* don't consider it a multisession CD unless there's actually more than 1 session */
+						outtoc.flags |= CD_FLAG_MULTISESSION;
+				}
+				else if (is_gdrom && !strncmp(linebuffer+i, "SINGLE-DENSITY AREA", 19))
 				{
 					/* single-density area starts LBA = 0 */
 					current_area = SINGLE_DENSITY;
@@ -2329,6 +2357,7 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 				/* next token on the line is the track type */
 				TOKENIZE
 
+				outtoc.tracks[trknum].session = sessionnum;
 				outtoc.tracks[trknum].subtype = CD_SUB_NONE;
 				outtoc.tracks[trknum].subsize = 0;
 				outtoc.tracks[trknum].pgsub = CD_SUB_NONE;
@@ -2452,6 +2481,7 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 
 	/* store the number of tracks found */
 	outtoc.numtrks = trknum + 1;
+	outtoc.numsessions = sessionnum + 1;
 
 	/* now go over the files again and set the lengths */
 	for (trknum = 0; trknum < outtoc.numtrks; trknum++)
@@ -2563,7 +2593,8 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 	if (EXTRA_VERBOSE)
 		for (trknum = 0; trknum < outtoc.numtrks; trknum++)
 		{
-			printf("trk %d: %d frames @ offset %d, pad=%d, split=%d, area=%d, phys=%d, pregap=%d, pgtype=%d, pgdatasize=%d, idx0=%d, idx1=%d, dataframes=%d\n",
+			printf("session %d trk %d: %d frames @ offset %d, pad=%d, split=%d, area=%d, phys=%d, pregap=%d, pgtype=%d, pgdatasize=%d, idx0=%d, idx1=%d, dataframes=%d\n",
+				outtoc.tracks[trknum].session+1,
 				trknum+1,
 				outtoc.tracks[trknum].frames,
 				outinfo.track[trknum].offset,
@@ -2855,6 +2886,7 @@ std::error_condition cdrom_file::parse_toc(std::string_view tocfname, toc &outto
 
 	/* store the number of tracks found */
 	outtoc.numtrks = trknum + 1;
+	outtoc.numsessions = 1;
 
 	return std::error_condition();
 }
