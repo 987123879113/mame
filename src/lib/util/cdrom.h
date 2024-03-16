@@ -89,11 +89,11 @@ public:
 		uint32_t pgsub;       /* type of subchannel data in pregap */
 		uint32_t pgdatasize;  /* size of data in each sector of the pregap */
 		uint32_t pgsubsize;   /* size of subchannel data in each sector of the pregap */
-		uint32_t padframes;   /* number of frames of padding to add to the end of the track; needed for GDI */
 		uint32_t session;     /* session number */
 		uint32_t control_flags;
 
 		/* fields used in CHDMAN only */
+		uint32_t padframes;   /* number of frames of padding to add to the end of the track; needed for GDI */
 		uint32_t splitframes; /* number of frames from the next file to add to the end of the current track after padding; needed for Redump split-bin GDI */
 
 		/* fields used in MAME/MESS only */
@@ -118,13 +118,13 @@ public:
 	struct track_input_entry
 	{
 		track_input_entry() { reset(); }
-		void reset() { fname.clear(); leadin = leadout = -1; offset = swap = false; std::fill(std::begin(idx), std::end(idx), -1); }
+		void reset() { fname.clear(); offset = 0; leadin = leadout = -1; swap = false; std::fill(std::begin(idx), std::end(idx), -1); }
 
 		std::string fname;      // filename for each track
 		uint32_t offset;      // offset in the data file for each track
 		bool swap;          // data needs to be byte swapped
 		int32_t idx[MAX_INDEX + 1];
-		int32_t leadin, leadout; // these should be their own tracks entirely
+		int32_t leadin, leadout; // TODO: these should be their own tracks entirely
 	};
 
 	struct track_input_info

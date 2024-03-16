@@ -1048,7 +1048,8 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					{
 						m_device->logerror("T10MMC: header data is not available for track type %d, inserting fake header data\n", track_type);
 
-						put_u24be(&data[data_idx], to_msf(m_lba));
+						uint32_t msf = to_msf(m_lba);
+						put_u24be(&data[data_idx], msf);
 						data[data_idx+3] = 2; // mode 2
 					}
 					else

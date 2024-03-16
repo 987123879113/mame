@@ -198,7 +198,7 @@ cdrom_file::cdrom_file(std::string_view inputfile)
 			logofs += cdtrack_info.track[i].leadout;
 
 		if (EXTRA_VERBOSE)
-			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d physlba %08x loglba %08x\n",
+			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n",
 				track.session,
 				i+1,
 				track.trktype,
@@ -215,9 +215,7 @@ cdrom_file::cdrom_file(std::string_view inputfile)
 				track.physframeofs,
 				track.chdframeofs,
 				track.logframes,
-				track.padframes,
-				track.physframeofs * track.datasize,
-				track.logframeofs * track.datasize);
+				track.padframes);
 	}
 
 	// fill out dummy entries for the last track to help our search
@@ -306,7 +304,7 @@ cdrom_file::cdrom_file(chd_file *_chd)
 			logofs += cdtrack_info.track[i].leadout;
 
 		if (EXTRA_VERBOSE)
-			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d physlba %08x loglba %08x\n",
+			printf("session %d track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d pad %d\n",
 				track.session,
 				i+1,
 				track.trktype,
@@ -323,9 +321,7 @@ cdrom_file::cdrom_file(chd_file *_chd)
 				track.physframeofs,
 				track.chdframeofs,
 				track.logframes,
-				track.padframes,
-				track.physframeofs * track.datasize,
-				track.logframeofs * track.datasize);
+				track.padframes);
 	}
 
 	// fill out dummy entries for the last track to help our search
@@ -2542,7 +2538,7 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 
 		if (outinfo.track[trknum].idx[1] == -1)
 		{
-			// index 1 should always be set
+			/* index 1 should always be set */
 			printf("ERROR: track %d is missing INDEX 01 marker\n", trknum+1);
 			return chd_file::error::INVALID_DATA;
 		}

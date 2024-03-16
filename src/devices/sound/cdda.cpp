@@ -155,7 +155,7 @@ int cdda_device::audio_ended()
 
 /*-------------------------------------------------
     set_audio_scan - enable scanning mode.
-	the offset can be negative for reverse
+    the offset can be negative for reverse
     scanning or positive for forward scanning,
     or 0 to disable scanning. the optional play
     length value controls how many frames of audio
