@@ -38,6 +38,9 @@ void cdda_device::device_start()
 	m_audio_length = 0;
 	m_audio_samples = 0;
 	m_audio_bptr = 0;
+	m_audio_scan_offset = 0;
+	m_audio_scan_next_lba = 0;
+	m_audio_scan_play_length = 0;
 	m_sequence_counter = 0;
 
 	save_item( NAME(m_audio_playing) );
@@ -49,7 +52,9 @@ void cdda_device::device_start()
 	save_item( NAME(m_audio_samples) );
 	save_item( NAME(m_audio_bptr) );
 	save_item( NAME(m_sequence_counter) );
-
+	save_item( NAME(m_audio_scan_offset) );
+	save_item( NAME(m_audio_scan_play_length) );
+	save_item( NAME(m_audio_scan_next_lba) );
 }
 
 
@@ -67,6 +72,8 @@ void cdda_device::start_audio(uint32_t startlba, uint32_t numblocks)
 	m_audio_lba = startlba;
 	m_audio_length = numblocks;
 	m_audio_samples = 0;
+
+	stop_audio_scan();
 }
 
 
@@ -80,6 +87,8 @@ void cdda_device::stop_audio()
 	m_stream->update();
 	m_audio_playing = false;
 	m_audio_ended_normally = true;
+
+	stop_audio_scan();
 }
 
 
@@ -92,6 +101,8 @@ void cdda_device::pause_audio(int pause)
 {
 	m_stream->update();
 	m_audio_pause = pause;
+
+	stop_audio_scan();
 }
 
 
@@ -143,6 +154,40 @@ int cdda_device::audio_ended()
 
 
 /*-------------------------------------------------
+    set_audio_scan - enable scanning mode.
+    the offset can be negative for reverse
+    scanning or positive for forward scanning,
+    or 0 to disable scanning. the optional play
+    length value controls how many frames of audio
+    to play between each scan.
+
+    t10 spec recommendations:
+    forward scan offset = 190
+    reverse scan offset = -150
+    play length = 6
+-------------------------------------------------*/
+
+void cdda_device::set_audio_scan(int32_t offset, uint32_t play_length)
+{
+	m_audio_scan_offset = offset;
+	m_audio_length = m_audio_scan_play_length = play_length;
+	m_audio_scan_next_lba = m_audio_lba + play_length;
+}
+
+
+/*-------------------------------------------------
+    stop_audio_scan - stop and reset scan parameters
+-------------------------------------------------*/
+
+void cdda_device::stop_audio_scan()
+{
+	m_audio_scan_offset = 0;
+	m_audio_scan_play_length = 0;
+	m_audio_scan_next_lba = 0;
+}
+
+
+/*-------------------------------------------------
     get_audio_data - reads Red Book data off
     the disc if playback is in progress and
     converts it to 2 16-bit 44.1 kHz streams
@@ -152,6 +197,23 @@ void cdda_device::get_audio_data(write_stream_view &bufL, write_stream_view &buf
 {
 	int i;
 	int16_t *audio_cache = (int16_t *) m_audio_cache.get();
+
+	if (m_audio_scan_offset != 0 && m_audio_lba >= m_audio_scan_next_lba)
+	{
+		const uint32_t end_lba = m_disc->get_track_start(m_disc->get_last_track());
+
+		m_audio_lba = std::min(std::max(0, int32_t(m_audio_lba) + m_audio_scan_offset), int32_t(end_lba));
+		m_audio_length = m_audio_scan_play_length;
+		m_audio_scan_next_lba = m_audio_lba + m_audio_scan_play_length;
+		m_audio_samples = 0;
+
+		const int track_type = m_disc->get_track_type(m_disc->get_track(m_audio_lba));
+		if (m_audio_lba == 0 || m_audio_lba >= end_lba || track_type != cdrom_file::CD_TRACK_AUDIO)
+		{
+			// stop if very start, very end, or non-audio track is reached
+			m_audio_length = m_audio_samples = m_audio_scan_offset = 0;
+		}
+	}
 
 	for (int sampindex = 0; sampindex < bufL.samples(); )
 	{

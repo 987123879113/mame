@@ -207,6 +207,7 @@ void atapi_cdrom_device::ExecCommand()
 			// Set the DSC (Drive Seek Complete) bit on commands that involve a drive seek.
 			// truckk is known to rely on this flag being set after T10SBC_CMD_SEEK_10.
 			case T10SBC_CMD_SEEK_10:
+			case T10MMC_CMD_SCAN:
 			case T10MMC_CMD_PLAY_AUDIO_10:
 			case T10MMC_CMD_PLAY_AUDIO_12:
 			case T10MMC_CMD_PLAY_AUDIO_MSF:

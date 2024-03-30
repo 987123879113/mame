@@ -579,6 +579,51 @@ void t10mmc::ExecCommand()
 		m_transfer_length = m_blocks * m_sector_bytes;
 		break;
 
+	case T10MMC_CMD_SCAN:
+	{
+		const int direction = BIT(command[1], 4); // 0 = forward, 1 = reverse
+		const uint32_t start_addr = get_u32be(&command[2]);
+		const int scan_type = BIT(command[9], 6, 2); // 0 = lba, 1 = msf, 2 = track num, 3 = reserved
+
+		m_device->logerror("T10MMC: SCAN direction %d type %d addr %06x\n", direction, scan_type, start_addr);
+
+		uint32_t lba = 0;
+		switch (scan_type)
+		{
+			case 0: // lba
+				lba = start_addr;
+				break;
+			case 1: // msf
+				lba = to_lba(start_addr & 0xffffff);
+				break;
+			case 2: // track number
+				lba = m_image->get_track_start(start_addr & 0xff);
+				break;
+			default:
+				m_device->logerror("T10MMC: unsupported scan type! %d\n", scan_type);
+				break;
+		}
+
+		const int trk = m_image->get_track(m_lba);
+		if (m_image->get_track_type(trk) != cdrom_file::CD_TRACK_AUDIO)
+		{
+			m_device->logerror("T10MMC: scan target track is NOT audio!\n");
+			set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_ILLEGAL_MODE_FOR_THIS_TRACK);
+			m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
+		}
+		else
+		{
+			const uint32_t disc_end_lba = m_image->get_track_start(m_image->get_last_track());
+			m_cdda->start_audio(lba, disc_end_lba - lba);
+			m_cdda->set_audio_scan(direction ? -150 : 190); // recommended values in t10 docs for forward and reverse
+
+			m_audio_sense = SCSI_SENSE_ASC_ASCQ_AUDIO_PLAY_OPERATION_IN_PROGRESS;
+			m_status_code = SCSI_STATUS_CODE_GOOD;
+		}
+
+		break;
+	}
+
 	case T10MMC_CMD_SET_CD_SPEED:
 		m_device->logerror("T10MMC: SET CD SPEED to %d kbytes/sec.\n", get_u16be(&command[2]));
 		m_phase = SCSI_PHASE_STATUS;
@@ -916,7 +961,11 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 
 		put_u24be(&status_header[2], m_last_lba);
 
-		if (m_cdda->audio_active())
+		if (m_cdda->is_scanning())
+		{
+			status_header[1] |= 2 << 5; // scanning flag
+		}
+		else if (m_cdda->audio_active())
 		{
 			// cdrdao checks this flag after starting an audio track to play for 1 block to
 			// determine when it can read the sub q channel data when finding tracks and indexes
@@ -1176,7 +1225,8 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 				data[0]= 0x00;
 
 				const int audio_active = m_cdda->audio_active();
-				if (audio_active)
+				const int audio_is_scanning = m_cdda->is_scanning();
+				if (audio_active || audio_is_scanning)
 				{
 					// if audio is playing, get the latest LBA from the CDROM layer
 					m_last_lba = m_cdda->get_audio_lba();
