@@ -532,15 +532,6 @@ namespace {
 class ksys573_state : public driver_device
 {
 public:
-	INPUT_CHANGED_MEMBER(audio_offset)
-	{
-		auto fpga = subdevice<k573dio_device>("k573dio")->subdevice<k573fpga_device>("k573fpga");
-
-		if (fpga != nullptr) {
-			fpga->set_audio_offset(newval);
-		}
-	}
-
 	ksys573_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
@@ -944,7 +935,9 @@ void ksys573_state::flashbank_map(address_map &map)
 void ksys573_state::konami573d_map(address_map &map)
 {
 	konami573_map(map);
-	map(0x1f640000, 0x1f6400ff).m(m_k573dio, FUNC(k573dio_device::amap));
+
+	// 0x1f640000 - 0x1f67ffff is just the digital I/O board's registers mirrored every 0x100 chunk
+	map(0x1f640000, 0x1f6400ff).m(m_k573dio, FUNC(k573dio_device::amap)).mirror(0x3ff00);
 }
 
 void ksys573_state::konami573k_map(address_map &map)
@@ -2609,12 +2602,6 @@ void ksys573_state::k573d(machine_config &config)
 	konami573(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ksys573_state::konami573d_map);
 	KONAMI_573_DIGITAL_IO_BOARD(config, m_k573dio, XTAL(19'660'800));
-
-	// Set default value so as to clear offset between games when switching via GUI
-	auto fpga = subdevice<k573dio_device>("k573dio")->subdevice<k573fpga_device>("k573fpga");
-	if (fpga != nullptr) {
-		fpga->set_audio_offset(22);
-	}
 }
 
 // Variants with additional karaoke I/O board
@@ -2837,6 +2824,12 @@ void ddr_state::ddr5m(machine_config &config)
 	casszi(config);
 
 	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
+
+	// rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	// auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+	// sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
+	// sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	// rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 }
 
 // Dancing Stage
@@ -3374,11 +3367,6 @@ static INPUT_PORTS_START( konami573 )
 	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_UNUSED )
 INPUT_PORTS_END
 
-static INPUT_PORTS_START( k573dio )
-	PORT_START( "AUDIO_OFFSET3" )
-	PORT_BIT( 0xffffffff, 28, IPT_ADJUSTER ) PORT_NAME( "Audio Offset" ) PORT_MINMAX( 0x80000000, 0x7fffffff ) PORT_CHANGED_MEMBER(DEVICE_SELF, ksys573_state, audio_offset, 0)
-INPUT_PORTS_END
-
 static INPUT_PORTS_START( fbaitbc )
 	PORT_INCLUDE( konami573 )
 
@@ -3403,7 +3391,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddr )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000f0f, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER( ddr_state, gn845pwbb_read )
@@ -3423,7 +3410,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddrsolo )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_16WAY PORT_PLAYER( 1 ) PORT_NAME( "P1 Left 1" )
@@ -3453,7 +3439,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( ddrsolo2 )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -3502,7 +3487,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( gtrfrks )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x10000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* SERVICE1 */
@@ -3540,7 +3524,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( dmx )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0x00000100, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER( 1 ) PORT_NAME( "D-Sensor D1 L" ) /* P1 LEFT */
@@ -3577,7 +3560,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( drmn )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_UNUSED ) /* COIN2 */
@@ -3722,7 +3704,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( mamboagg )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN1" )
 	PORT_BIT( 0x02000000, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER( 1 ) PORT_NAME( "Right Pad 1 (Top Right)" ) /* COIN2 */
@@ -3815,7 +3796,6 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( mrtlbeat )
 	PORT_INCLUDE( konami573 )
-	PORT_INCLUDE( k573dio )
 
 	PORT_MODIFY( "IN2" )
 	PORT_BIT( 0xffff1f5f, IP_ACTIVE_LOW, IPT_UNUSED )
@@ -6604,6 +6584,19 @@ ROM_START( kicknkick )
 	ROM_LOAD( "a36eaa.27h",   0x000000, 0x200000, CRC(1179ab7b) SHA1(19a316cacb6eb87b905884091820e6b53aef64b7) )
 ROM_END
 
+ROM_START( k573diotester )
+	SYS573_BIOS_A
+
+	ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	ROM_LOAD( "gcb19ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(680a3288) SHA1(b413c6c43c4a18c5c713049a9c2fbde2d98e36bc) )
+
+	ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	ROM_LOAD( "gcb19ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	DISK_REGION( "runtime" )
+	DISK_IMAGE_READONLY( "k573diotester", 0, BAD_DUMP )
+ROM_END
+
 } // anonymous namespace
 
 
@@ -6828,3 +6821,5 @@ GAME( 2018, ddrexpro,  sys573,   ddr5m,      ddr,       ddr_state,     empty_ini
 GAME( 2019, ddrexproc, sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Clarity (hack)", MACHINE_IMPERFECT_SOUND )
 GAME( 2019, ddrexplus, sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Plus (hack)", MACHINE_IMPERFECT_SOUND )
 GAME( 200?, ddrmegamix,sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Megamix (hack)", MACHINE_IMPERFECT_SOUND )
+
+GAME( 2024, k573diotester, ddrmax,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "System 573 Digital I/O Tester", 0 )

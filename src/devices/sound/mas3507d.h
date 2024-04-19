@@ -15,6 +15,7 @@ public:
 
 	auto mpeg_frame_sync_cb() { return cb_mpeg_frame_sync.bind(); }
 	auto demand_cb() { return cb_demand.bind(); }
+	auto sampling_frequency_cb() { return cb_sampling_frequency.bind(); }
 
 	int i2c_scl_r();
 	int i2c_sda_r();
@@ -48,6 +49,7 @@ private:
 
 	devcb_write_line cb_mpeg_frame_sync;
 	devcb_write_line cb_demand;
+	devcb_write32 cb_sampling_frequency;
 
 	enum {
 		CMD_DEV_WRITE = 0x3a,

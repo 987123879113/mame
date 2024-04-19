@@ -42,7 +42,7 @@ DEFINE_DEVICE_TYPE(MAS3507D, mas3507d_device, "mas3507d", "Micronas MAS 3507D MP
 mas3507d_device::mas3507d_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, MAS3507D, tag, owner, clock)
 	, device_sound_interface(mconfig, *this)
-	, cb_mpeg_frame_sync(*this), cb_demand(*this)
+	, cb_mpeg_frame_sync(*this), cb_demand(*this), cb_sampling_frequency(*this)
 	, i2c_bus_state(IDLE), i2c_bus_address(UNKNOWN), i2c_subdest(UNDEFINED), i2c_command(CMD_BAD)
 	, i2c_scli(false), i2c_sclo(false), i2c_sdai(false), i2c_sdao(false)
 	, i2c_bus_curbit(0), i2c_bus_curval(0), i2c_bytecount(0), i2c_io_bank(0), i2c_io_adr(0), i2c_io_count(0), i2c_io_val(0)
@@ -51,7 +51,7 @@ mas3507d_device::mas3507d_device(const machine_config &mconfig, const char *tag,
 
 void mas3507d_device::device_start()
 {
-	stream = stream_alloc(0, 2, 44100);
+	stream = stream_alloc(0, 2, 44100, STREAM_SYNCHRONOUS);
 	mp3dec = std::make_unique<mp3_audio>(reinterpret_cast<const uint8_t *>(&mp3data[0]));
 
 	save_item(NAME(mp3data));
@@ -434,6 +434,8 @@ void mas3507d_device::fill_buffer()
 			mp3data_count--;
 		}
 
+		decoded_frame_count = 0;
+
 		cb_demand(1); // always request more data when nothing could be decoded to force potentially stale data out of the buffer
 		return;
 	}
@@ -442,6 +444,8 @@ void mas3507d_device::fill_buffer()
 	mp3data_count -= pos;
 
 	stream->set_sample_rate(frame_sample_rate * m_clock_scale);
+
+	cb_sampling_frequency(frame_sample_rate);
 
 	decoded_frame_count++;
 	cb_mpeg_frame_sync(1);
