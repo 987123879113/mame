@@ -499,6 +499,7 @@ public:
 		m_h8_response(*this, "h8_response"),
 		m_ram(*this, "maincpu:ram"),
 		m_flashbank(*this, "flashbank"),
+		m_spu(*this, "spu"),
 		m_in2(*this, "IN2"),
 		m_out1(*this, "OUT1"),
 		m_out2(*this, "OUT2"),
@@ -519,7 +520,6 @@ public:
 	void gtfrk11m(machine_config &config);
 	void gtrfrk7m(machine_config &config);
 	void hyperbbc(machine_config &config);
-	[[maybe_unused]] void ddrsolo(machine_config &config);
 	void ddrsbm(machine_config &config);
 	void mamboagga(machine_config &config);
 	void gunmania(machine_config &config);
@@ -611,6 +611,10 @@ public:
 	void h8_clk_w(int state);
 
 	int jvs_rx_r();
+
+	void audio_amp_enabled_w(int state);
+	void audio_external_enabled_w(int state);
+	void audio_spu_enabled_w(int state);
 
 protected:
 	using gx700pwfbf_output_delegate = delegate<void (offs_t, uint8_t)>;
@@ -733,6 +737,7 @@ private:
 
 	required_device<ram_device> m_ram;
 	required_device<address_map_bank_device> m_flashbank;
+	required_device<spu_device> m_spu;
 	required_ioport m_in2;
 	required_ioport m_out1;
 	required_ioport m_out2;
@@ -875,7 +880,9 @@ void ksys573_state::flashbank_map(address_map &map)
 void ksys573_state::konami573d_map(address_map &map)
 {
 	konami573_map(map);
-	map(0x1f640000, 0x1f6400ff).m(m_k573dio, FUNC(k573dio_device::amap));
+
+	// 0x1f640000 - 0x1f67ffff is just the digital I/O board's registers mirrored every 0x100 chunk
+	map(0x1f640000, 0x1f6400ff).m(m_k573dio, FUNC(k573dio_device::amap)).mirror(0x3ff00);
 }
 
 void ksys573_state::konami573k_map(address_map &map)
@@ -1096,6 +1103,24 @@ uint16_t ksys573_state::security_r(offs_t offset, uint16_t mem_mask)
 	uint16_t data = m_n_security_control;
 	LOGSECURITY( "security_r( %08x, %08x ) %08x\n", offset, mem_mask, data );
 	return data;
+}
+
+void ksys573_state::audio_amp_enabled_w(int state)
+{
+	LOG("audio_amp_enabled_w %d\n", state);
+}
+
+void ksys573_state::audio_external_enabled_w(int state)
+{
+	// TODO: This controls whether the audio from the external audio port is mixed into the output audio or not
+	// Generally games will set this to 1 to enable the mixing external audio with the SPU audio,
+	// but Guitar Freaks uses 4 speakers so this register is never set since they keep the 4 channels separate.
+	LOG("audio_external_enabled_w %d\n", state);
+}
+
+void ksys573_state::audio_spu_enabled_w(int state)
+{
+	m_spu->set_output_gain(ALL_OUTPUTS, state ? 1.0 : 0.0);
 }
 
 template<int N>
@@ -2471,7 +2496,7 @@ void ksys573_state::konami573(machine_config &config, bool no_cdrom)
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
 
-	spu_device &spu(SPU(config, "spu", XTAL(67'737'600)/2, m_maincpu.target()));
+	spu_device &spu(SPU(config, m_spu, XTAL(67'737'600)/2, m_maincpu.target()));
 	spu.add_route(0, "lspeaker", 1.0);
 	spu.add_route(1, "rspeaker", 1.0);
 
@@ -2770,19 +2795,10 @@ void ddr_state::dsem2(machine_config &config)
 
 // Dance Dance Revolution Solo
 
-void ksys573_state::ddrsolo(machine_config &config)
-{
-	k573d(config);
-	m_k573dio->output_callback().set(FUNC(ksys573_state::ddrsolo_output_callback));
-
-	cassyi(config);
-}
-
 void ksys573_state::ddrsbm(machine_config &config)
 {
 	k573d(config);
 	m_k573dio->output_callback().set(FUNC(ksys573_state::ddrsolo_output_callback));
-	m_k573dio->set_ddrsbm_fpga(true);
 
 	cassyi(config);
 }
@@ -3144,9 +3160,12 @@ static INPUT_PORTS_START( konami573 )
 	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START( "OUT0" )
-	PORT_BIT( 0x00000002, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( "adc0834", adc083x_device, cs_write )
-	PORT_BIT( 0x00000004, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( "adc0834", adc083x_device, clk_write )
 	PORT_BIT( 0x00000001, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( "adc0834", adc083x_device, di_write )
+	PORT_BIT( 0x00000004, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( "adc0834", adc083x_device, clk_write )
+	PORT_BIT( 0x00000002, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( "adc0834", adc083x_device, cs_write )
+	PORT_BIT( 0x00000020, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, audio_spu_enabled_w )
+	PORT_BIT( 0x00000040, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, audio_external_enabled_w )
+	PORT_BIT( 0x00000080, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, audio_amp_enabled_w )
 	PORT_BIT( 0x00000100, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER( DEVICE_SELF, ksys573_state, h8_clk_w )
 
 	PORT_START( "IN1" )
