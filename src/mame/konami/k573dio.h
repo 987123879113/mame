@@ -5,6 +5,9 @@
 
 #pragma once
 
+#include <deque>
+
+#include "imagedev/bitbngr.h"
 #include "machine/ds2401.h"
 #include "machine/timer.h"
 #include "sound/mas3507d.h"
@@ -27,11 +30,14 @@ protected:
 	virtual void device_add_mconfig(machine_config &config) override;
 
 private:
+	static const int NETWORK_CONNECTIONS = 3;
+
 	enum {
 		FPGA_PROM_SIZE = 41337
 	};
 
 	TIMER_CALLBACK_MEMBER(mpeg_data_transfer);
+	TIMER_DEVICE_CALLBACK_MEMBER(network_update_callback);
 
 	void reset_fpga_state();
 
@@ -115,6 +121,7 @@ private:
 	memory_share_creator<uint16_t> m_ram;
 	required_device<ds2401_device> m_digital_id;
 	required_device<mas3507d_device> m_mas3507d;
+	required_device_array<bitbanger_device, NETWORK_CONNECTIONS> m_network;
 	devcb_write8 output_cb;
 
 	bool m_is_ddrsbm_fpga;
@@ -149,13 +156,17 @@ private:
 
 	uint16_t m_digital_id_cached;
 
-	uint16_t m_network_id;
-	uint16_t m_network_input_buf_idx;
-
 	uint16_t m_device_ctrl;
 
 	bool m_ram_enabled, m_mas3507d_dac_output_enabled;
 	bool m_external_audio_muted;
+
+	uint16_t m_network_id;
+	uint16_t m_network_output_buf_size;
+	std::deque<uint8_t> m_network_buffer_muxed;
+	std::deque<uint8_t> m_network_buffer_output;
+	std::deque<uint8_t> m_network_buffer_input[NETWORK_CONNECTIONS];
+	std::deque<std::deque<uint8_t>> m_network_buffer_output_queue;
 
 	emu_timer* m_stream_timer;
 };
