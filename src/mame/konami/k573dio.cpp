@@ -155,6 +155,7 @@ k573dio_device::k573dio_device(const machine_config &mconfig, const char *tag, d
 	m_ram(*this, "ram", 0x1800000, ENDIANNESS_LITTLE),
 	m_digital_id(*this, "digital_id"),
 	m_mas3507d(*this, "mpeg"),
+	m_network(*this, "dio_network%u", 0U),
 	output_cb(*this),
 	m_is_ddrsbm_fpga(false)
 {
@@ -193,7 +194,7 @@ void k573dio_device::device_start()
 	save_item(NAME(m_digital_id_cached));
 
 	save_item(NAME(m_network_id));
-	save_item(NAME(m_network_input_buf_idx));
+	save_item(NAME(m_network_output_buf_size));
 
 	save_item(NAME(m_device_ctrl));
 	save_item(NAME(m_ram_enabled));
@@ -238,7 +239,12 @@ void k573dio_device::reset_fpga_state()
 	m_crypto_key1 = m_crypto_key2 = m_crypto_key3 = 0;
 
 	m_network_id = 0;
-	m_network_input_buf_idx = 0;
+	m_network_output_buf_size = 0;
+	m_network_buffer_muxed.clear();
+	m_network_buffer_output.clear();
+	m_network_buffer_output_queue.clear();
+	for (int i = 0; i < NETWORK_CONNECTIONS; i++)
+		m_network_buffer_input[i].clear();
 
 	m_mpeg_ctrl = 0;
 	m_mpeg_status = 1 << PLAYBACK_STATE_CRC_ERROR;
@@ -281,6 +287,13 @@ void k573dio_device::device_add_mconfig(machine_config &config)
 	m_mas3507d->add_route(1, ":rspeaker", 1.0);
 
 	DS2401(config, m_digital_id);
+
+	for (int i = 0; i < m_network.size(); i++)
+	{
+		BITBANGER(config, m_network[i], 0);
+	}
+
+	TIMER(config, "network_timer").configure_periodic(FUNC(k573dio_device::network_update_callback), attotime::from_hz(300));
 }
 
 template <uint16_t Val>
@@ -899,10 +912,14 @@ uint16_t k573dio_device::network_r()
 	if (!m_is_fpga_initialized)
 		return 0xffff;
 
-	// Reading this causes network_input_buf_size_r to decrease regardless of whether there's data or not
-	m_network_input_buf_idx = (m_network_input_buf_idx - 1) & 0xfff;
+	uint16_t val = 0;
 
-	return 0;
+	if (m_network_buffer_muxed.size() > 0) {
+		val = m_network_buffer_muxed.front();
+		m_network_buffer_muxed.pop_front();
+	}
+
+	return val;
 }
 
 void k573dio_device::network_w(uint16_t data)
@@ -910,7 +927,23 @@ void k573dio_device::network_w(uint16_t data)
 	if (!m_is_fpga_initialized)
 		return;
 
-	// Write a byte to the output buffer
+	if ((m_network_buffer_output.size() == 0 && data != 0xc0) || (m_network_buffer_output.size() > 0 && m_network_buffer_output.front() != 0xc0))
+		return;
+
+	m_network_buffer_output.push_back(data);
+
+	if (data != 0xc0 || m_network_buffer_output.size() <= 1 || m_network_buffer_output.front() != 0xc0 || m_network_buffer_output.back() != 0xc0)
+		return;
+
+	if (m_network_buffer_output.size() == 2) {
+		// c0 c0 would be an empty packet (corrupt packet?) so discard the first byte
+		m_network_buffer_output.pop_front();
+		return;
+	}
+
+	m_network_output_buf_size += m_network_buffer_output.size();
+	m_network_buffer_output_queue.push_back(m_network_buffer_output);
+	m_network_buffer_output.clear();
 }
 
 uint16_t k573dio_device::network_output_buf_size_r()
@@ -920,7 +953,7 @@ uint16_t k573dio_device::network_output_buf_size_r()
 
 	// Number of bytes in the output buffer waiting to be sent
 	// Highest value this returns on real hardware is 0x31f
-	return 0;
+	return m_network_output_buf_size;
 }
 
 uint16_t k573dio_device::network_input_buf_size_r()
@@ -929,7 +962,8 @@ uint16_t k573dio_device::network_input_buf_size_r()
 		return 0xffff;
 
 	// Number of bytes in the input buffer waiting to be read
-	return m_network_input_buf_idx;
+	// This appears to be a ring buffer on real hardware and if you read from an empty buffer it goes from 0x0000 to 0xfffe
+	return m_network_buffer_muxed.size();
 }
 
 void k573dio_device::network_reset_w(uint16_t data)
@@ -939,7 +973,12 @@ void k573dio_device::network_reset_w(uint16_t data)
 
 	// Any value written here will reset the network buffers
 	// Maybe resets all network-related states?
-	m_network_input_buf_idx = 0;
+	m_network_output_buf_size = 0;
+	m_network_buffer_muxed.clear();
+	m_network_buffer_output.clear();
+	m_network_buffer_output_queue.clear();
+	for (int i = 0; i < NETWORK_CONNECTIONS; i++)
+		m_network_buffer_input[i].clear();
 }
 
 void k573dio_device::network_id_w(uint16_t data)
@@ -983,4 +1022,62 @@ void k573dio_device::set_audio_mute(bool muted)
 void k573dio_device::update_audio_mute()
 {
 	m_mas3507d->set_output_gain(ALL_OUTPUTS, !m_mas3507d_dac_output_enabled || m_external_audio_muted ? 0.0 : 1.0);
+}
+
+TIMER_DEVICE_CALLBACK_MEMBER(k573dio_device::network_update_callback)
+{
+	uint32_t len = 0;
+
+	for (auto i = 0; i < m_network.size(); i++) {
+		if (!m_network[i]->exists()) {
+			continue;
+		}
+
+		do {
+			uint8_t val = 0;
+			len = m_network[i]->input(&val, 1);
+
+			if (len == 0 || ((m_network_buffer_input[i].size() == 0 && val != 0xc0) || (m_network_buffer_input[i].size() > 0 && m_network_buffer_input[i].front() != 0xc0)))
+				continue;
+
+			// Found start of packet or continuation of an existing packet
+			m_network_buffer_input[i].push_back(val);
+
+			// If it's not potentially the end of the packet, just skip the logic to send
+			if (val != 0xc0 || m_network_buffer_input[i].size() <= 1 || m_network_buffer_input[i].front() != 0xc0 || m_network_buffer_input[i].back() != 0xc0)
+				continue;
+
+			if (m_network_buffer_input[i].size() == 2) {
+				// c0 c0 would be an empty packet (corrupt packet?) so discard the first byte
+				m_network_buffer_input[i].pop_front();
+				continue;
+			}
+
+			// Found end of packet, push all contents of temp buffer to main buffer
+			auto target_machine = m_network_buffer_input[i][1];
+			if (m_network_id != target_machine) {
+				// Only accept packets from other machines
+				m_network_buffer_muxed.insert(m_network_buffer_muxed.end(), m_network_buffer_input[i].begin(), m_network_buffer_input[i].end());
+			}
+
+			m_network_buffer_input[i].clear();
+		} while (len > 0);
+	}
+
+	if (m_network_buffer_output_queue.size() > 0) {
+		auto packet = m_network_buffer_output_queue.front();
+		m_network_buffer_output_queue.pop_front();
+
+		for (auto n : m_network) {
+			if (!n->exists()) {
+				continue;
+			}
+
+			for (auto c : packet) {
+				n->output(c);
+			}
+		}
+
+		m_network_output_buf_size -= packet.size();
+	}
 }
