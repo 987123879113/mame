@@ -461,7 +461,7 @@ void mas3507d_device::fill_buffer()
 	std::copy(mp3data.begin() + pos, mp3data.end(), mp3data.begin());
 	mp3data_count -= pos;
 
-	stream->set_sample_rate(frame_sample_rate);
+	stream->set_sample_rate(frame_sample_rate * m_clock_scale);
 
 	decoded_frame_count++;
 
