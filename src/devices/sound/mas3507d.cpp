@@ -9,6 +9,14 @@
     - Datasheet says it has DSP and internal program ROM,
     but these are not dumped and hooked up
     - Support Broadcast mode, MPEG Layer 2
+
+    Notes:
+    samp freq = the sampling frequency bits from the MPEG header that is output on PI2, PI3
+    mpeg idx = the MPEG index bits from the MPEG header that is output on PI17, PI18
+    Observed when hardware testing System 573: When valid MP3 data ends, the decode will change the output stream's clock rate to match the MPEG 1 (mpeg idx = 0b11) sample frequency.
+    Examples:
+    A 22050hz MP3 (samp freq = 0b00, mpeg idx = 0b00) will change to 44100hz (samp freq = 0b00, mpeg idx = 0b11) when the MP3 ends
+    A 24000hz MP3 (samp freq = 0b01, mpeg idx = 0b10) will change to 48000hz (samp freq = 0b01, mpeg idx = 0b11) when the MP3 ends
 */
 
 #include "emu.h"
@@ -42,7 +50,7 @@ DEFINE_DEVICE_TYPE(MAS3507D, mas3507d_device, "mas3507d", "Micronas MAS 3507D MP
 mas3507d_device::mas3507d_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, MAS3507D, tag, owner, clock)
 	, device_sound_interface(mconfig, *this)
-	, cb_mpeg_frame_sync(*this), cb_demand(*this)
+	, cb_mpeg_frame_sync(*this), cb_demand(*this), cb_mpeg_crc_error(*this), cb_i2s_soi(*this)
 	, i2c_bus_state(IDLE), i2c_bus_address(UNKNOWN), i2c_subdest(UNDEFINED), i2c_command(CMD_BAD)
 	, i2c_scli(false), i2c_sclo(false), i2c_sdai(false), i2c_sdao(false)
 	, i2c_bus_curbit(0), i2c_bus_curval(0), i2c_bytecount(0), i2c_io_bank(0), i2c_io_adr(0), i2c_io_count(0), i2c_io_val(0)
@@ -51,7 +59,7 @@ mas3507d_device::mas3507d_device(const machine_config &mconfig, const char *tag,
 
 void mas3507d_device::device_start()
 {
-	stream = stream_alloc(0, 2, 44100);
+	stream = stream_alloc(0, 2, 44100, STREAM_SYNCHRONOUS);
 	mp3dec = std::make_unique<mp3_audio>(reinterpret_cast<const uint8_t *>(&mp3data[0]));
 
 	save_item(NAME(mp3data));
@@ -106,9 +114,16 @@ void mas3507d_device::device_reset()
 
 	frame_channels = 2;
 
-	stream->set_sample_rate(44100);
+	stream->set_sample_rate(32000);
 
-	reset_playback();
+	std::fill(mp3data.begin(), mp3data.end(), 0);
+	std::fill(samples.begin(), samples.end(), 0);
+
+	mp3dec->clear();
+	mp3data_count = 0;
+	sample_count = 0;
+	decoded_frame_count = 0;
+	samples_idx = 0;
 }
 
 void mas3507d_device::i2c_scl_w(bool line)
@@ -345,7 +360,8 @@ void mas3507d_device::i2c_device_got_stop()
 	LOGOTHER("MAS I2C: got stop\n");
 }
 
-int mas3507d_device::gain_to_db(double val) {
+int mas3507d_device::gain_to_db(double val)
+{
 	return round(20 * log10((0x100000 - val) / 0x80000));
 }
 
@@ -434,7 +450,11 @@ void mas3507d_device::fill_buffer()
 			mp3data_count--;
 		}
 
+		decoded_frame_count = 0;
+
+		cb_mpeg_crc_error(1);
 		cb_demand(1); // always request more data when nothing could be decoded to force potentially stale data out of the buffer
+
 		return;
 	}
 
@@ -444,6 +464,8 @@ void mas3507d_device::fill_buffer()
 	stream->set_sample_rate(frame_sample_rate);
 
 	decoded_frame_count++;
+
+	cb_mpeg_crc_error(0);
 	cb_mpeg_frame_sync(1);
 
 	cb_demand(mp3data_count < mp3data.size());
@@ -460,7 +482,10 @@ void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int
 		const stream_buffer::sample_t lsamp_mixed = stream_buffer::sample_t(samples[samples_idx * bytes_per_sample]) * sample_scale * mute_scale * gain_ll;
 		const stream_buffer::sample_t rsamp_mixed = stream_buffer::sample_t(samples[samples_idx * bytes_per_sample + (bytes_per_sample >> 1)]) * sample_scale * mute_scale * gain_rr;
 
+		cb_i2s_soi(0);
 		outputs[0].put(pos, lsamp_mixed);
+
+		cb_i2s_soi(1);
 		outputs[1].put(pos, rsamp_mixed);
 
 		samples_idx++;
@@ -473,18 +498,6 @@ void mas3507d_device::append_buffer(std::vector<write_stream_view> &outputs, int
 	}
 }
 
-void mas3507d_device::reset_playback()
-{
-	std::fill(mp3data.begin(), mp3data.end(), 0);
-	std::fill(samples.begin(), samples.end(), 0);
-
-	mp3dec->clear();
-	mp3data_count = 0;
-	sample_count = 0;
-	decoded_frame_count = 0;
-	samples_idx = 0;
-}
-
 void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
 {
 	int csamples = outputs[0].samples();
@@ -495,6 +508,11 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 			fill_buffer();
 
 		if(sample_count <= 0) {
+			for (int i = 0; i < csamples - pos; i++) {
+				cb_i2s_soi(0);
+				cb_i2s_soi(1);
+			}
+
 			outputs[0].fill(0, pos);
 			outputs[1].fill(0, pos);
 			return;

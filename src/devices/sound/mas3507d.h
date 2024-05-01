@@ -15,6 +15,9 @@ public:
 
 	auto mpeg_frame_sync_cb() { return cb_mpeg_frame_sync.bind(); }
 	auto demand_cb() { return cb_demand.bind(); }
+	auto mpeg_crc_error_cb() { return cb_mpeg_crc_error.bind(); }
+
+	auto i2s_soi_cb() { return cb_i2s_soi.bind(); }
 
 	int i2c_scl_r();
 	int i2c_sda_r();
@@ -22,8 +25,6 @@ public:
 	void i2c_sda_w(bool line);
 
 	void sid_w(uint8_t byte);
-
-	void reset_playback();
 
 protected:
 	virtual void device_start() override ATTR_COLD;
@@ -48,6 +49,9 @@ private:
 
 	devcb_write_line cb_mpeg_frame_sync;
 	devcb_write_line cb_demand;
+	devcb_write_line cb_mpeg_crc_error;
+
+	devcb_write_line cb_i2s_soi;
 
 	enum {
 		CMD_DEV_WRITE = 0x3a,
