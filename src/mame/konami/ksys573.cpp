@@ -6291,6 +6291,20 @@ ROM_START( kicknkick )
 	ROM_LOAD( "a36eaa.27h",   0x000000, 0x200000, CRC(1179ab7b) SHA1(19a316cacb6eb87b905884091820e6b53aef64b7) )
 ROM_END
 
+// TODO: Remove before PR
+ROM_START( k573diotester )
+	   SYS573_BIOS_A
+
+	   ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	   ROM_LOAD( "gcb19ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(680a3288) SHA1(b413c6c43c4a18c5c713049a9c2fbde2d98e36bc) )
+
+	   ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	   ROM_LOAD( "gcb19ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	   DISK_REGION( "runtime" )
+	   DISK_IMAGE_READONLY( "k573diotester", 0, BAD_DUMP )
+ROM_END
+
 } // anonymous namespace
 
 
@@ -6509,3 +6523,5 @@ GAME( 2003, gtfrk10ma, gtfrk10m, gtfrk10m,   gtrfrks,   ksys573_state, empty_ini
 GAME( 2004, gtfrk11m,  sys573,   gtfrk11m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 11th Mix (G*D39 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2004, pcnfrk10m, sys573,   drmn10m,    drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 10th Mix (G*D40 VER. AAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2004, drmn10m,   pcnfrk10m,drmn10m,    drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 10th Mix (G*D40 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+
+GAME( 2024, k573diotester, ddrmax,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "System 573 Digital I/O Tester", 0 )
