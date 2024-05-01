@@ -485,6 +485,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_sys573_jvs_host(*this, "sys573_jvs_host"),
 		m_k573dio(*this, "k573dio"),
+		m_ram(*this, "maincpu:ram"),
 		m_lamps(*this, "lamp%u", 0U),
 		m_analog0(*this, "analog0"),
 		m_analog1(*this, "analog1"),
@@ -497,7 +498,6 @@ public:
 		m_pccard2(*this, "pccard2"),
 		m_pccard_cd{ 1, 1 },
 		m_h8_response(*this, "h8_response"),
-		m_ram(*this, "maincpu:ram"),
 		m_flashbank(*this, "flashbank"),
 		m_spu(*this, "spu"),
 		m_in2(*this, "IN2"),
@@ -630,6 +630,7 @@ protected:
 	required_device<psxcpu_device> m_maincpu;
 	required_device<sys573_jvs_host> m_sys573_jvs_host;
 	optional_device<k573dio_device> m_k573dio;
+	required_device<ram_device> m_ram;
 
 	output_finder<2> m_lamps;
 
@@ -735,7 +736,6 @@ private:
 	uint8_t m_jvs_input_buffer[512];
 	uint8_t m_jvs_output_buffer[512];
 
-	required_device<ram_device> m_ram;
 	required_device<address_map_bank_device> m_flashbank;
 	required_device<spu_device> m_spu;
 	required_ioport m_in2;
@@ -775,6 +775,7 @@ public:
 	void ddr3mp(machine_config &config);
 	void ddrusa(machine_config &config);
 	void ddr5m(machine_config &config);
+	void ddrexplus(machine_config &config);
 
 	// Dancing Stage analog
 	void dsfdcta(machine_config &config);
@@ -792,6 +793,7 @@ public:
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	struct stage_state
@@ -812,6 +814,17 @@ private:
 
 	uint32_t m_stage_mask;
 	stage_state m_stage_state[2];
+
+
+	////////////////
+	// for ddrexplus
+	void set_explus_clock_scale(uint32_t speed);
+	uint8_t explus_speed_inc1();
+	uint8_t explus_speed_inc2();
+	uint8_t explus_speed_normal();
+	void sys573_vblank(int state);
+
+	bool m_is_ddrexplus_init_done;
 };
 
 
@@ -1163,6 +1176,60 @@ void ksys573_state::machine_reset()
 	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
 	if (sio1 != nullptr)
 		sio1->write_dsr(0);
+}
+
+void ddr_state::set_explus_clock_scale(uint32_t speed)
+{
+	auto mas3507d = m_k573dio->subdevice<mas3507d_device>("mpeg");
+	if (mas3507d == nullptr)
+		return;
+
+	// For the DDR Extreme Plus hack
+	// The game is capable of switching between 3 different crystals to change the playback speed
+	double scale = speed / double(29'450'000);
+	mas3507d->set_clock_scale(scale);
+}
+
+uint8_t ddr_state::explus_speed_inc1()
+{
+	set_explus_clock_scale(33'000'000);
+	return 0x00;
+}
+
+uint8_t ddr_state::explus_speed_inc2()
+{
+	set_explus_clock_scale(36'000'000);
+	return 0x55;
+}
+
+uint8_t ddr_state::explus_speed_normal()
+{
+	set_explus_clock_scale(29'500'000);
+	return 0xaa;
+}
+
+void ddr_state::sys573_vblank(int state)
+{
+	if(strcmp(machine().system().name, "ddrexplus") == 0)
+	{
+		if (!m_is_ddrexplus_init_done)
+		{
+			m_maincpu->space(AS_PROGRAM).install_read_handler(0x1fc4080f, 0x1fc40810, read8smo_delegate(*this, FUNC(ddr_state::explus_speed_inc1)));
+			m_maincpu->space(AS_PROGRAM).install_read_handler(0x1fc40ebe, 0x1fc40ebf, read8smo_delegate(*this, FUNC(ddr_state::explus_speed_normal)));
+			m_maincpu->space(AS_PROGRAM).install_read_handler(0x1fc41340, 0x1fc41341, read8smo_delegate(*this, FUNC(ddr_state::explus_speed_inc2)));
+			m_is_ddrexplus_init_done = true;
+		}
+
+		uint32_t *p_n_psxram = (uint32_t*)m_ram->pointer();
+
+		// Hack until a proper modboard BIOS can be found.
+		// The install CD checks the last byte of the BIOS checksum
+		// to determine if it's the proper BIOS or not.
+		if(p_n_psxram[0x30bc40 / 4] == 0x10430005)
+		{
+			p_n_psxram[0x30bc40 / 4] = 0x10000005;
+		}
+	}
 }
 
 // H8 check at startup (JVS related)
@@ -1572,6 +1639,13 @@ void ddr_state::machine_start()
 	save_item(STRUCT_MEMBER(m_stage_state, shift));
 	save_item(STRUCT_MEMBER(m_stage_state, state));
 	save_item(STRUCT_MEMBER(m_stage_state, bit));
+}
+
+void ddr_state::machine_reset()
+{
+	ksys573_state::machine_reset();
+
+	m_is_ddrexplus_init_done = false;
 }
 
 void ddr_state::init_ddr()
@@ -2742,6 +2816,14 @@ void ddr_state::ddr5m(machine_config &config)
 	casszi(config);
 
 	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
+}
+
+void ddr_state::ddrexplus(machine_config &config)
+{
+	ddr5m(config);
+
+	auto screen = subdevice<screen_device>("screen");
+	screen->screen_vblank().set(FUNC(ddr_state::sys573_vblank));
 }
 
 // Dancing Stage
@@ -6710,5 +6792,5 @@ GAME( 2004, drmn10m,   pcnfrk10m,drmn10m,    drmn,      ksys573_state, empty_ini
 GAME( 2021, ddr5ms,    ddr5m,    ddr5ms,     ddrsolo2,  ksys573_state, empty_init,    ROT0,  "hack",   "Dance Dance Revolution 5th Mix Solo (hack)", MACHINE_IMPERFECT_SOUND )
 GAME( 2018, ddrexpro,  sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Pro (hack, v2)", MACHINE_IMPERFECT_SOUND )
 GAME( 2019, ddrexproc, sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Clarity (hack)", MACHINE_IMPERFECT_SOUND )
-GAME( 2019, ddrexplus, sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Plus (hack)", MACHINE_IMPERFECT_SOUND )
+GAME( 2019, ddrexplus, sys573,   ddrexplus,  ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Plus (hack)", MACHINE_IMPERFECT_SOUND )
 GAME( 200?, ddrmegamix,sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Megamix (hack)", MACHINE_IMPERFECT_SOUND )
