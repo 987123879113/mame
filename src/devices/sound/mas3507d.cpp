@@ -116,14 +116,7 @@ void mas3507d_device::device_reset()
 
 	stream->set_sample_rate(32000);
 
-	std::fill(mp3data.begin(), mp3data.end(), 0);
-	std::fill(samples.begin(), samples.end(), 0);
-
-	mp3dec->clear();
-	mp3data_count = 0;
-	sample_count = 0;
-	decoded_frame_count = 0;
-	samples_idx = 0;
+	mpeg_state_reset();
 }
 
 void mas3507d_device::i2c_scl_w(bool line)
@@ -520,4 +513,16 @@ void mas3507d_device::sound_stream_update(sound_stream &stream, std::vector<read
 
 		append_buffer(outputs, pos, csamples);
 	}
+}
+
+void mas3507d_device::mpeg_state_reset()
+{
+	std::fill(mp3data.begin(), mp3data.end(), 0);
+	std::fill(samples.begin(), samples.end(), 0);
+
+	mp3dec->clear();
+	mp3data_count = 0;
+	sample_count = 0;
+	decoded_frame_count = 0;
+	samples_idx = 0;
 }

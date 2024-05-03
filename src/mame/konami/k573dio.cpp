@@ -659,7 +659,10 @@ void k573dio_device::mpeg_ctrl_w(uint16_t data)
 		m_mpeg_sample_counter = m_mpeg_sample_counter_last = 0;
 
 	if (m_mpeg_current_has_ended && ((!BIT(data, MPEG_STREAMING_ENABLE) && BIT(m_mpeg_ctrl, MPEG_STREAMING_ENABLE)) || (!BIT(data, MPEG_ENABLE) && BIT(m_mpeg_ctrl, MPEG_ENABLE))))
+	{
 		m_mpeg_current_has_ended = false;
+		m_mas3507d->mpeg_state_reset();
+	}
 
 	m_mpeg_ctrl = data;
 }
@@ -772,8 +775,10 @@ void k573dio_device::mpeg_demand(int state)
 	m_mpeg_status &= ~(1 << PLAYBACK_STATE_DEMAND);
 	m_mpeg_status |= state << PLAYBACK_STATE_DEMAND;
 
-	if (BIT(prev_status, PLAYBACK_STATE_DEMAND))
-		m_stream_timer->adjust(attotime::zero);
+	if (!BIT(prev_status, PLAYBACK_STATE_DEMAND) && BIT(m_mpeg_status, PLAYBACK_STATE_DEMAND))
+		m_stream_timer->adjust(attotime::zero, 0, attotime::from_hz(44100));
+	else if (BIT(prev_status, PLAYBACK_STATE_DEMAND) && !BIT(m_mpeg_status, PLAYBACK_STATE_DEMAND))
+		m_stream_timer->adjust(attotime::never);
 }
 
 void k573dio_device::mpeg_crc_error(int state)
