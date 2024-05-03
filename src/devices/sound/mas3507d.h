@@ -26,6 +26,8 @@ public:
 
 	void sid_w(uint8_t byte);
 
+	void mpeg_state_reset();
+
 protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
