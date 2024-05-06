@@ -88,10 +88,10 @@ private:
 	uint16_t mpeg_ctrl_r();
 	void mpeg_ctrl_w(uint16_t data);
 
-	uint16_t mpeg_timer_diff_r();
-	uint16_t mpeg_timer_high_r();
-	uint16_t mpeg_timer_low_r();
-	void mpeg_timer_low_w(uint16_t data);
+	uint16_t mpeg_sample_counter_diff_r();
+	uint16_t mpeg_sample_counter_high_r();
+	uint16_t mpeg_sample_counter_low_r();
+	void mpeg_sample_counter_low_w(uint16_t data);
 
 	void mpeg_frame_sync(int state);
 	void mpeg_demand(int state);
@@ -148,7 +148,7 @@ private:
 	uint16_t m_mpeg_status;
 	uint16_t m_mpeg_frame_counter;
 	bool m_mpeg_current_has_ended;
-	bool m_mpeg_timer_enabled;
+	bool m_mpeg_sample_counter_enabled, m_mpeg_sample_counter_wait_sync;
 
 	uint16_t m_mp3_remaining_bytes, m_mp3_data;
 
