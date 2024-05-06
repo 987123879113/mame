@@ -129,9 +129,9 @@ void k573dio_device::amap(address_map &map)
 	map(0xc4, 0xc5).r(FUNC(k573dio_device::network_input_buf_size_r));
 	map(0xc6, 0xc7).r(FUNC(k573dio_device::dummy_r<0x7654>));
 	map(0xc8, 0xc9).rw(FUNC(k573dio_device::dummy_r<0x7654>), FUNC(k573dio_device::network_reset_w));
-	map(0xca, 0xcb).r(FUNC(k573dio_device::mpeg_timer_high_r));
-	map(0xcc, 0xcd).rw(FUNC(k573dio_device::mpeg_timer_low_r), FUNC(k573dio_device::mpeg_timer_low_w));
-	map(0xce, 0xcf).r(FUNC(k573dio_device::mpeg_timer_diff_r));
+	map(0xca, 0xcb).r(FUNC(k573dio_device::mpeg_sample_counter_high_r));
+	map(0xcc, 0xcd).rw(FUNC(k573dio_device::mpeg_sample_counter_low_r), FUNC(k573dio_device::mpeg_sample_counter_low_w));
+	map(0xce, 0xcf).r(FUNC(k573dio_device::mpeg_sample_counter_diff_r));
 
 	map(0xd0, 0xdf).r(FUNC(k573dio_device::dummy_r<0x1234>));
 
@@ -182,7 +182,8 @@ void k573dio_device::device_start()
 	save_item(NAME(m_mpeg_status));
 	save_item(NAME(m_mpeg_frame_counter));
 	save_item(NAME(m_mpeg_current_has_ended));
-	save_item(NAME(m_mpeg_timer_enabled));
+	save_item(NAME(m_mpeg_sample_counter_enabled));
+	save_item(NAME(m_mpeg_sample_counter_wait_sync));
 
 	save_item(NAME(m_crypto_key1));
 	save_item(NAME(m_crypto_key2));
@@ -250,7 +251,8 @@ void k573dio_device::reset_fpga_state()
 	m_mpeg_status = 1 << PLAYBACK_STATE_CRC_ERROR;
 	m_mpeg_frame_counter = 0;
 	m_mpeg_current_has_ended = false;
-	m_mpeg_timer_enabled = true;
+	m_mpeg_sample_counter_enabled = true;
+	m_mpeg_sample_counter_wait_sync = true;
 
 	m_mp3_remaining_bytes = 0;
 	m_mp3_data = 0;
@@ -653,26 +655,27 @@ void k573dio_device::mpeg_ctrl_w(uint16_t data)
 	if (BIT(m_mpeg_ctrl, MPEG_FRAME_COUNTER_ENABLE) && !BIT(data, MPEG_FRAME_COUNTER_ENABLE))
 		m_mpeg_frame_counter = 0;
 
-	// Both of these flags need to be enabled to start the timer again after it is cleared
+	// Both of these flags need to be enabled to start the sample counter again after it is cleared
 	// Note: Does not reset the counter on ddrsbm firmware
 	if (!m_is_ddrsbm_fpga && (BIT(data, MPEG_STREAMING_ENABLE) && BIT(data, MPEG_ENABLE)) && !(BIT(m_mpeg_ctrl, MPEG_STREAMING_ENABLE) && BIT(m_mpeg_ctrl, MPEG_ENABLE)))
 		m_mpeg_sample_counter = m_mpeg_sample_counter_last = 0;
 
-	if (m_mpeg_current_has_ended && ((!BIT(data, MPEG_STREAMING_ENABLE) && BIT(m_mpeg_ctrl, MPEG_STREAMING_ENABLE)) || (!BIT(data, MPEG_ENABLE) && BIT(m_mpeg_ctrl, MPEG_ENABLE))))
+	if (((!BIT(data, MPEG_STREAMING_ENABLE) && BIT(m_mpeg_ctrl, MPEG_STREAMING_ENABLE)) || (!BIT(data, MPEG_ENABLE) && BIT(m_mpeg_ctrl, MPEG_ENABLE))))
 	{
 		m_mpeg_current_has_ended = false;
 		m_mas3507d->mpeg_state_reset();
 	}
 
 	m_mpeg_ctrl = data;
+	update_audio_mute();
 }
 
-uint16_t k573dio_device::mpeg_timer_diff_r()
+uint16_t k573dio_device::mpeg_sample_counter_diff_r()
 {
 	if (!m_is_fpga_initialized)
 		return 0xffff;
 
-	// First read will show a larger value and and then clear out the bottom 16-bits of the timer register for further calculations
+	// First read will show a larger value and and then clear out the bottom 16-bits of the sample counter register for further calculations
 	const uint16_t diff = m_mpeg_sample_counter - m_mpeg_sample_counter_last;
 
 	if (!machine().side_effects_disabled())
@@ -684,7 +687,7 @@ uint16_t k573dio_device::mpeg_timer_diff_r()
 	return diff;
 }
 
-uint16_t k573dio_device::mpeg_timer_high_r()
+uint16_t k573dio_device::mpeg_sample_counter_high_r()
 {
 	if (!m_is_fpga_initialized)
 		return 0xffff;
@@ -697,7 +700,7 @@ uint16_t k573dio_device::mpeg_timer_high_r()
 	return m_mpeg_sample_counter >> 16;
 }
 
-uint16_t k573dio_device::mpeg_timer_low_r()
+uint16_t k573dio_device::mpeg_sample_counter_low_r()
 {
 	if (!m_is_fpga_initialized)
 		return 0xffff;
@@ -707,17 +710,17 @@ uint16_t k573dio_device::mpeg_timer_low_r()
 	return m_mpeg_sample_counter;
 }
 
-void k573dio_device::mpeg_timer_low_w(uint16_t data)
+void k573dio_device::mpeg_sample_counter_low_w(uint16_t data)
 {
 	if (!m_is_fpga_initialized)
 		return;
 
-	// data written here is ignored, any value written will reset the timer to 0
+	// data written here is ignored, any value written will reset the sample counter to 0
 	m_mpeg_sample_counter = m_mpeg_sample_counter_last = 0;
 
-	// ddrsbm's firmware doesn't stop the timer if you reset it when it's not streaming anything
+	// ddrsbm's firmware doesn't stop the sample counter if you reset it when it's not streaming anything
 	if (!m_is_ddrsbm_fpga)
-		m_mpeg_timer_enabled = BIT(mpeg_ctrl_r(), 12);
+		m_mpeg_sample_counter_enabled = BIT(mpeg_ctrl_r(), 12);
 }
 
 TIMER_CALLBACK_MEMBER(k573dio_device::mpeg_data_transfer)
@@ -761,8 +764,11 @@ void k573dio_device::mpeg_frame_sync(int state)
 
 	if (state && BIT(m_mpeg_ctrl, MPEG_FRAME_COUNTER_ENABLE))
 	{
-		if (m_mpeg_frame_counter == 0)
-			m_mpeg_timer_enabled = true;
+		if (m_mpeg_sample_counter_wait_sync || (!m_mpeg_sample_counter_enabled && !m_mpeg_sample_counter_wait_sync))
+		{
+			m_mpeg_sample_counter_enabled = true;
+			m_mpeg_sample_counter_wait_sync = false;
+		}
 
 		m_mpeg_frame_counter++;
 	}
@@ -786,13 +792,18 @@ void k573dio_device::mpeg_crc_error(int state)
 	// Set when the MP3 is corrupt or there's no MP3 data to be decoded
 	m_mpeg_status &= ~(1 << PLAYBACK_STATE_CRC_ERROR);
 	m_mpeg_status |= state << PLAYBACK_STATE_CRC_ERROR;
+
+	// frame could not be decoded, wait until the next frame is recognized before starting the sample counter again
+	m_mpeg_sample_counter_wait_sync = state == 1;
+	if (m_mpeg_sample_counter_wait_sync)
+		m_mpeg_sample_counter_enabled = false;
 }
 
 void k573dio_device::mpeg_frame_identification(int state)
 {
 	// Differentiates the L and R channel samples in the I2S stream
 	// The FPGA uses this to count exactly how many samples have been played
-	if (m_mas3507d_dac_output_enabled && m_mpeg_timer_enabled && state)
+	if (m_mpeg_sample_counter_enabled && state)
 		m_mpeg_sample_counter++;
 }
 
@@ -1026,7 +1037,7 @@ void k573dio_device::set_audio_mute(bool muted)
 
 void k573dio_device::update_audio_mute()
 {
-	m_mas3507d->set_output_gain(ALL_OUTPUTS, !m_mas3507d_dac_output_enabled || m_external_audio_muted ? 0.0 : 1.0);
+	m_mas3507d->set_output_gain(ALL_OUTPUTS, !m_mas3507d_dac_output_enabled || m_external_audio_muted || !BIT(m_mpeg_ctrl, MPEG_ENABLE) ? 0.0 : 1.0);
 }
 
 TIMER_DEVICE_CALLBACK_MEMBER(k573dio_device::network_update_callback)
