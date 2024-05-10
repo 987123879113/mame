@@ -345,6 +345,8 @@ Notes: (all ICs shown)
 #include "k573mcr.h"
 #include "k573msu.h"
 
+#include "k573acio.h"
+#include "k573cardunit.h"
 #include "k573martial.h"
 #include "k573rental.h"
 
@@ -373,6 +375,8 @@ Notes: (all ICs shown)
 #include "speaker.h"
 
 #include "cdrom.h"
+
+#include "k573npu_card.h"
 
 #include <algorithm>
 
@@ -554,6 +558,7 @@ public:
 	void pccard1_32mb(machine_config &config);
 	void pccard2_32mb(machine_config &config);
 	void pccard2_64mb(machine_config &config);
+	void pccard2_npu(machine_config &config);
 	void cassx(machine_config &config);
 	void cassxi(machine_config &config);
 	void cassy(machine_config &config);
@@ -2640,6 +2645,12 @@ void ksys573_state::pccard2_64mb(machine_config &config)
 	m_pccard2->set_default_option("konami_dual");
 }
 
+void ksys573_state::pccard2_npu(machine_config &config)
+{
+	m_pccard2->option_add("npucard", KONAMI_573_NETWORK_PCB_UNIT_PCCARD);
+	m_pccard2->set_default_option("npucard");
+}
+
 // Security eeprom variants
 //
 // Suffixes are used to select them
@@ -2698,10 +2709,16 @@ void ksys573_state::zi_cassette_install(device_t* device)
 
 void ksys573_state::toggle_serial(int state)
 {
+	// printf("toggle serial %d\n", state);
+
 	// This switches between the MSU and card reader devices on the network port of the security cart
 	auto duart_chan = subdevice<ns16550_device>("k573msu:duart_com_0:chan1");
 	if (duart_chan != nullptr)
 		duart_chan->set_clock_scale(!state);
+
+	auto acio_host = subdevice<k573acio_host_device>("rs232_network:k573acio_host");
+	if (acio_host != nullptr)
+		acio_host->set_clock_scale(state);
 }
 
 void ksys573_state::cassxzi(machine_config &config)
@@ -2811,7 +2828,8 @@ void ddr_state::ddr5m(machine_config &config)
 	k573d(config);
 	m_k573dio->output_callback().set(FUNC(ddr_state::ddr_output_callback));
 
-	pccard2_32mb(config);
+	pccard1_32mb(config);
+	pccard2_npu(config);
 	casszi(config);
 
 	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
@@ -2962,6 +2980,23 @@ void ksys573_state::msu_remote(machine_config &config)
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
+	rs232_network.option_add("k573acio_host", KONAMI_573_ACIO_HOST);
+	rs232_network.set_default_option("k573acio_host");
+
+	KONAMI_573_MAGNETIC_CARD_READER(config, "icca1", 0);
+	KONAMI_573_MAGNETIC_CARD_READER(config, "icca2", 0);
+
+	rs232_network.set_option_machine_config("k573acio_host", [this](device_t *device) {
+		auto &host = *downcast<k573acio_host_device *>(device);
+
+		auto icca1dev = downcast<k573acio_node_device *>(subdevice("icca1"));
+		if (icca1dev != nullptr)
+			host.add_device(icca1dev);
+
+		auto icca2dev = downcast<k573acio_node_device *>(subdevice("icca2"));
+		if (icca2dev != nullptr)
+			host.add_device(icca2dev);
+	});
 }
 
 void ksys573_state::drmn(machine_config &config)
@@ -2990,6 +3025,7 @@ void ksys573_state::drmn4m(machine_config &config)
 	casszi(config);
 
 	msu_local(config);
+	pccard2_npu(config);
 }
 
 void ksys573_state::drmn9m(machine_config &config)
@@ -3002,6 +3038,7 @@ void ksys573_state::drmn9m(machine_config &config)
 	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 
 	msu_local(config);
+	pccard2_npu(config);
 }
 
 void ksys573_state::drmn10m(machine_config &config)
@@ -3014,6 +3051,7 @@ void ksys573_state::drmn10m(machine_config &config)
 	//KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 
 	msu_local(config);
+	pccard2_npu(config);
 }
 
 // Guitar Freaks
@@ -3066,6 +3104,8 @@ void ksys573_state::gtrfrk7m(machine_config &config)
 	casszi(config);
 	pccard1_32mb(config);
 	msu_remote(config);
+
+	pccard2_npu(config);
 }
 
 void ksys573_state::gtfrk10m(machine_config &config)
@@ -3076,6 +3116,7 @@ void ksys573_state::gtfrk10m(machine_config &config)
 	msu_remote(config);
 
 	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+	pccard2_npu(config);
 }
 
 void ksys573_state::gtfrk11m(machine_config &config)
@@ -3084,6 +3125,9 @@ void ksys573_state::gtfrk11m(machine_config &config)
 	casszi(config);
 	pccard1_32mb(config);
 	msu_remote(config);
+
+	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+	pccard2_npu(config);
 }
 
 // Miscellaneous
@@ -6569,6 +6613,19 @@ ROM_START( kicknkick )
 	ROM_LOAD( "a36eaa.27h",   0x000000, 0x200000, CRC(1179ab7b) SHA1(19a316cacb6eb87b905884091820e6b53aef64b7) )
 ROM_END
 
+ROM_START( k573diotester )
+	SYS573_BIOS_A
+
+	ROM_REGION( 0x000008c, "cassette:game:eeprom", 0 )
+	ROM_LOAD( "gcb19ja.u1",   0x000000, 0x00008c, BAD_DUMP CRC(680a3288) SHA1(b413c6c43c4a18c5c713049a9c2fbde2d98e36bc) )
+
+	ROM_REGION( 0x000008, "cassette:game:id", 0 )
+	ROM_LOAD( "gcb19ja.u6",   0x000000, 0x000008, BAD_DUMP CRC(ce84419e) SHA1(839e8ee080ecfc79021a06417d930e8b32dfc6a1) )
+
+	DISK_REGION( "runtime" )
+	DISK_IMAGE_READONLY( "k573diotester", 0, BAD_DUMP )
+ROM_END
+
 } // anonymous namespace
 
 
@@ -6793,3 +6850,5 @@ GAME( 2018, ddrexpro,  sys573,   ddr5m,      ddr,       ddr_state,     empty_ini
 GAME( 2019, ddrexproc, sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Clarity (hack)", MACHINE_IMPERFECT_SOUND )
 GAME( 2019, ddrexplus, sys573,   ddrexplus,  ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Plus (hack)", MACHINE_IMPERFECT_SOUND )
 GAME( 200?, ddrmegamix,sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Megamix (hack)", MACHINE_IMPERFECT_SOUND )
+
+GAME( 2024, k573diotester, ddrmax,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "System 573 Digital I/O Tester", 0 )
