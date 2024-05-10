@@ -24204,6 +24204,7 @@ toysmarch                       // (c) 2005 Konami. Toy's March (E00:J:A:A:20050
 toysmarch2                      // (c) 2005 Konami. Toy's March 2 (F00:J:A:A:2005110400)
 
 @source:konami/ksys573.cpp
+k573diotester
 animechmp                       // 2000 - Anime Champ (GCA07 VER. JAA)
 bassang2                        // 1998 - Bass Angler 2 (GE865 VER. JAA)
 bassangl                        // 1998 - Bass Angler (GE765 VER. JAA)
