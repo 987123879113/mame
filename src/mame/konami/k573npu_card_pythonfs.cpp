@@ -953,7 +953,7 @@ int konami_573_network_pcb_unit_storage_pythonfs::devctl(uint32_t reqtype, uint3
 	}
 	else
 	{
-		LOGFS("devctl unknwon type: %02x %04x %04x\n", reqtype, param2, resplen);
+		LOGFS("devctl unknown type: %02x %04x %04x\n", reqtype, param2, resplen);
 		return -1;
 	}
 

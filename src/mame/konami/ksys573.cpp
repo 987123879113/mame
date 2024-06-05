@@ -1,3 +1,5 @@
+#define ENABLE_NPU 1
+
 // license:BSD-3-Clause
 // copyright-holders:R. Belmont, smf
 /***************************************************************************
@@ -517,10 +519,10 @@ public:
 		m_duart(*this, "mb89371")
 	{ }
 
-	void drmn9m(machine_config &config);
-	void drmn10m(machine_config &config);
-	void gtfrk10m(machine_config &config);
-	void gtfrk11m(machine_config &config);
+	void drmn7m(machine_config &config);
+	void drmn7m2(machine_config &config);
+	void gtrfrk8m(machine_config &config);
+	void gtrfrk8m2(machine_config &config);
 	void gtrfrk7m(machine_config &config);
 	void hyperbbc(machine_config &config);
 	void ddrsbm(machine_config &config);
@@ -570,6 +572,8 @@ public:
 	void mrtlbeat(machine_config &config);
 	void msu_local(machine_config &config);
 	void msu_remote(machine_config &config);
+	void cardreaders_gf(machine_config &config);
+	void cardreaders_dm(machine_config &config);
 
 	void init_serlamp();
 	void init_hyperbbc();
@@ -2828,8 +2832,7 @@ void ddr_state::ddr5m(machine_config &config)
 	k573d(config);
 	m_k573dio->output_callback().set(FUNC(ddr_state::ddr_output_callback));
 
-	pccard1_32mb(config);
-	pccard2_npu(config);
+	pccard2_32mb(config);
 	casszi(config);
 
 	KONAMI_573_MEMORY_CARD_READER(config, "k573mcr", 0, m_sys573_jvs_host);
@@ -2976,9 +2979,23 @@ void ksys573_state::msu_remote(machine_config &config)
 	if (sio1 == nullptr)
 		return;
 
+	// TODO: This isn't compatible with card readers
 	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
 	sio1->txd_handler().set(rs232_network, FUNC(rs232_port_device::write_txd));
 	sio1->dtr_handler().set(rs232_network, FUNC(rs232_port_device::write_dtr));
+	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
+}
+
+void ksys573_state::cardreaders_gf(machine_config &config)
+{
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+
+	if (sio1 == nullptr)
+		return;
+
+	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	sio1->txd_handler().append(rs232_network, FUNC(rs232_port_device::write_txd));
+	sio1->dtr_handler().append(rs232_network, FUNC(rs232_port_device::write_dtr));
 	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
 	rs232_network.option_add("k573acio_host", KONAMI_573_ACIO_HOST);
 	rs232_network.set_default_option("k573acio_host");
@@ -2996,6 +3013,31 @@ void ksys573_state::msu_remote(machine_config &config)
 		auto icca2dev = downcast<k573acio_node_device *>(subdevice("icca2"));
 		if (icca2dev != nullptr)
 			host.add_device(icca2dev);
+	});
+}
+
+void ksys573_state::cardreaders_dm(machine_config &config)
+{
+	auto sio1 = subdevice<psxsio1_device>("maincpu:sio1");
+
+	if (sio1 == nullptr)
+		return;
+
+	rs232_port_device& rs232_network(RS232_PORT(config, "rs232_network", default_rs232_devices, nullptr));
+	sio1->txd_handler().append(rs232_network, FUNC(rs232_port_device::write_txd));
+	sio1->dtr_handler().append(rs232_network, FUNC(rs232_port_device::write_dtr));
+	rs232_network.rxd_handler().set(*sio1, FUNC(psxsio1_device::write_rxd));
+	rs232_network.option_add("k573acio_host", KONAMI_573_ACIO_HOST);
+	rs232_network.set_default_option("k573acio_host");
+
+	KONAMI_573_MAGNETIC_CARD_READER(config, "icca1", 0);
+
+	rs232_network.set_option_machine_config("k573acio_host", [this](device_t *device) {
+		auto &host = *downcast<k573acio_host_device *>(device);
+
+		auto icca1dev = downcast<k573acio_node_device *>(subdevice("icca1"));
+		if (icca1dev != nullptr)
+			host.add_device(icca1dev);
 	});
 }
 
@@ -3028,7 +3070,27 @@ void ksys573_state::drmn4m(machine_config &config)
 	pccard2_npu(config);
 }
 
-void ksys573_state::drmn9m(machine_config &config)
+void ksys573_state::drmn7m(machine_config &config)
+{
+	k573d(config);
+	m_k573dio->output_callback().set(FUNC(ksys573_state::drmn_output_callback));
+
+	casszi(config);
+
+	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
+
+	if (ENABLE_NPU)
+	{
+		pccard2_npu(config);
+		cardreaders_dm(config);
+	}
+	else
+	{
+		msu_local(config);
+	}
+}
+
+void ksys573_state::drmn7m2(machine_config &config)
 {
 	k573d(config);
 	m_k573dio->output_callback().set(FUNC(ksys573_state::drmn_output_callback));
@@ -3038,20 +3100,9 @@ void ksys573_state::drmn9m(machine_config &config)
 	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
 
 	msu_local(config);
-	pccard2_npu(config);
-}
 
-void ksys573_state::drmn10m(machine_config &config)
-{
-	k573d(config);
-	m_k573dio->output_callback().set(FUNC(ksys573_state::drmn_output_callback));
-
-	casszi(config);
-
-	//KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
-
-	msu_local(config);
-	pccard2_npu(config);
+	if (ENABLE_NPU)
+		pccard2_npu(config); // no card readers
 }
 
 // Guitar Freaks
@@ -3108,18 +3159,26 @@ void ksys573_state::gtrfrk7m(machine_config &config)
 	pccard2_npu(config);
 }
 
-void ksys573_state::gtfrk10m(machine_config &config)
+void ksys573_state::gtrfrk8m(machine_config &config)
 {
 	k573d(config);
 	casszi(config);
 	pccard1_32mb(config);
-	msu_remote(config);
 
 	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
-	pccard2_npu(config);
+
+	if (ENABLE_NPU)
+	{
+		pccard2_npu(config);
+		cardreaders_gf(config);
+	}
+	else
+	{
+		msu_remote(config);
+	}
 }
 
-void ksys573_state::gtfrk11m(machine_config &config)
+void ksys573_state::gtrfrk8m2(machine_config &config)
 {
 	k573d(config);
 	casszi(config);
@@ -3127,7 +3186,9 @@ void ksys573_state::gtfrk11m(machine_config &config)
 	msu_remote(config);
 
 	// KONAMI_573_NETWORK_PCB_UNIT(config, "k573npu", 0);
-	pccard2_npu(config);
+
+	if (ENABLE_NPU)
+		pccard2_npu(config); // no card readers
 }
 
 // Miscellaneous
@@ -6826,24 +6887,24 @@ GAME( 2002, ddrmax2,   sys573,   ddr5m,      ddr,       ddr_state,     empty_ini
 GAME( 2002, mrtlbeat,  sys573,   mrtlbeat,   mrtlbeat,  ksys573_state, empty_init,    ROT0,  "Konami", "Martial Beat (G*B47 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.9 */
 GAME( 2002, mrtlbeata, mrtlbeat, mrtlbeat,   mrtlbeat,  ksys573_state, empty_init,    ROT0,  "Konami", "Martial Beat (G*B47 VER. JAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.9 */
 GAME( 2002, gbbchmp,   sys573,   gbbchmp,    hyperbbc,  ksys573_state, init_serlamp,  ROT0,  "Konami", "Great Bishi Bashi Champ (GBA48 VER. JAB)", MACHINE_IMPERFECT_SOUND )
-GAME( 2002, pcnfrk7m,  sys573,   drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 7th Mix (G*C07 VER. AAA)", MACHINE_IMPERFECT_SOUND ) /* BOOT VER 1.95 */
-GAME( 2002, drmn7m,    pcnfrk7m, drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 7th Mix power-up ver. (G*C07 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2002, drmn7ma,   pcnfrk7m, drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 7th Mix (G*C07 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2002, gtrfrk8m,  sys573,   gtrfrk7m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 8th Mix power-up ver. (G*C08 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2002, gtrfrk8ma, gtrfrk8m, gtrfrk7m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 8th Mix (G*C08 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2002, pcnfrk7m,  sys573,   drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 7th Mix (G*C07 VER. AAA)", MACHINE_IMPERFECT_SOUND ) /* BOOT VER 1.95 */
+GAME( 2002, drmn7m,    pcnfrk7m, drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 7th Mix power-up ver. (G*C07 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2002, drmn7ma,   pcnfrk7m, drmn7m2,    drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 7th Mix (G*C07 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2002, gtrfrk8m,  sys573,   gtrfrk8m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 8th Mix power-up ver. (G*C08 VER. JBA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2002, gtrfrk8ma, gtrfrk8m, gtrfrk8m2,  gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 8th Mix (G*C08 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, dsem2,     sys573,   dsem2,      ddr,       ddr_state,     empty_init,    ROT0,  "Konami", "Dancing Stage Euro Mix 2 (G*C23 VER. EAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 GAME( 2002, ddrextrm,  sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "Konami", "Dance Dance Revolution Extreme (G*C36 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2003, pcnfrk8m,  sys573,   drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 8th Mix (G*C38 VER. AAA)", MACHINE_IMPERFECT_SOUND ) /* BOOT VER 1.95 */
-GAME( 2003, drmn8m,    pcnfrk8m, drmn4m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 8th Mix (G*C38 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2003, gtrfrk9m,  sys573,   gtrfrk7m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 9th Mix (G*C39 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2003, pcnfrk9m,  sys573,   drmn9m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 9th Mix (G*D09 VER. AAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2003, drmn9m,    pcnfrk9m, drmn9m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 9th Mix (G*D09 VER. JAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2003, drmn9ma,   pcnfrk9m, drmn9m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 9th Mix (G*D09 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2003, gtfrk10m,  sys573,   gtfrk10m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 10th Mix (G*D10 VER. JAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2003, gtfrk10ma, gtfrk10m, gtfrk10m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 10th Mix (G*D10 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2004, gtfrk11m,  sys573,   gtfrk11m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 11th Mix (G*D39 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2004, pcnfrk10m, sys573,   drmn10m,    drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 10th Mix (G*D40 VER. AAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
-GAME( 2004, drmn10m,   pcnfrk10m,drmn10m,    drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 10th Mix (G*D40 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2003, pcnfrk8m,  sys573,   drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 8th Mix (G*C38 VER. AAA)", MACHINE_IMPERFECT_SOUND ) /* BOOT VER 1.95 */
+GAME( 2003, drmn8m,    pcnfrk8m, drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 8th Mix (G*C38 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2003, gtrfrk9m,  sys573,   gtrfrk8m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 9th Mix (G*C39 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2003, pcnfrk9m,  sys573,   drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 9th Mix (G*D09 VER. AAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2003, drmn9m,    pcnfrk9m, drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 9th Mix (G*D09 VER. JAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2003, drmn9ma,   pcnfrk9m, drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 9th Mix (G*D09 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2003, gtfrk10m,  sys573,   gtrfrk8m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 10th Mix (G*D10 VER. JAB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2003, gtfrk10ma, gtfrk10m, gtrfrk8m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 10th Mix (G*D10 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2004, gtfrk11m,  sys573,   gtrfrk8m,   gtrfrks,   ksys573_state, empty_init,    ROT0,  "Konami", "Guitar Freaks 11th Mix (G*D39 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2004, pcnfrk10m, sys573,   drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "Percussion Freaks 10th Mix (G*D40 VER. AAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
+GAME( 2004, drmn10m,   pcnfrk10m,drmn7m,     drmn,      ksys573_state, empty_init,    ROT0,  "Konami", "DrumMania 10th Mix (G*D40 VER. JAA)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING ) /* BOOT VER 1.95 */
 
 GAME( 2021, ddr5ms,    ddr5m,    ddr5ms,     ddrsolo2,  ksys573_state, empty_init,    ROT0,  "hack",   "Dance Dance Revolution 5th Mix Solo (hack)", MACHINE_IMPERFECT_SOUND )
 GAME( 2018, ddrexpro,  sys573,   ddr5m,      ddr,       ddr_state,     empty_init,    ROT0,  "hack",   "Dance Dance Revolution Extreme Pro (hack, v2)", MACHINE_IMPERFECT_SOUND )

@@ -270,9 +270,14 @@ void konami_573_network_pcb_unit_pccard_device::device_stop()
 
 void konami_573_network_pcb_unit_pccard_device::interface_post_start()
 {
+	harddisk_image_device *hdd = m_npu_hdd;
+
+	if (!m_npu_hdd->exists())
+		hdd = nullptr;
+
 	m_hdd = std::make_unique<konami_573_network_pcb_unit_storage_pythonfs>(
 		FD_MASK_HDD,
-		new konami_573_network_pcb_unit_storage(m_npu_hdd)
+		new konami_573_network_pcb_unit_storage(hdd)
 	);
 
 	m_ramfs = std::make_unique<konami_573_network_pcb_unit_storage_pythonfs>(
