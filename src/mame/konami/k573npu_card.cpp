@@ -23,12 +23,15 @@ Make a new file named k573npu.ini and put it in the same folder as mame.exe with
 # 16 character hex string (0-9a-fA-F)
 # This value also acts as the PCBID sent to server for machine identification.
 # You can scramble your PCBID to match the NPU ID format as shown below (aa, bb, cc, ... groups are 2 hex characters)
-# PCBID format: 0140aaggffeeddccbbhh
-# NPU ID format: aabbccddeeffgghh
-npu_id          1234567890abcdef
+# PCBID format: 014001ggffeeddccbbhh
+# NPU ID format: 01bbccddeeffgghh
+# Fill in xx with your own random hex values
+npu_id          01xxxxxxxxxxxxxx
 
 # MAC address of the network PCB unit
-mac_address     12:34:56:78:9a:bc
+# The first 3 bytes must always be 00:06:79 or it will not accept the MAC address
+# Fill in the xx with your own random hex values
+mac_address     00:06:79:xx:xx:xx
 
 # IP address of the network PCB unit
 ip_address      10.1.1.24
