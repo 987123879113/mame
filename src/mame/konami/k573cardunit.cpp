@@ -199,7 +199,6 @@ std::pair<std::error_condition, std::string> k573cardunit_device::call_load()
 
 std::pair<std::error_condition, std::string> k573cardunit_device::call_create(int format_type, util::option_resolution *format_options)
 {
-	// TODO: Fill in random card ID here
 	uint8_t header[] = {0x08, 0x1f, 0x7d, 0xf0, 0x56};
 
 	std::fill(std::begin(m_card_data), std::end(m_card_data), 0);

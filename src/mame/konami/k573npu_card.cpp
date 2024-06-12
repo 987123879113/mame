@@ -34,11 +34,12 @@ npu_id          01xxxxxxxxxxxxxx
 mac_address     00:06:79:xx:xx:xx
 
 # IP address of the network PCB unit
-ip_address      10.1.1.24
+# This should be the local IP address of your current computer
+ip_address      192.168.1.24
 
 # Point to whatever server has the service URL information configured
-dns_server1     10.1.1.1
-dns_server2     10.1.1.1
+dns_server1     192.168.1.1
+dns_server2     192.168.1.1
 
 # The service URL will become services.<domain_name>
 domain_name     ""
@@ -49,8 +50,25 @@ ntp_server      162.159.200.123
 
 # If you don't know then just copy what is in your network adapter settings (or look at ipconfig/ifconfig output)
 subnet_mask     255.255.255.0
-default_gateway 10.1.1.1
-dhcp_server     10.1.1.1
+default_gateway 192.168.1.1
+dhcp_server     192.168.1.1
+
+
+
+DNS SERVER NOTE:
+If you do not have an easy way to configure a custom DNS entry through your router or some available server,
+you can run your own locally using SimpleDNSServer.py.
+
+https://raw.githubusercontent.com/RockyZ/SimpleDNSServer/master/SimpleDNSServer.py
+
+You can make a text file (named something like "hosts.txt") with the following:
+192.168.1.24 services
+
+Replace "192.168.1.24" with the same IP address as k573npu.ini's ip_address.
+
+Then run: "SimpleDNSServer.py hosts.txt" from a command prompt to start the DNS server.
+With this, you can set k573npu.ini's dns_server1 and dns_server2 to the same IP address as k573npu.ini's ip_address.
+
 
 */
 #include "emu.h"
