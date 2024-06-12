@@ -40,7 +40,7 @@ ip_address      10.1.1.24
 dns_server1     10.1.1.1
 dns_server2     10.1.1.1
 
-# The service URL will become service.<domain_name>
+# The service URL will become services.<domain_name>
 domain_name     ""
 
 # NTP time server, must be able to respond to ICMP pings
