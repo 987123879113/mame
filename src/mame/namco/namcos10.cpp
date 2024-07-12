@@ -1004,10 +1004,21 @@ public:
 
 	void ns10_ippo2(machine_config &config);
 
+	DECLARE_CUSTOM_INPUT_MEMBER(ippo_punchpad_sensor_r);
+	void ippo_punchpad_sensor_w(int state);
+	DECLARE_CUSTOM_INPUT_MEMBER(ippo_safety_sensor_r);
+	void ippo_output_w(uint16_t data);
+
 protected:
 	virtual void machine_reset() override;
 
 private:
+	enum {
+		SENSOR_STATE_DOWN = 1,
+		SENSOR_STATE_MID = 2,
+		SENSOR_STATE_UP = 4,
+	};
+
 	void namcos10_memio_base(machine_config &config);
 	void namcos10_memio_map(address_map &map);
 	void namcos10_memio_map_inner(address_map &map);
@@ -1015,6 +1026,12 @@ private:
 	void namcos10_nand_tc58256aft(machine_config &config, int nand_count);
 
 	void nand_dataxor_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+
+	uint32_t m_last_solenoid_state;
+	attotime m_last_punchpad_update_time;
+
+	uint32_t m_pad_position;
+	uint32_t m_punched;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -3039,11 +3056,18 @@ void namcos10_memio_state::machine_reset()
 {
 	namcos10_memn_state::machine_reset();
 	m_data_xor = 0x5300;
+
+	m_last_solenoid_state = 0;
+	m_last_punchpad_update_time = attotime::never;
+
+	m_pad_position = SENSOR_STATE_DOWN;
+	m_punched = 0;
 }
 
 void namcos10_memio_state::namcos10_memio_map_inner(address_map &map)
 {
 	map(0xf468000, 0xf468001).w(FUNC(namcos10_memio_state::nand_dataxor_w));
+	map(0xf478000, 0xf478001).w(FUNC(namcos10_memio_state::ippo_output_w));
 }
 
 void namcos10_memio_state::namcos10_memio_map(address_map &map)
@@ -3077,6 +3101,73 @@ void namcos10_memio_state::ns10_ippo2(machine_config &config)
 	m_unscrambler = [] (uint16_t data) { return bitswap<16>(data, 0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0); };
 }
 
+void namcos10_memio_state::ippo_output_w(uint16_t data)
+{
+	logerror("%s: ippo_output_w: %04x\n", machine().describe_context(), data);
+
+	const int solenoid_state = BIT(data, 0);
+	if (solenoid_state != m_last_solenoid_state)
+	{
+		if (solenoid_state == 1)
+		{
+			m_last_punchpad_update_time = machine().time();
+			m_punched = 0;
+		}
+
+		m_last_solenoid_state = solenoid_state;
+	}
+}
+
+void namcos10_memio_state::ippo_punchpad_sensor_w(int state)
+{
+	if (state && m_pad_position != SENSOR_STATE_DOWN)
+	{
+		m_last_punchpad_update_time = machine().time();
+		m_punched = state;
+	}
+}
+
+CUSTOM_INPUT_MEMBER(namcos10_memio_state::ippo_punchpad_sensor_r)
+{
+	const attotime since_start = machine().time() - m_last_punchpad_update_time;
+
+	logerror("ippo_punchpad_sensor_r %d %d %d %lf %lf\n", m_last_solenoid_state, m_punched, m_pad_position, m_last_punchpad_update_time.as_double(), since_start.as_double());
+
+	if (m_last_solenoid_state == 1 && (m_punched == 0 || (m_punched == 1 && m_pad_position != SENSOR_STATE_DOWN)))
+	{
+		constexpr attotime MID_DURATION = attotime::from_msec(1000); // guessed
+		constexpr attotime UP_DURATION = attotime::from_msec(3000); // roughly timed based on video of arcade version on Youtube
+
+		if (since_start >= UP_DURATION)
+			m_pad_position = SENSOR_STATE_UP;
+		else if (since_start >= MID_DURATION)
+			m_pad_position = SENSOR_STATE_MID;
+		else
+			m_pad_position = SENSOR_STATE_DOWN;
+	}
+	else if (m_punched && m_pad_position != SENSOR_STATE_DOWN)
+	{
+		constexpr attotime MID_DURATION = attotime::from_msec(50);
+		constexpr attotime DOWN_DURATION = attotime::from_msec(100);
+
+		if (since_start >= DOWN_DURATION)
+		{
+			m_pad_position = SENSOR_STATE_DOWN;
+			m_punched = 0;
+		}
+		else if (since_start >= MID_DURATION)
+			m_pad_position = SENSOR_STATE_MID;
+		else
+			m_pad_position = SENSOR_STATE_UP;
+	}
+
+	return m_pad_position;
+}
+
+CUSTOM_INPUT_MEMBER(namcos10_memio_state::ippo_safety_sensor_r)
+{
+	return m_pad_position == SENSOR_STATE_DOWN;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3457,20 +3548,27 @@ static INPUT_PORTS_START( ippo2 )
 	PORT_INCLUDE(namcos10)
 
 	PORT_MODIFY("IN1")
-	PORT_BIT( 0x1ff33f61, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_BIT( 0x07ff0f61, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_BIT( 0x00008000, IP_ACTIVE_LOW, IPT_SELECT )
 
+	PORT_BIT( 0x20000000, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_IMPULSE(1)
+
 	// TODO: These sensors must match what the game is expecting based on when it's trying to raise the punch pad or else it will throw a speed error
-	PORT_BIT( 0x00000002, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Speed Sensor Down")
-	PORT_BIT( 0x00000004, IP_ACTIVE_HIGH, IPT_BUTTON2 ) PORT_NAME("Speed Sensor Mid")
-	PORT_BIT( 0x00000008, IP_ACTIVE_HIGH, IPT_BUTTON3 ) PORT_NAME("Speed Sensor Up")
+	PORT_BIT( 0x0000000e, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER( namcos10_memio_state, ippo_punchpad_sensor_r )
+	PORT_BIT( 0x00000010, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER( namcos10_memio_state, ippo_safety_sensor_r )
 
-	PORT_BIT( 0x00040000, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_NAME("Human Sensor 1")
-	PORT_BIT( 0x00080000, IP_ACTIVE_LOW, IPT_BUTTON5 ) PORT_NAME("Human Sensor 2")
-	PORT_BIT( 0x00004000, IP_ACTIVE_LOW, IPT_BUTTON6 ) PORT_NAME("Human Sensor 3")
+	// If none of the following sensors are set then the game thinks the player has stepped away from the machine
+	// and gives a warning message telling the player to move closer
+	PORT_BIT( 0x00001000, IP_ACTIVE_HIGH, IPT_BUTTON2 ) PORT_NAME("Human Sensor 1")
+	PORT_BIT( 0x00002000, IP_ACTIVE_HIGH, IPT_BUTTON3 ) PORT_NAME("Human Sensor 2")
+	PORT_BIT( 0x00004000, IP_ACTIVE_HIGH, IPT_BUTTON4 ) PORT_NAME("Human Sensor 3")
 
-	PORT_BIT( 0x00000010, IP_ACTIVE_HIGH, IPT_BUTTON7 ) PORT_NAME("Safety Sensor")
+	PORT_BIT( 0x08000000, IP_ACTIVE_LOW, IPT_TILT )
+
+	PORT_START("SENSOR_IN")
+	PORT_BIT( 0x00000001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_WRITE_LINE_DEVICE_MEMBER( DEVICE_SELF, namcos10_memio_state, ippo_punchpad_sensor_w )
+
 INPUT_PORTS_END
 
 // MEM(M)
