@@ -30,10 +30,12 @@ function maintargetosdoptions(_target,_subtarget)
 			"Xinerama",
 		}
 	else
-		if _OPTIONS["targetos"]=="linux" or _OPTIONS["targetos"]=="netbsd" or _OPTIONS["targetos"]=="openbsd" then
-			links {
-				"EGL",
-			}
+		if _OPTIONS["IS_DDRMINI"]~="1" then
+			if _OPTIONS["targetos"]=="linux" or _OPTIONS["targetos"]=="netbsd" or _OPTIONS["targetos"]=="openbsd" then
+				links {
+					"EGL",
+				}
+			end
 		end
 	end
 
@@ -50,7 +52,7 @@ function maintargetosdoptions(_target,_subtarget)
 		}
 	end
 
-	if BASE_TARGETOS=="unix" and _OPTIONS["targetos"]~="macosx" and _OPTIONS["targetos"]~="android" and _OPTIONS["targetos"]~="asmjs" then
+	if BASE_TARGETOS=="unix" and _OPTIONS["targetos"]~="macosx" and _OPTIONS["targetos"]~="android" and _OPTIONS["targetos"]~="asmjs" and _OPTIONS["IS_DDRMINI"]~="1" then
 		links {
 			"SDL2_ttf",
 		}

@@ -126,7 +126,7 @@ if BASE_TARGETOS=="unix" then
 		buildoptions {
 			backtick(sdlconfigcmd() .. " --cflags"),
 		}
-		if _OPTIONS["targetos"]~="asmjs" then
+		if _OPTIONS["targetos"]~="asmjs" and _OPTIONS["IS_DDRMINI"]~="1" then
 			buildoptions {
 				backtick(pkgconfigcmd() .. " --cflags fontconfig"),
 			}

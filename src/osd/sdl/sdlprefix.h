@@ -73,6 +73,10 @@ struct _IO_FILE {};  //_IO_FILE is an opaque type in the emscripten libc which m
 #define SDLMAME_ANDROID 1
 #endif
 
+#if defined(__DDRMINI__)
+#define SDLMAME_DDRMINI 1
+#endif
+
 // fix for Ubuntu 8.10
 #ifdef _FORTIFY_SOURCE
 #undef _FORTIFY_SOURCE

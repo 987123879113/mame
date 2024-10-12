@@ -427,6 +427,11 @@ newoption {
 	description = "Select projects to be built. Will look into project folder for files.",
 }
 
+newoption {
+	trigger = "IS_DDRMINI",
+	description = "Is building for a DDR classic mini environment.",
+}
+
 dofile ("extlib.lua")
 
 if _OPTIONS["SHLIB"]=="1" then
@@ -569,6 +574,12 @@ configuration { "gmake or ninja" }
 	}
 
 dofile ("toolchain.lua")
+
+if _OPTIONS["IS_DDRMINI"]=="1" then
+	defines {
+		"__DDRMINI__",
+	}
+end
 
 if _OPTIONS["targetos"]=="windows" then
 	configuration { "x64" }

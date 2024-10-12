@@ -250,7 +250,7 @@ void osd_common_t::register_options()
 #endif
 	REGISTER_MODULE(m_mod_man, RENDERER_GDI); // GDI ahead of OpenGL as there's a chance Windows has no OpenGL
 	REGISTER_MODULE(m_mod_man, RENDERER_OPENGL);
-#if !defined(OSD_WINDOWS) && !defined(SDLMAME_WIN32)
+#if !defined(OSD_WINDOWS) && !defined(SDLMAME_WIN32) && !defined(SDLMAME_DDRMINI)
 	REGISTER_MODULE(m_mod_man, RENDERER_BGFX); // try BGFX after OpenGL on other operating systems for now
 #endif
 	REGISTER_MODULE(m_mod_man, RENDERER_SDL2);

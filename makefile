@@ -130,6 +130,21 @@ endif
 ###########################################################################
 
 
+ifdef IS_DDRMINI
+PARAMS += --IS_DDRMINI='$(IS_DDRMINI)'
+USE_LIBSDL=1
+USE_OPENGL=0
+USE_QTDEBUG=0
+NO_USE_PORTAUDIO=1
+NO_USE_PULSEAUDIO=1
+NO_USE_MIDI=1
+NO_X11=1
+NO_USE_XINPUT=1
+NO_USE_XINPUT_WII_LIGHTGUN_HACK=1
+NO_OPENGL=1
+endif
+
+
 ifndef MAKETYPE
 MAKETYPE := gmake
 endif
