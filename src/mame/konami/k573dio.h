@@ -99,6 +99,7 @@ private:
 	void mpeg_frame_identification(int state);
 	void mpeg_sample_data(uint32_t data);
 
+	uint16_t decrypt_common(uint16_t data, uint16_t key);
 	uint16_t decrypt_default(uint16_t data);
 	uint16_t decrypt_ddrsbm(uint16_t data);
 
