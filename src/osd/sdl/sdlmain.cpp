@@ -28,6 +28,9 @@
 
 // only for oslog callback
 #include <functional>
+#include <thread>
+
+#include "cpu/psx/psxthread.h"
 
 #ifdef SDLMAME_UNIX
 #if (!defined(SDLMAME_MACOSX)) && (!defined(SDLMAME_EMSCRIPTEN)) && (!defined(SDLMAME_ANDROID)) && (!defined(SDLMAME_DDRMINI))
@@ -69,6 +72,8 @@ extern "C" DECLSPEC void SDLCALL SDL_SetModuleHandle(void *hInst);
 
 int main(int argc, char** argv)
 {
+	std::thread psxthread([] { psxthread_start(); });
+
 	std::vector<std::string> args = osd_get_command_line(argc, argv);
 	int res = 0;
 
@@ -108,6 +113,9 @@ int main(int argc, char** argv)
 	}
 #endif
 #endif
+
+	psxthread_exit();
+	psxthread.join();
 
 	exit(res);
 }

@@ -38,9 +38,16 @@ public:
 	void dma_write( uint32_t *ram, uint32_t n_address, int32_t n_size );
 	void lightgun_set( int, int );
 
+	void write_internal(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+
 	static constexpr feature_type imperfect_features() { return feature::GRAPHICS; }
 
+	bitmap_rgb32 display_bitmap;
+
+	uint32_t update_screen_internal(bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	uint32_t update_screen(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+
+	void gpu_write_internal( uint32_t *p_ram, int32_t n_size );
 
 protected:
 	static constexpr unsigned MAX_LEVEL = 32;
@@ -297,6 +304,9 @@ private:
 	devcb_write_line m_vblank_handler;
 
 	bool m_twinkle_hacks;
+
+	bool m_update_visible_area;
+	double m_visible_area_refresh;
 
 	void vblank(screen_device &screen, bool vblank_state);
 

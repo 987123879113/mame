@@ -13,6 +13,8 @@
 #include "mdec.h"
 #include "dma.h"
 
+#include "cpu/psx/psxthread.h"
+
 #define LOG_DMA     (1U << 1)
 #define LOG_COMMAND (1U << 2)
 
@@ -411,6 +413,22 @@ void psxmdec_device::mdec_yuv2_to_rgb24( void )
 
 void psxmdec_device::dma_write( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size )
 {
+	psxthread_work *item = (psxthread_work*)calloc(1, sizeof(psxthread_work));
+
+	item->cmd = PSXTHREAD_CMD::PSXMDEC_DMA_WRITE;
+	item->payload = {
+		.psxmdec_dma_write {
+			p_n_psxram,
+			n_address,
+			n_size,
+		}
+	};
+
+	psxthread_addwork(item);
+}
+
+void psxmdec_device::dma_write_internal( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size )
+{
 	int n_index;
 
 	LOGMASKED( LOG_DMA, "mdec0_write( %08x, %08x )\n", n_address, n_size );
@@ -419,9 +437,11 @@ void psxmdec_device::dma_write( uint32_t *p_n_psxram, uint32_t n_address, int32_
 	{
 	case 0x3:
 		LOGMASKED( LOG_COMMAND, "mdec decode %08x %08x %08x\n", n_0_command, n_address, n_size );
+		psxthread_lock();
 		n_0_address = n_address;
 		n_0_size = n_size * 4;
 		n_1_status |= ( 1L << 29 );
+		psxthread_unlock();
 		break;
 	case 0x4:
 		LOGMASKED( LOG_COMMAND, "mdec quantize table %08x %08x %08x\n", n_0_command, n_address, n_size );
@@ -467,6 +487,22 @@ void psxmdec_device::dma_write( uint32_t *p_n_psxram, uint32_t n_address, int32_
 }
 
 void psxmdec_device::dma_read( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size )
+{
+	psxthread_work *item = (psxthread_work*)calloc(1, sizeof(psxthread_work));
+
+	item->cmd = PSXTHREAD_CMD::PSXMDEC_DMA_READ;
+	item->payload = {
+		.psxmdec_dma_read {
+			p_n_psxram,
+			n_address,
+			n_size,
+		}
+	};
+
+	psxthread_addwork(item);
+}
+
+void psxmdec_device::dma_read_internal( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size )
 {
 	uint32_t n_this;
 	uint32_t n_nextaddress;
@@ -527,11 +563,29 @@ void psxmdec_device::dma_read( uint32_t *p_n_psxram, uint32_t n_address, int32_t
 	{
 		osd_printf_debug( "mdec1_read no conversion :%08x:%08x:\n", n_0_command, n_0_size );
 	}
+
+	psxthread_lock();
 	if((int)n_0_size <= 0)
 		n_1_status &= ~( 1L << 29 );
+	psxthread_unlock();
 }
 
 void psxmdec_device::write(offs_t offset, uint32_t data)
+{
+	psxthread_work *item = (psxthread_work*)calloc(1, sizeof(psxthread_work));
+
+	item->cmd = PSXTHREAD_CMD::PSXMDEC_WRITE;
+	item->payload = {
+		.psxmdec_write {
+			offset,
+			data,
+		}
+	};
+
+	psxthread_addwork(item);
+}
+
+void psxmdec_device::write_internal(offs_t offset, uint32_t data)
 {
 	switch( offset )
 	{
@@ -547,6 +601,14 @@ void psxmdec_device::write(offs_t offset, uint32_t data)
 }
 
 uint32_t psxmdec_device::read(offs_t offset)
+{
+	psxthread_lock();
+	auto r = read_internal(offset);
+	psxthread_unlock();
+	return r;
+}
+
+uint32_t psxmdec_device::read_internal(offs_t offset)
 {
 	switch( offset )
 	{

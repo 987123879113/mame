@@ -1633,6 +1633,8 @@ if CPUS["PSX"] then
 	files {
 		MAME_DIR .. "src/devices/cpu/psx/psx.cpp",
 		MAME_DIR .. "src/devices/cpu/psx/psx.h",
+		MAME_DIR .. "src/devices/cpu/psx/psxthread.cpp",
+		MAME_DIR .. "src/devices/cpu/psx/psxthread.h",
 		MAME_DIR .. "src/devices/cpu/psx/psxdefs.h",
 		MAME_DIR .. "src/devices/cpu/psx/gte.cpp",
 		MAME_DIR .. "src/devices/cpu/psx/gte.h",

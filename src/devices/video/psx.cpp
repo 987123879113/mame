@@ -7,10 +7,12 @@
  *
  */
 
+#include "bitmap.h"
 #include "emu.h"
 #include "psx.h"
 
 #include "cpu/psx/psx.h"
+#include "cpu/psx/psxthread.h"
 
 #include "screen.h"
 
@@ -40,6 +42,7 @@ psxgpu_device::psxgpu_device(const machine_config &mconfig, device_type type, co
 	cpu->subdevice<psxdma_device>("dma")->install_read_handler(2, psxdma_device::read_delegate(&psxgpu_device::dma_read, this));
 	cpu->subdevice<psxdma_device>("dma")->install_write_handler(2, psxdma_device::write_delegate(&psxgpu_device::dma_write, this));
 	vblank_callback().set(*cpu->subdevice<psxirq_device>("irq"), FUNC(psxirq_device::intin0));
+	psxthread_set_gpu((void*)this);
 }
 
 psxgpu_device::psxgpu_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock)
@@ -412,14 +415,17 @@ int psxgpu_device::DebugTextureDisplay( bitmap_rgb32 &bitmap )
 
 void psxgpu_device::updatevisiblearea()
 {
-	rectangle visarea;
 	double refresh;
 
-	if( ( n_gpustatus & ( 1 << 0x14 ) ) != 0 )
+	psxthread_lock();
+	auto gpustatus = n_gpustatus;
+	psxthread_unlock();
+
+	if( ( gpustatus & ( 1 << 0x14 ) ) != 0 )
 	{
 		/* pal */
 		refresh = 50; // TODO: it's not exactly 50Hz
-		switch( ( n_gpustatus >> 0x13 ) & 1 )
+		switch( ( gpustatus >> 0x13 ) & 1 )
 		{
 		case 0:
 			n_screenheight = 256;
@@ -434,7 +440,7 @@ void psxgpu_device::updatevisiblearea()
 		/* ntsc */
 		// refresh rate derived from 53.693175MHz
 		// TODO: emulate display timings at lower level
-		switch( ( n_gpustatus >> 0x13 ) & 1 )
+		switch( ( gpustatus >> 0x13 ) & 1 )
 		{
 		case 0:
 			refresh = 59.8260978565;
@@ -446,10 +452,10 @@ void psxgpu_device::updatevisiblearea()
 			break;
 		}
 	}
-	switch( ( n_gpustatus >> 0x11 ) & 3 )
+	switch( ( gpustatus >> 0x11 ) & 3 )
 	{
 	case 0:
-		switch( ( n_gpustatus >> 0x10 ) & 1 )
+		switch( ( gpustatus >> 0x10 ) & 1 )
 		{
 		case 0:
 			n_screenwidth = 256;
@@ -460,7 +466,7 @@ void psxgpu_device::updatevisiblearea()
 		}
 		break;
 	case 1:
-		switch( ( n_gpustatus >> 0x10 ) & 1 )
+		switch( ( gpustatus >> 0x10 ) & 1 )
 		{
 		case 0:
 			n_screenwidth = 320;
@@ -486,8 +492,8 @@ void psxgpu_device::updatevisiblearea()
 	}
 #endif
 
-	visarea.set(0, n_screenwidth - 1, 0, n_screenheight - 1);
-	screen().configure(n_screenwidth, n_screenheight, visarea, HZ_TO_ATTOSECONDS(refresh));
+	m_update_visible_area = true;
+	m_visible_area_refresh = refresh;
 }
 
 void psxgpu_device::psx_gpu_init( int n_gputype )
@@ -501,7 +507,10 @@ void psxgpu_device::psx_gpu_init( int n_gputype )
 	DebugMeshInit();
 #endif
 
+	psxthread_lock();
 	n_gpustatus = 0x14802000;
+	psxthread_unlock();
+
 	n_gpuinfo = 0;
 	n_gpu_buffer_offset = 0;
 	n_lightgun_x = 0;
@@ -649,6 +658,25 @@ void psxgpu_device::device_post_load()
 
 uint32_t psxgpu_device::update_screen(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+	if (m_update_visible_area)
+	{
+		rectangle visarea;
+		visarea.set(0, n_screenwidth - 1, 0, n_screenheight - 1);
+		screen.configure(n_screenwidth, n_screenheight, visarea, HZ_TO_ATTOSECONDS(m_visible_area_refresh));
+		m_update_visible_area = false;
+	}
+
+	psxthread_work *item = (psxthread_work*)calloc(1, sizeof(psxthread_work));
+	item->cmd = PSXTHREAD_CMD::PSXGPU_UPDATE_SCREEN;
+	item->payload.psxgpu_update_screen.bitmap = &bitmap;
+	item->payload.psxgpu_update_screen.cliprect = cliprect;
+	psxthread_addwork(item);
+
+	return 0;
+}
+
+uint32_t psxgpu_device::update_screen_internal(bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
 	uint32_t n_x;
 	uint32_t n_y;
 	int n_top;
@@ -672,7 +700,11 @@ uint32_t psxgpu_device::update_screen(screen_device &screen, bitmap_rgb32 &bitma
 	}
 #endif
 
-	if( ( n_gpustatus & ( 1 << 0x17 ) ) != 0 )
+	psxthread_lock();
+	auto gpustatus = n_gpustatus;
+	psxthread_unlock();
+
+	if( ( gpustatus & ( 1 << 0x17 ) ) != 0 )
 	{
 		/* todo: only draw to necessary area */
 		bitmap.fill(0, cliprect);
@@ -690,7 +722,7 @@ uint32_t psxgpu_device::update_screen(screen_device &screen, bitmap_rgb32 &bitma
 			n_displaystartx = m_n_displaystartx;
 		}
 
-		if( ( n_gpustatus & ( 1 << 0x14 ) ) != 0 )
+		if( ( gpustatus & ( 1 << 0x14 ) ) != 0 )
 		{
 			/* pal */
 			n_overscantop = 0x23;
@@ -718,7 +750,7 @@ uint32_t psxgpu_device::update_screen(screen_device &screen, bitmap_rgb32 &bitma
 			rectangle clip(cliprect.left(), cliprect.right(), cliprect.top(), n_top);
 			bitmap.fill(0, clip);
 		}
-		if( ( n_gpustatus & ( 1 << 0x16 ) ) != 0 )
+		if( ( gpustatus & ( 1 << 0x16 ) ) != 0 )
 		{
 			/* interlaced */
 			n_lines *= 2;
@@ -768,7 +800,7 @@ uint32_t psxgpu_device::update_screen(screen_device &screen, bitmap_rgb32 &bitma
 			bitmap.fill(0, clip);
 		}
 
-		if( ( n_gpustatus & ( 1 << 0x15 ) ) != 0 )
+		if( ( gpustatus & ( 1 << 0x15 ) ) != 0 )
 		{
 			/* 24bit */
 			n_line = n_lines;
@@ -808,6 +840,7 @@ uint32_t psxgpu_device::update_screen(screen_device &screen, bitmap_rgb32 &bitma
 			}
 		}
 	}
+
 	return 0;
 }
 
@@ -838,7 +871,9 @@ void psxgpu_device::decode_tpage( uint32_t tpage )
 {
 	if( m_n_gputype == 2 )
 	{
+		psxthread_lock();
 		n_gpustatus = ( n_gpustatus & 0xffff7800 ) | ( tpage & 0x7ff ) | ( ( tpage & 0x800 ) << 4 );
+		psxthread_unlock();
 
 		m_n_tx = ( tpage & 0x0f ) << 6;
 		m_n_ty = ( ( tpage & 0x10 ) << 4 ) | ( ( tpage & 0x800 ) >> 2 );
@@ -859,7 +894,9 @@ void psxgpu_device::decode_tpage( uint32_t tpage )
 	else
 	{
 		// TODO: confirm status bits on real type 1 gpu
+		psxthread_lock();
 		n_gpustatus = ( n_gpustatus & 0xffffe000 ) | ( tpage & 0x1fff );
+		psxthread_unlock();
 
 		m_n_tx = ( tpage & 0x0f ) << 6;
 		m_n_ty = ( ( tpage & 0x60 ) << 3 );
@@ -2761,10 +2798,27 @@ void psxgpu_device::MoveImage()
 
 void psxgpu_device::dma_write( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size )
 {
-	gpu_write( &p_n_psxram[ n_address / 4 ], n_size );
+	psxthread_work *item = (psxthread_work*)calloc(1, sizeof(psxthread_work));
+	uint32_t *buf = (uint32_t*)calloc(n_size, sizeof(uint32_t));
+	std::copy_n(&p_n_psxram[n_address/4], n_size, buf);
+
+	item->cmd = PSXTHREAD_CMD::PSXGPU_DMA_WRITE;
+	item->payload = {
+		.psxgpu_dma_write {
+			buf,
+			n_size,
+		}
+	};
+
+	psxthread_addwork(item);
 }
 
 void psxgpu_device::gpu_write( uint32_t *p_ram, int32_t n_size )
+{
+	gpu_write_internal(p_ram, n_size);
+}
+
+void psxgpu_device::gpu_write_internal( uint32_t *p_ram, int32_t n_size )
 {
 	while( n_size > 0 )
 	{
@@ -3191,7 +3245,9 @@ void psxgpu_device::gpu_write( uint32_t *p_ram, int32_t n_size )
 			else
 			{
 				LOGMASKED(LOG_WRITE, "%s: %02x: copy image from frame buffer\n", machine().describe_context(), m_packet.n_entry[ 0 ] >> 24);
+				psxthread_lock();
 				n_gpustatus |= ( 1L << 0x1b );
+				psxthread_unlock();
 			}
 			break;
 		case 0xe1:
@@ -3250,8 +3306,10 @@ void psxgpu_device::gpu_write( uint32_t *p_ram, int32_t n_size )
 			m_draw_stp = BIT( data, 0 );
 			m_check_stp = BIT( data, 1 );
 			// TODO: confirm status bits on real type 1 gpu
+			psxthread_lock();
 			n_gpustatus &= ~( 3L << 0xb );
 			n_gpustatus |= ( data & 0x03 ) << 0xb;
+			psxthread_unlock();
 			LOGMASKED(LOG_WRITE, "%s: mask setting %d\n", machine().describe_context(), m_packet.n_entry[ 0 ] & 3);
 			break;
 		default:
@@ -3271,10 +3329,26 @@ void psxgpu_device::gpu_write( uint32_t *p_ram, int32_t n_size )
 
 void psxgpu_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
+	psxthread_work *item = (psxthread_work*)calloc(1, sizeof(psxthread_work));
+
+	item->cmd = PSXTHREAD_CMD::PSXGPU_WRITE;
+	item->payload = {
+		.psxgpu_write {
+			offset,
+			data,
+			mem_mask,
+		}
+	};
+
+	psxthread_addwork(item);
+}
+
+void psxgpu_device::write_internal(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
 	switch( offset )
 	{
 	case 0x00:
-		gpu_write( &data, 1 );
+		gpu_write_internal( &data, 1 );
 		break;
 	case 0x01:
 		switch( data >> 24 )
@@ -3291,11 +3365,15 @@ void psxgpu_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			LOGMASKED(LOG_WRITE, "%s: not handled: reset irq\n", machine().describe_context());
 			break;
 		case 0x03:
+			psxthread_lock();
 			n_gpustatus &= ~( 1L << 0x17 );
 			n_gpustatus |= ( data & 0x01 ) << 0x17;
+			psxthread_unlock();
 			break;
 		case 0x04:
 			LOGMASKED(LOG_WRITE, "%s: dma setup %d\n", machine().describe_context(), data & 3);
+
+			psxthread_lock();
 			n_gpustatus &= ~( 3L << 0x1d );
 			n_gpustatus |= ( data & 0x03 ) << 0x1d;
 			n_gpustatus &= ~( 1L << 0x19 );
@@ -3303,6 +3381,7 @@ void psxgpu_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			{
 				n_gpustatus |= ( 1L << 0x19 );
 			}
+			psxthread_unlock();
 			break;
 		case 0x05:
 			m_n_displaystartx = data & 1023;
@@ -3328,9 +3407,11 @@ void psxgpu_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 			break;
 		case 0x08:
 			LOGMASKED(LOG_WRITE, "%s: display mode %02x\n", machine().describe_context(), data & 0xff);
+			psxthread_lock();
 			n_gpustatus &= ~( 127L << 0x10 );
 			n_gpustatus |= ( data & 0x3f ) << 0x11; /* width 0 + height + videmode + isrgb24 + isinter */
 			n_gpustatus |= ( ( data & 0x40 ) >> 0x06 ) << 0x10; /* width 1 */
+			psxthread_unlock();
 			if( m_n_gputype == 1 )
 			{
 				b_reverseflag = ( data >> 7 ) & 1;
@@ -3412,9 +3493,11 @@ void psxgpu_device::write(offs_t offset, uint32_t data, uint32_t mem_mask)
 	}
 }
 
-
 void psxgpu_device::dma_read( uint32_t *p_n_psxram, uint32_t n_address, int32_t n_size )
 {
+	psxthread_lock();
+	psxthread_unlock();
+
 	gpu_read( &p_n_psxram[ n_address / 4 ], n_size );
 }
 
@@ -3422,7 +3505,9 @@ void psxgpu_device::gpu_read( uint32_t *p_ram, int32_t n_size )
 {
 	while( n_size > 0 )
 	{
-		if( ( n_gpustatus & ( 1L << 0x1b ) ) != 0 )
+		auto gpustatus = n_gpustatus;
+
+		if( ( gpustatus & ( 1L << 0x1b ) ) != 0 )
 		{
 			PAIR data;
 
@@ -3440,7 +3525,9 @@ void psxgpu_device::gpu_read( uint32_t *p_ram, int32_t n_size )
 					if( n_vramy >= ( m_packet.n_entry[ 2 ] >> 16 ) )
 					{
 						LOGMASKED(LOG_READ, "%s: copy image from frame buffer end\n", machine().describe_context());
+						psxthread_lock();
 						n_gpustatus &= ~( 1L << 0x1b );
+						psxthread_unlock();
 						n_gpu_buffer_offset = 0;
 						n_vramx = 0;
 						n_vramy = 0;
@@ -3475,7 +3562,9 @@ uint32_t psxgpu_device::read(offs_t offset, uint32_t mem_mask)
 		gpu_read( &data, 1 );
 		break;
 	case 0x01:
+		psxthread_lock();
 		data = n_gpustatus;
+		psxthread_unlock();
 		LOGMASKED(LOG_READ, "%s: read GPU status (%08x)\n", machine().describe_context(), data);
 		break;
 	default:
@@ -3493,8 +3582,10 @@ void psxgpu_device::vblank(screen_device &screen, bool vblank_state)
 #if PSXGPU_DEBUG_VIEWER
 		DebugCheckKeys();
 #endif
-
+		psxthread_lock();
 		n_gpustatus ^= ( 1L << 31 );
+		psxthread_unlock();
+
 		m_vblank_handler(1);
 	}
 }
@@ -3502,7 +3593,9 @@ void psxgpu_device::vblank(screen_device &screen, bool vblank_state)
 void psxgpu_device::gpu_reset()
 {
 	n_gpu_buffer_offset = 0;
+	psxthread_lock();
 	n_gpustatus = 0x14802000;
+	psxthread_unlock();
 	n_drawarea_x1 = 0;
 	n_drawarea_y1 = 0;
 	n_drawarea_x2 = 1023;

@@ -73,6 +73,8 @@
 
 #include "psxdefs.h"
 
+#include "psxthread.h"
+
 #define LOG_BIOSCALL ( 0 )
 
 #define EXC_INT ( 0 )
@@ -3465,4 +3467,6 @@ void psxcpu_device::device_add_mconfig(machine_config &config)
 	sio1.irq_handler().set("irq", FUNC(psxirq_device::intin8));
 
 	RAM(config, "ram").set_default_value(0x00);
+
+	psxthread_set_mdec((void*)&mdec);
 }

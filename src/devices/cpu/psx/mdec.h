@@ -23,8 +23,14 @@ public:
 	void write(offs_t offset, uint32_t data);
 	uint32_t read(offs_t offset);
 
+	void write_internal(offs_t offset, uint32_t data);
+	uint32_t read_internal(offs_t offset);
+
 	void dma_write( uint32_t *ram, uint32_t n_address, int32_t n_size );
+	void dma_write_internal( uint32_t *ram, uint32_t n_address, int32_t n_size );
+
 	void dma_read( uint32_t *ram, uint32_t n_address, int32_t n_size );
+	void dma_read_internal( uint32_t *ram, uint32_t n_address, int32_t n_size );
 
 protected:
 	virtual void device_start() override ATTR_COLD;
