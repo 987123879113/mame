@@ -1,9 +1,11 @@
 // license:BSD-3-Clause
 // copyright-holders:smf
+#include "coreutil.h"
 #include "emu.h"
 #include "t10mmc.h"
 
 #include "multibyte.h"
+
 
 static int32_t to_msf_raw(int32_t frame)
 {
@@ -265,6 +267,10 @@ void t10mmc::ExecCommand()
 			break;
 		}
 
+		case TOC_FORMAT_CDTEXT:
+			length = 4;
+			break;
+
 		default:
 			m_device->logerror("T10MMC: Unhandled READ TOC format %d\n", toc_format());
 			length = 0;
@@ -357,7 +363,7 @@ void t10mmc::ExecCommand()
 
 		// note: BeOS's CD player sends the start MSF + a large end MSF (99:59:71) when a scan is ended and it wants to resume playback
 		m_lba = to_lba(msf_start);
-		m_blocks = cdrom_file::msf_to_lba(msf_end - msf_start);
+		m_blocks = cdrom_file::msf_to_lba(msf_end - msf_start); // TODO: -150?
 
 		if (m_lba == 0)
 		{
@@ -610,9 +616,6 @@ void t10mmc::ExecCommand()
 
 		// m_device->logerror("T10MMC: READ CD start_lba[%08x] block_len[%06x] %02x %02x %02x %02x\n", m_lba, m_blocks, command[1], command[9], command[10], command[11]);
 
-		if (command[10] != 0)
-			m_device->logerror("T10MMC: READ CD requested sub-channel data which is not implemented %02x\n", command[10]);
-
 		const int expected_sector_type = BIT(command[1], 2, 3);
 		int last_track_type = -1;
 		uint8_t last_read_cd_flags = 0;
@@ -622,8 +625,8 @@ void t10mmc::ExecCommand()
 			auto track_type = m_image->get_track_type(trk);
 
 			// If there's a transition between CD data and CD audio anywhere in the requested range then return an error
-			if ((last_track_type == cdrom_file::CD_TRACK_AUDIO && track_type != cdrom_file::CD_TRACK_AUDIO)
-			|| (last_track_type != cdrom_file::CD_TRACK_AUDIO && track_type == cdrom_file::CD_TRACK_AUDIO))
+			if (last_track_type != -1 && ((last_track_type == cdrom_file::CD_TRACK_AUDIO && track_type != cdrom_file::CD_TRACK_AUDIO)
+			|| (last_track_type != cdrom_file::CD_TRACK_AUDIO && track_type == cdrom_file::CD_TRACK_AUDIO)))
 			{
 				set_sense(SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_SENSE_ASC_ASCQ_ILLEGAL_MODE_FOR_THIS_TRACK);
 
@@ -752,6 +755,23 @@ void t10mmc::ExecCommand()
 
 			if (requested_c2_error_block)
 				m_transfer_length += 2;
+
+			switch (command[10] & 7)
+			{
+				case 1: // RAW P-W
+					m_transfer_length += 96;
+					break;
+				case 2: // Formatted Q
+					m_transfer_length += 16;
+					break;
+				case 4: // Corrected and de-interlaced R-W
+					if (track_type == cdrom_file::CD_TRACK_AUDIO)
+					{
+						m_transfer_length += 96;
+						// m_device->logerror("T10MMC: READ CD requested sub-channel data type (corrected and de-interlaced R-W) is not implemented\n");
+					}
+					break;
+			}
 
 			if (track_type == cdrom_file::CD_TRACK_AUDIO)
 			{
@@ -1150,6 +1170,38 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					data_idx += 2;
 				}
 
+				switch (command[10] & 7)
+				{
+					case 1: // RAW P-W
+						m_image->read_subcode(m_lba, data + data_idx);
+						data_idx += 96;
+						break;
+					case 2: // Formatted Q
+					{
+						uint8_t pbuf[12];
+						m_image->read_subcode_channel_raw(m_lba, pbuf, cdrom_file::SUBCODE_CHAN_P);
+
+						m_image->read_subcode_channel_raw(m_lba, data + data_idx, cdrom_file::SUBCODE_CHAN_Q);
+						data_idx += 12;
+
+						memset(data + data_idx, 0, 3);
+						data_idx += 3;
+
+						// MAME doesn't really offer enough control to know what frame within the sector is being read
+						// so just return the first bit of the P subchannel
+						data[data_idx++] = (pbuf[0] & 1) << 7; // optional, only if p sub-channel reporting is supported
+						break;
+					}
+					case 4: // Corrected and de-interlaced R-W
+						if (track_type == cdrom_file::CD_TRACK_AUDIO)
+						{
+							m_device->logerror("T10MMC: READ CD requested sub-channel data type (corrected and de-interlaced R-W) is not implemented\n");
+							m_image->read_subcode(m_lba, data + data_idx, false, true);
+							data_idx += 96;
+						}
+						break;
+				}
+
 				m_lba++;
 				m_blocks--;
 
@@ -1162,53 +1214,57 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 		break;
 
 	case T10MMC_CMD_READ_SUB_CHANNEL:
-		switch (command[3])
+	{
+		enum {
+			FlagTime = 1 << 1,
+			FlagSubq = 1 << 6,
+		};
+
+		const bool msf = (command[1] & FlagTime) != 0;
+		m_device->logerror("T10MMC: READ SUB-CHANNEL Time = %x, SUBQ = %x, LBA = %d)\n", msf, command[2], m_last_lba);
+
+		if (!m_image)
+			return;
+
+		data[0] = 0;
+
+		const int audio_active = m_cdda->audio_active();
+		if (audio_active)
 		{
-			case 1: // return current position
+			// if audio is playing, get the latest LBA from the CDROM layer
+			m_last_lba = m_cdda->get_audio_lba();
+			if (m_cdda->audio_paused())
 			{
-				if (!m_image)
-				{
-					return;
-				}
+				data[1] = 0x12; // audio is paused
+			}
+			else
+			{
+				data[1] = 0x11; // audio in progress
+			}
+		}
+		else
+		{
+			m_last_lba = 0;
+			if (m_cdda->audio_ended())
+			{
+				data[1] = 0x13; // ended successfully
+			}
+			else
+			{
+				// data[1] = 0x14; // stopped due to error
+				data[1] = 0x15; // No current audio status to return
+			}
+		}
 
-				bool msf = (command[1] & 0x2) != 0;
+		uint16_t datalen = 0;
 
-				data[0]= 0x00;
-
-				const int audio_active = m_cdda->audio_active();
-				if (audio_active)
-				{
-					// if audio is playing, get the latest LBA from the CDROM layer
-					m_last_lba = m_cdda->get_audio_lba();
-					if (m_cdda->audio_paused())
-					{
-						data[1] = 0x12;     // audio is paused
-					}
-					else
-					{
-						data[1] = 0x11;     // audio in progress
-					}
-				}
-				else
-				{
-					m_last_lba = 0;
-					if (m_cdda->audio_ended())
-					{
-						data[1] = 0x13; // ended successfully
-					}
-					else
-					{
-//                          data[1] = 0x14;    // stopped due to error
-						data[1] = 0x15; // No current audio status to return
-					}
-				}
-
-				m_device->logerror("T10MMC: READ SUB-CHANNEL Time = %x, SUBQ = %x, LBA = %d)\n", msf, command[2], m_last_lba);
-
-				if (command[2] & 0x40)
+		if (command[2] & FlagSubq)
+		{
+			switch (command[3])
+			{
+				case 1: // CD current position
 				{
 					int track = m_image->get_track(m_last_lba);
-
 					data[2] = 0;
 					data[3] = 12; // data length
 					data[4] = 0x01; // sub-channel format code
@@ -1234,21 +1290,139 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					}
 
 					put_u32be(&data[12], frame);
-				}
-				else
-				{
-					data[2] = 0;
-					data[3] = 0;
-				}
-				break;
-			}
 
-			default:
-				m_device->logerror("T10MMC: Unknown subchannel type %d requested\n", command[3]);
-				std::fill_n(data, dataLength, 0);
-				break;
+
+					printf("Old sub q: ");
+					for (int i = 0; i < 12; i++)
+						printf("%02x ", data[4 + i]);
+					printf("\n");
+
+
+
+					uint32_t target_lba = m_last_lba;
+
+					// 9 out of 10 successive frames must contain mode 1, so just search for the next mode 1 and adjust the aframe
+					while ((m_image->get_adr_control_frame(target_lba) & (cdrom_file::CD_FLAG_ADR_START_TIME << 4)) == 0)
+						target_lba++;
+
+					uint32_t amsftime = m_image->get_absolute_msf(m_last_lba);
+					uint32_t msftime = m_image->get_relative_msf(m_last_lba);
+					if (!msf)
+					{
+						amsftime = cdrom_file::msf_to_lba(amsftime);
+						msftime = cdrom_file::msf_to_lba(msftime);
+					}
+
+					data[4 + datalen] = 0x01; // sub-channel format code
+					data[5 + datalen] = m_image->get_adr_control_frame(target_lba);
+					data[6 + datalen] = m_image->get_track(target_lba) + 1;
+					data[7 + datalen] = m_image->get_track_index(target_lba);
+					datalen += 4;
+
+					put_u32be(&data[4 + datalen], amsftime);
+					datalen += 4;
+
+					put_u32be(&data[4 + datalen], msftime);
+					datalen += 4;
+
+					printf("New sub q: ");
+					for (int i = 0; i < 12; i++)
+						printf("%02x ", data[4 + i]);
+					printf("\n");
+
+					break;
+				}
+
+				case 2: // Media Catalog number (UPC/bar code)
+				{
+					const int start = m_image->get_track_start(m_image->get_track(m_last_lba));
+					const int end = m_image->get_track_start(m_image->get_track(m_last_lba) + 1);
+
+					data[4 + datalen] = 0x02; // sub-channel format code
+					data[5 + datalen] = 0; // reserved
+					data[6 + datalen] = 0; // reserved
+					data[7 + datalen] = 0; // reserved
+					datalen += 4;
+
+					std::fill_n(&data[4 + datalen], 15, 0);
+					std::fill_n(&data[4 + datalen + 1], 13, '0');
+
+					for (int lba = start; lba < end; lba++)
+					{
+						uint8_t subbuf[12];
+						m_image->read_subcode_channel_raw(lba, subbuf, cdrom_file::SUBCODE_CHAN_Q);
+
+						if ((subbuf[0] & 0xf) == 2)
+						{
+							// Found subchannel
+							data[4 + datalen] |= 0x80; // MCVAL, found media catalog number data
+							datalen++;
+
+							cdrom_file::mcn2ascii(&subbuf[1], reinterpret_cast<char*>(&data[4 + datalen]));
+							datalen += 13;
+
+							data[4 + datalen] = 0; // zero
+							data[5 + datalen] = subbuf[9]; // aframe
+							datalen += 2;
+
+							break;
+						}
+					}
+
+					break;
+				}
+
+				case 3: // Track International standard recording code (ISRC)
+				{
+					const int track = m_image->get_track(m_last_lba);
+					const int adrctrl = m_image->get_adr_control_frame(m_last_lba);
+					const int start = m_image->get_track_start(track);
+					const int end = m_image->get_track_start(m_image->get_track(m_last_lba) + 1);
+
+					data[4 + datalen] = 0x03; // sub-channel format code
+					data[5 + datalen] = adrctrl;
+					data[6 + datalen] = track + 1;
+					data[7 + datalen] = 0; // reserved
+					datalen += 4;
+
+					std::fill_n(&data[4 + datalen], 15, 0);
+
+					for (int lba = start; lba < end; lba++)
+					{
+						uint8_t subbuf[12];
+						m_image->read_subcode_channel_raw(lba, subbuf, cdrom_file::SUBCODE_CHAN_Q);
+
+						if ((subbuf[0] & 0xf) == 3)
+						{
+							// Found subchannel
+							data[4 + datalen] |= 0x80; // TCVAL, found ISRC data
+							datalen++;
+
+							cdrom_file::isrc2ascii(&subbuf[1], reinterpret_cast<char*>(&data[4 + datalen]));
+							datalen += 12;
+
+							data[4 + datalen] = 0; // zero
+							data[5 + datalen] = subbuf[9]; // aframe
+							data[6 + datalen] = 0; // reserved
+							datalen += 3;
+
+							break;
+						}
+					}
+
+					break;
+				}
+
+				default:
+					m_device->logerror("T10MMC: Unknown subchannel type %d requested\n", command[3]);
+					break;
+			}
 		}
+
+		put_u16be(&data[2], datalen);
+
 		break;
+	}
 
 	case T10MMC_CMD_READ_TOC_PMA_ATIP:
 		/*
@@ -1297,19 +1471,19 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 							break;
 						}
 
+						int32_t tstart = m_image->get_track_start(cdrom_track);
+
 						data[dptr++] = 0;
-						data[dptr++] = m_image->get_adr_control(cdrom_track);
+						data[dptr++] = m_image->get_adr_control_frame(tstart);
 						data[dptr++] = track;
 						data[dptr++] = 0;
 
-						uint32_t tstart = m_image->get_track_start(cdrom_track);
+						uint32_t amsftime = m_image->get_absolute_msf(tstart);
 
-						if (msf)
-						{
-							tstart = to_msf(tstart);
-						}
+						if (!msf)
+							amsftime = cdrom_file::msf_to_lba(amsftime);
 
-						put_u32be(&data[dptr], tstart);
+						put_u32be(&data[dptr], amsftime);
 						dptr += 4;
 					}
 				}
@@ -1336,19 +1510,17 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					data[dptr++] = 1;
 					data[dptr++] = last_session;
 
+					uint32_t tstart = m_image->get_track_start(first_track_last_session);
 					data[dptr++] = 0;
-					data[dptr++] = m_image->get_adr_control(first_track_last_session);
+					data[dptr++] = m_image->get_adr_control_frame(tstart);
 					data[dptr++] = first_track_last_session + 1; // First Track Number In Last Complete Session
 					data[dptr++] = 0;
 
-					uint32_t tstart = m_image->get_track_start(first_track_last_session);
+					uint32_t amsftime = m_image->get_absolute_msf(tstart);
+					if (!msf)
+						amsftime = cdrom_file::msf_to_lba(amsftime);
 
-					if (msf)
-					{
-						tstart = to_msf(tstart);
-					}
-
-					put_u32be(&data[dptr], tstart); // Start Address of First Track in Last Session
+					put_u32be(&data[dptr], amsftime); // Start Address of First Track in Last Session
 					dptr += 4;
 				}
 				break;
@@ -1381,7 +1553,7 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 
 					// point 0xa0, first track number in session
 					data[dptr++] = toc.tracks[cur_track].session + 1;
-					data[dptr++] = m_image->get_adr_control(cur_track);
+					data[dptr++] = m_image->get_adr_control_frame(m_image->get_track_start(cur_track));
 					data[dptr++] = 0;
 					data[dptr++] = 0xa0;
 					put_u24be(&data[dptr], 0);
@@ -1393,7 +1565,7 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 
 					// point 0xa1, last track number in session
 					data[dptr++] = toc.tracks[cur_track].session + 1;
-					data[dptr++] = m_image->get_adr_control(last_track_in_session);
+					data[dptr++] = m_image->get_adr_control_frame(m_image->get_track_start(last_track_in_session));
 					data[dptr++] = 0;
 					data[dptr++] = 0xa1;
 					put_u24be(&data[dptr], 0);
@@ -1409,7 +1581,7 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 						leadout_addr -= toc.tracks[last_track_in_session].pregap; // pregap is already included in frame count if pgdatasize is set
 
 					data[dptr++] = toc.tracks[cur_track].session + 1;
-					data[dptr++] = m_image->get_adr_control(last_track_in_session);
+					data[dptr++] = m_image->get_adr_control_frame(m_image->get_track_start(last_track_in_session));
 					data[dptr++] = 0;
 					data[dptr++] = 0xa2;
 					put_u24be(&data[dptr], 0);
@@ -1421,7 +1593,7 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 					while (cur_track < tracks && toc.tracks[cur_track].session == cur_session)
 					{
 						data[dptr++] = toc.tracks[cur_track].session + 1;
-						data[dptr++] = m_image->get_adr_control(cur_track);
+						data[dptr++] = m_image->get_adr_control_frame(m_image->get_track_start(cur_track));
 						data[dptr++] = 0;
 						data[dptr++] = cur_track + 1;
 						put_u24be(&data[dptr], 0);
@@ -1440,7 +1612,7 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 
 						// point 0xb0, info about next session
 						data[dptr++] = cur_session + 1;
-						data[dptr++] = (m_image->get_adr_control(cur_track - 1) & 0x0f) | 0x50;
+						data[dptr++] = (m_image->get_adr_control_frame(m_image->get_track_start(cur_track - 1)) & 0x0f) | 0x50;
 						data[dptr++] = 0;
 						data[dptr++] = 0xb0;
 						put_u24be(&data[dptr], to_msf(next_session_program_area)); // start time for the next possible session's program area
@@ -1451,7 +1623,7 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 
 						// point 0xc0, start time of first lead-in of the disc
 						data[dptr++] = cur_session + 1;
-						data[dptr++] = (m_image->get_adr_control(0) & 0x0f) | 0x50;
+						data[dptr++] = (m_image->get_adr_control_frame(m_image->get_track_start(0)) & 0x0f) | 0x50;
 						data[dptr++] = 0;
 						data[dptr++] = 0xc0;
 						put_u24be(&data[dptr], 0);
@@ -1466,6 +1638,9 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 				break;
 			}
 
+			case TOC_FORMAT_PMA:
+			case TOC_FORMAT_ATIP:
+			case TOC_FORMAT_CDTEXT:
 			default:
 				m_device->logerror("T10MMC: Unhandled READ TOC format %d\n", toc_format());
 				std::fill_n(data, dataLength, 0);
@@ -1516,12 +1691,26 @@ void t10mmc::ReadData( uint8_t *data, int dataLength )
 			{ // Page capabilities
 					data[ptr++] = 0x2a;
 					data[ptr++] = 0x14; // page length
-					data[ptr++] = 0x00;
-					data[ptr++] = 0x00; // CD-R only
-					data[ptr++] = 0x01; // can play audio
+
+					// data[ptr++] = 0x00;
+					// data[ptr++] = 0x00; // CD-R only
+					// data[ptr++] = 0x01; // can play audio
+					// data[ptr++] = 0;
+
+					data[ptr++] = 0x03; // CD-R/CD-RW read
+					data[ptr++] = 0x00; // No writing capabilities
+					data[ptr++] = 0x01 // can play audio
+						| (1 << 4) // mode 2 form 1 support
+						| (1 << 5) // mode 2 form 2 support
+						| (1 << 6); // multisession support
+					data[ptr++] = (1 << 0) // CD-DA commands supported
+						| (1 << 2) // R-W supported
+						| (1 << 3) // R-W deinterleaved & corrected supported
+						| (1 << 5) // ISRC in subchannel
+						| (1 << 6); // UPC in subchannel
+
 					data[ptr++] = 0;
-					data[ptr++] = 0;
-					data[ptr++] = 0;
+					data[ptr++] = 0; // (1 << 5) // R-W in lead in
 					data[ptr++] = 0x02;
 					data[ptr++] = 0xc0; // 4x speed
 					data[ptr++] = 0x01;

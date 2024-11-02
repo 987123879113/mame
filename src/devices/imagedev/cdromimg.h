@@ -63,11 +63,16 @@ public:
 	uint32_t get_track(uint32_t frame) const;
 	uint32_t get_track_index(uint32_t frame) const;
 	uint32_t get_track_start(uint32_t track) const;
+	uint32_t get_adr_control_frame(uint32_t frame) const;
 	bool read_data(uint32_t lbasector, void *buffer, uint32_t datatype, bool phys=false);
-	bool read_subcode(uint32_t lbasector, void *buffer, bool phys=false);
+	bool read_subcode(uint32_t lbasector, void *buffer, bool phys=false, bool uninterlaced=false);
+	bool read_subcode_channel_raw(uint32_t lbasector, void *buffer, uint32_t subchan);
 	int get_adr_control(int track) const;
 	const cdrom_file::toc &get_toc() const;
 	int get_track_type(int track) const;
+
+	uint32_t get_absolute_msf(uint32_t frame) const;
+	uint32_t get_relative_msf(uint32_t frame) const;
 
 	bool is_cd() const;
 	bool is_gd() const;

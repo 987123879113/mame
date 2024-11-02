@@ -80,6 +80,17 @@ public:
 		CD_FLAG_ADR_ISRC_CODE,
 	};
 
+	enum {
+		SUBCODE_CHAN_P = 0,
+		SUBCODE_CHAN_Q,
+		SUBCODE_CHAN_R,
+		SUBCODE_CHAN_S,
+		SUBCODE_CHAN_T,
+		SUBCODE_CHAN_U,
+		SUBCODE_CHAN_V,
+		SUBCODE_CHAN_W,
+	};
+
 	struct track_info
 	{
 		/* fields used by CHDMAN and in MAME */
@@ -110,11 +121,17 @@ public:
 
 		/* fields used in multi-cue GDI */
 		uint32_t multicuearea;
+
+		char isrc[13];
 	};
 
 
 	struct toc
 	{
+		bool has_pregap_cap;
+
+		char catalog[14];
+
 		uint32_t numtrks;     /* number of tracks */
 		uint32_t numsessions; /* number of sessions */
 		uint32_t flags;       /* see FLAG_ above */
@@ -148,13 +165,18 @@ public:
 
 	/* core read access */
 	bool read_data(uint32_t lbasector, void *buffer, uint32_t datatype, bool phys=false);
-	bool read_subcode(uint32_t lbasector, void *buffer, bool phys=false);
+	bool read_subcode(uint32_t lbasector, void *buffer, bool phys=false, bool uninterlaced=false, bool force_fake=false);
+	bool read_subcode_channel_raw(uint32_t lbasector, void *buffer, uint32_t subchan);
 
 	/* handy utilities */
-	uint32_t get_track(uint32_t frame) const;
+	uint32_t get_track(uint32_t frame);
 	uint32_t get_track_start(uint32_t track) const {return cdtoc.tracks[track == 0xaa ? cdtoc.numtrks : track].logframeofs; }
 	uint32_t get_track_start_phys(uint32_t track) const { return cdtoc.tracks[track == 0xaa ? cdtoc.numtrks : track].physframeofs; }
-	uint32_t get_track_index(uint32_t frame) const;
+	uint32_t get_track_index(uint32_t frame);
+	uint32_t get_adr_control_frame(uint32_t frame);
+
+	uint32_t get_absolute_msf(uint32_t frame);
+	uint32_t get_relative_msf(uint32_t frame);
 
 	/* TOC utilities */
 	static std::error_condition parse_nero(std::string_view tocfname, toc &outtoc, track_input_info &outinfo);
@@ -176,6 +198,8 @@ public:
 	}
 	int get_track_type(int track) const { return cdtoc.tracks[track].trktype; }
 	const toc &get_toc() const { return cdtoc; }
+
+	void populate_toc_from_subcode();
 
 	/* extra utilities */
 	static void convert_type_string_to_track_info(const char *typestring, track_info *info);
@@ -226,6 +250,40 @@ public:
 		ret |= ((lba % 75)&0xff)<<0;
 
 		return ret;
+	}
+
+	static inline void mcn2ascii(uint8_t *input, char *output)
+	{
+		if (input == nullptr || output == nullptr)
+			return;
+
+		for (int i = 0; i < 13; i++)
+			output[i] = '0' + ((input[i/2] >> (4 * (1 - (i % 2)))) & 0xf);
+	}
+
+	static inline void isrc2ascii(uint8_t *input, char *output)
+	{
+		if (input == NULL || output == NULL)
+			return;
+
+		const int parts[] = {
+			input[0] >> 2,
+			((input[0] & 0x03) << 4) | (input[1] >> 4),
+			((input[1] & 0x0f) << 2) | (input[2] >> 6),
+			input[2] & 0x3f,
+			input[3] >> 2
+		};
+
+		for (int i = 0; i < std::size(parts); i++)
+		{
+			if (parts[i] < 10)
+				output[i] = parts[i] + '0';
+			else
+				output[i] = parts[i] - 17 + 'A';
+		}
+
+		for (int i = 0; i < 7; i++)
+			output[5 + i] = '0' + ((input[4 + i/2] >> (4 * (1 - (i % 2)))) & 0xf);
 	}
 
 private:
@@ -279,6 +337,7 @@ private:
 	/** @brief  The fhandle[ CD maximum tracks]. */
 	util::random_read::ptr fhandle[MAX_TRACKS];/* file handle */
 
+	inline uint16_t subchan_crc16(uint8_t *data, size_t len) const;
 	inline uint32_t physical_to_chd_lba(uint32_t physlba, uint32_t &tracknum) const;
 	inline uint32_t logical_to_chd_lba(uint32_t physlba, uint32_t &tracknum) const;
 

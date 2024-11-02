@@ -228,6 +228,13 @@ uint32_t cdrom_image_device::get_track_start(uint32_t track) const
 	return 0;
 }
 
+uint32_t cdrom_image_device::get_adr_control_frame(uint32_t frame) const
+{
+	if (m_cdrom_handle)
+		return m_cdrom_handle->get_adr_control_frame(frame);
+	return 0;
+}
+
 bool cdrom_image_device::read_data(uint32_t lbasector, void *buffer, uint32_t datatype, bool phys)
 {
 	if (m_cdrom_handle)
@@ -237,10 +244,17 @@ bool cdrom_image_device::read_data(uint32_t lbasector, void *buffer, uint32_t da
 	return 0;
 }
 
-bool cdrom_image_device::read_subcode(uint32_t lbasector, void *buffer, bool phys)
+bool cdrom_image_device::read_subcode(uint32_t lbasector, void *buffer, bool phys, bool uninterlaced)
 {
 	if (m_cdrom_handle)
-		return m_cdrom_handle->read_subcode(lbasector, buffer, phys);
+		return m_cdrom_handle->read_subcode(lbasector, buffer, phys, uninterlaced);
+	return 0;
+}
+
+bool cdrom_image_device::read_subcode_channel_raw(uint32_t lbasector, void *buffer, uint32_t subchan)
+{
+	if (m_cdrom_handle)
+		return m_cdrom_handle->read_subcode_channel_raw(lbasector, buffer, subchan);
 	return 0;
 }
 
@@ -263,6 +277,20 @@ int cdrom_image_device::get_track_type(int track) const
 {
 	if (m_cdrom_handle)
 		return m_cdrom_handle->get_track_type(track);
+	return 0;
+}
+
+uint32_t cdrom_image_device::get_absolute_msf(uint32_t frame) const
+{
+	if (m_cdrom_handle)
+		return m_cdrom_handle->get_absolute_msf(frame);
+	return 0;
+}
+
+uint32_t cdrom_image_device::get_relative_msf(uint32_t frame) const
+{
+	if (m_cdrom_handle)
+		return m_cdrom_handle->get_relative_msf(frame);
 	return 0;
 }
 

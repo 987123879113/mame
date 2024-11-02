@@ -19,6 +19,7 @@
 #include "cdrom.h"
 
 #include "corestr.h"
+#include "coreutil.h"
 #include "multibyte.h"
 #include "osdfile.h"
 #include "path.h"
@@ -52,6 +53,22 @@
 /***************************************************************************
     INLINE FUNCTIONS
 ***************************************************************************/
+
+uint16_t cdrom_file::subchan_crc16(uint8_t *data, size_t len) const
+{
+	uint8_t lsb = 0;
+	uint8_t msb = 0;
+
+	for (size_t i = 0; i < len; i++)
+	{
+		uint8_t x = data[i] ^ msb;
+		x = x ^ (x >> 4);
+		msb = lsb ^ (x >> 3) ^ (x << 4);
+		lsb = x ^ (x << 5);
+	}
+
+	return ((msb << 8) | lsb) ^ 0xffff;
+}
 
 /*-------------------------------------------------
     physical_to_chd_lba - find the CHD LBA
@@ -227,6 +244,8 @@ cdrom_file::cdrom_file(std::string_view inputfile)
 	track.logframeofs = logofs;
 	track.chdframeofs = 0;
 	track.logframes = 0;
+
+	cdtoc.has_pregap_cap = true;
 }
 
 /*-------------------------------------------------
@@ -329,6 +348,8 @@ cdrom_file::cdrom_file(chd_file *_chd)
 	track.logframeofs = logofs;
 	track.chdframeofs = chdofs;
 	track.logframes = 0;
+
+	populate_toc_from_subcode();
 }
 
 
@@ -533,38 +554,265 @@ bool cdrom_file::read_data(uint32_t lbasector, void *buffer, uint32_t datatype, 
 -------------------------------------------------*/
 
 /**
- * @fn  bool read_subcode(uint32_t lbasector, void *buffer, bool phys)
+ * @fn  bool read_subcode(uint32_t lbasector, void *buffer, bool phys, bool uninterlaced)
  *
  * @brief   Cdrom read subcode.
  *
  * @param   lbasector       The lbasector.
  * @param [in,out]  buffer  If non-null, the buffer.
  * @param   phys            true to physical.
+ * @param   uninterlaced    If true, returns uninterlaced subcode data.
  *
  * @return  false on failure.
  */
 
-bool cdrom_file::read_subcode(uint32_t lbasector, void *buffer, bool phys)
+bool cdrom_file::read_subcode(uint32_t lbasector, void *buffer, bool phys, bool uninterlaced, bool force_fake)
 {
+	// TODO: Lead-in and other TOC parts for multisession also need subchannel data
+
 	// compute CHD sector and tracknumber
 	uint32_t tracknum = 0;
 	uint32_t chdsector;
+	uint8_t subbuf[MAX_SUBCODE_DATA];
+
+	if (buffer == nullptr || (chd && !chd->check_is_dvd()))
+		return false;
 
 	if (phys)
-	{
 		chdsector = physical_to_chd_lba(lbasector, tracknum);
+	else
+		chdsector = logical_to_chd_lba(lbasector, tracknum);
+
+	if (chdsector == lbasector && tracknum == 0 // could not find sector in CHD
+	&& ((phys && lbasector >= cdtoc.tracks[cdtoc.numtrks].physframeofs) || lbasector >= cdtoc.tracks[cdtoc.numtrks].logframeofs)) // Track cdtoc.numtrks is a dummy track marking the end of the data
+	{
+		// CHD LBA and track number not found, treat as lead-out
+		tracknum = 0xaa;
+		force_fake = true;
+	}
+
+	std::fill_n((uint8_t*)buffer, MAX_SUBCODE_DATA, 0);
+
+	if (force_fake || cdtoc.tracks[tracknum].subsize == 0)
+	{
+		std::fill_n(subbuf, std::size(subbuf), 0);
+
+		// TODO: test when phys = false
+
+		uint8_t *subchan_p = &subbuf[0];
+		uint8_t *subchan_q = &subbuf[12];
+		uint8_t *subchan_r = &subbuf[24];
+		uint8_t *subchan_s = &subbuf[36];
+		uint8_t *subchan_t = &subbuf[48];
+		uint8_t *subchan_u = &subbuf[60];
+		uint8_t *subchan_v = &subbuf[72];
+		uint8_t *subchan_w = &subbuf[84];
+
+		const uint32_t track_start = get_track_start(tracknum);
+		const uint32_t track_offset = lbasector - track_start;
+
+		{
+			// Generate subchannel P
+			if (track_offset == 0)
+			{
+				std::fill_n(subchan_p, 12, 0xff);
+			}
+		}
+
+		{
+			// Generate subchannel Q
+			// Need to fix absolute offset for CHDs that didn't have pregap information
+			int pregaps = 0;
+			if (!cdtoc.has_pregap_cap)
+			{
+				for (int i = 0; i < (tracknum == 0xaa ? cdtoc.numtrks : tracknum); i++)
+				{
+					// TODO: Does this only apply to data -> audio or would audio -> data also have a pregap?
+					if (i > 0 && cdtoc.tracks[i].trktype == CD_TRACK_AUDIO && cdtoc.tracks[i-1].trktype != CD_TRACK_AUDIO)
+						pregaps += 150;
+				}
+			}
+
+			const uint32_t start_offset = get_track_type(0) == CD_TRACK_AUDIO ? 0 : 150;
+
+			const uint32_t amsf = lba_to_msf(lbasector + start_offset + pregaps);
+			const uint32_t aframe = util::BIT(amsf, 0, 8);
+
+			subchan_q[0] = (get_adr_control(tracknum) & 0x0f) << 4;
+
+			if (strlen(cdtoc.catalog) > 0 && track_offset > 0 && (track_offset % 75) == 0)
+			{
+				// mode 2, catalog
+				subchan_q[0] |= CD_FLAG_ADR_CATALOG_CODE;
+
+				for (int i = 0; i < std::size(cdtoc.catalog); i++)
+				{
+					uint8_t c = cdtoc.catalog[i] >= '0' && cdtoc.catalog[i] <= '9' ? cdtoc.catalog[i] - '0' : 0;
+					subchan_q[1 + i / 2] |= c << (4 * (1 - (i % 2)));
+				}
+			}
+			else if (tracknum != 0xaa && strlen(cdtoc.tracks[tracknum].isrc) > 0 && track_offset > 0 && (track_offset % 50) == 0)
+			{
+				// mode 3, isrc
+				subchan_q[0] |= CD_FLAG_ADR_ISRC_CODE;
+
+				// Country, Owner 6 bits packed into 8 bit bytes
+				constexpr int PACKED_LEN = 5;
+				int packed = 0, bits = 0, offs = 0;
+				for (int i = 0; i < PACKED_LEN; i++)
+				{
+					const char c = cdtoc.tracks[tracknum].isrc[i];
+					packed <<= 6;
+
+					if (isdigit(c))
+						packed |= c - '0';
+					else if (isalpha(c))
+						packed |= toupper(c) - 'A' + 17;
+
+					bits += 6;
+
+					if (bits >= 8 || i + 1 >= PACKED_LEN)
+					{
+						const int bitofs = std::max(std::min(bits - 8, bits), 0);
+						const int bitlen = std::min(8, bits);
+						const int bitshift = std::max(8 - bits, 0);
+						subchan_q[1 + offs] = util::BIT(packed, bitofs, bitlen) << bitshift;
+						bits -= bitlen;
+						offs++;
+					}
+				}
+
+				// Serial
+				for (int i = 0; i < 7; i++)
+				{
+					if (!isdigit(cdtoc.tracks[tracknum].isrc[5 + i]))
+						continue;
+
+					subchan_q[5 + i / 2] |= cdtoc.tracks[tracknum].isrc[5 + i] - '0';
+					subchan_q[5 + i / 2] <<= 4 * (1 - (i % 2));
+				}
+			}
+			else
+			{
+				// mode 1, position
+				subchan_q[0] |= CD_FLAG_ADR_START_TIME;
+
+				int index = 0;
+
+				if (tracknum == 0xaa)
+				{
+					index = 1;
+				}
+				else
+				{
+					for (int i = 0; i < std::size(cdtrack_info.track[tracknum].idx); i++)
+					{
+						if (track_offset >= cdtrack_info.track[tracknum].idx[i])
+							index = i;
+						else
+							break;
+					}
+				}
+
+				if (tracknum == 0xaa || cdtrack_info.track[tracknum].idx[index] == -1)
+					index = 1; // valid index not found, default to index 1
+
+				// TODO: Fix this
+				// -150 LBA should give relative 00/01/74 -> absolute 00/00/00
+				// -149 LBA should give relative 00/01/73 -> absolute 00/00/01
+				// -148 LBA should give relative 00/01/72 -> absolute 00/00/02
+				// etc
+				const uint32_t difflba = lbasector - track_start;
+				const uint32_t msf = lba_to_msf(difflba);
+				const uint32_t min = util::BIT(msf, 16, 8);
+				const uint32_t sec = util::BIT(msf, 8, 8);
+				const uint32_t frame = util::BIT(msf, 0, 8);
+
+				const uint32_t amin = util::BIT(amsf, 16, 8);
+				const uint32_t asec = util::BIT(amsf, 8, 8);
+
+				subchan_q[0] = util::bitswap<8>(get_adr_control(tracknum), 3, 2, 1, 0, 7, 6, 5, 4);
+				subchan_q[1] = tracknum == 0xaa ? 0xaa : dec_2_bcd(tracknum + 1);
+				subchan_q[2] = dec_2_bcd(index);
+				subchan_q[3] = min;
+				subchan_q[4] = sec;
+				subchan_q[5] = frame;
+				subchan_q[6] = 0;
+				subchan_q[7] = amin;
+				subchan_q[8] = asec;
+			}
+
+
+			subchan_q[9] = aframe;
+			put_u16be(&subchan_q[10], subchan_crc16(subchan_q, 10));
+		}
+
+		uint8_t *outbuf = static_cast<uint8_t*>(buffer);
+		std::fill_n(outbuf, MAX_SUBCODE_DATA, 0);
+
+		if (uninterlaced)
+		{
+			std::copy_n(subbuf, std::size(subbuf), outbuf);
+		}
+		else
+		{
+			for (int i = 0; i < MAX_SUBCODE_DATA; i+=8)
+			{
+				for (int j = 0; j < 8; j++)
+				{
+					outbuf[i+j] |= util::BIT(subchan_p[i / 8], 7 - j) << 7;
+					outbuf[i+j] |= util::BIT(subchan_q[i / 8], 7 - j) << 6;
+					outbuf[i+j] |= util::BIT(subchan_r[i / 8], 7 - j) << 5;
+					outbuf[i+j] |= util::BIT(subchan_s[i / 8], 7 - j) << 4;
+					outbuf[i+j] |= util::BIT(subchan_t[i / 8], 7 - j) << 3;
+					outbuf[i+j] |= util::BIT(subchan_u[i / 8], 7 - j) << 2;
+					outbuf[i+j] |= util::BIT(subchan_v[i / 8], 7 - j) << 1;
+					outbuf[i+j] |= util::BIT(subchan_w[i / 8], 7 - j);
+				}
+			}
+		}
+
+		return true;
+	}
+
+	// read the data
+	std::error_condition err = read_partial_sector(subbuf, lbasector, chdsector, tracknum, cdtoc.tracks[tracknum].datasize, cdtoc.tracks[tracknum].subsize, phys);
+	if (err)
+		return false;
+
+	uint8_t *outbuf = static_cast<uint8_t*>(buffer);
+	if (uninterlaced && cdtoc.tracks[tracknum].subtype == CD_SUB_RAW)
+	{
+		std::fill_n(outbuf, MAX_SUBCODE_DATA, 0);
+
+		uint8_t *subchan_p = &outbuf[0];
+		uint8_t *subchan_q = &outbuf[12];
+		uint8_t *subchan_r = &outbuf[24];
+		uint8_t *subchan_s = &outbuf[36];
+		uint8_t *subchan_t = &outbuf[48];
+		uint8_t *subchan_u = &outbuf[60];
+		uint8_t *subchan_v = &outbuf[72];
+		uint8_t *subchan_w = &outbuf[84];
+
+		for (int i = 0; i < std::size(subbuf); i++)
+		{
+			const uint8_t c = subbuf[i];
+			subchan_p[i / 8] |= util::BIT(c, 7) << (7 - (i % 8));
+			subchan_q[i / 8] |= util::BIT(c, 6) << (7 - (i % 8));
+			subchan_r[i / 8] |= util::BIT(c, 5) << (7 - (i % 8));
+			subchan_s[i / 8] |= util::BIT(c, 4) << (7 - (i % 8));
+			subchan_t[i / 8] |= util::BIT(c, 3) << (7 - (i % 8));
+			subchan_u[i / 8] |= util::BIT(c, 2) << (7 - (i % 8));
+			subchan_v[i / 8] |= util::BIT(c, 1) << (7 - (i % 8));
+			subchan_w[i / 8] |= util::BIT(c, 0) << (7 - (i % 8));
+		}
 	}
 	else
 	{
-		chdsector = logical_to_chd_lba(lbasector, tracknum);
+		std::copy_n(subbuf, std::size(subbuf), outbuf);
 	}
 
-	if (cdtoc.tracks[tracknum].subsize == 0)
-		return false;
-
-	// read the data
-	std::error_condition err = read_partial_sector(buffer, lbasector, chdsector, tracknum, cdtoc.tracks[tracknum].datasize, cdtoc.tracks[tracknum].subsize, phys);
-	return !err;
+	return true;
 }
 
 
@@ -578,6 +826,240 @@ bool cdrom_file::read_subcode(uint32_t lbasector, void *buffer, bool phys)
     for a physical frame number
 -------------------------------------------------*/
 
+bool cdrom_file::read_subcode_channel_raw(uint32_t lbasector, void *buffer, uint32_t subchan)
+{
+	if (buffer == nullptr)
+		return true;
+
+	uint8_t subbuf[96];
+	uint8_t *subchan_p = &subbuf[0];
+	uint8_t *subchan_q = &subbuf[12];
+	uint8_t *subchan_r = &subbuf[24];
+	uint8_t *subchan_s = &subbuf[36];
+	uint8_t *subchan_t = &subbuf[48];
+	uint8_t *subchan_u = &subbuf[60];
+	uint8_t *subchan_v = &subbuf[72];
+	uint8_t *subchan_w = &subbuf[84];
+
+	if (!read_subcode(lbasector, subbuf, false, true))
+		return false;
+
+	// Check if valid subchannel data was read
+	uint8_t adr = subchan_q[0] & 0x0f;
+	if (adr != CD_FLAG_ADR_START_TIME && adr != CD_FLAG_ADR_CATALOG_CODE && adr != CD_FLAG_ADR_ISRC_CODE)
+		return false;
+
+#if 0
+	uint8_t subbuf_fake[96];
+	uint8_t *subchan_q_fake = &subbuf_fake[12];
+
+	if (!read_subcode(lbasector, subbuf_fake, false, true, true))
+		return false;
+
+	{
+		printf("real: ");
+		for (int i = 0; i < 12; i++)
+			printf("%02x ", subchan_q[i]);
+		printf("\n");
+
+		printf("fake: ");
+		for (int i = 0; i < 12; i++)
+			printf("%02x ", subchan_q_fake[i]);
+		printf("\n");
+
+		printf("real %08x %d:%d:%d %d:%d:%d crc: %d\n",
+			lbasector,
+			bcd_2_dec(subchan_q[7]), bcd_2_dec(subchan_q[8]), bcd_2_dec(subchan_q[9]),
+			bcd_2_dec(subchan_q[3]), bcd_2_dec(subchan_q[4]), bcd_2_dec(subchan_q[5]),
+			get_u16be(&subchan_q[10]) == subchan_crc16(subchan_q, 10)
+		);
+
+		printf("fake %08x %d:%d:%d %d:%d:%d crc: %d\n",
+			lbasector,
+			bcd_2_dec(subchan_q_fake[7]), bcd_2_dec(subchan_q_fake[8]), bcd_2_dec(subchan_q_fake[9]),
+			bcd_2_dec(subchan_q_fake[3]), bcd_2_dec(subchan_q_fake[4]), bcd_2_dec(subchan_q_fake[5]),
+			get_u16be(&subchan_q_fake[10]) == subchan_crc16(subchan_q_fake, 10)
+		);
+
+		printf("\n");
+	}
+#endif
+
+	uint8_t *outbuf = static_cast<uint8_t*>(buffer);
+	switch (subchan)
+	{
+		case SUBCODE_CHAN_P:
+			std::copy_n(subchan_p, 12, outbuf);
+			break;
+		case SUBCODE_CHAN_Q:
+			std::copy_n(subchan_q, 12, outbuf);
+			break;
+		case SUBCODE_CHAN_R:
+			std::copy_n(subchan_r, 12, outbuf);
+			break;
+		case SUBCODE_CHAN_S:
+			std::copy_n(subchan_s, 12, outbuf);
+			break;
+		case SUBCODE_CHAN_T:
+			std::copy_n(subchan_t, 12, outbuf);
+			break;
+		case SUBCODE_CHAN_U:
+			std::copy_n(subchan_u, 12, outbuf);
+			break;
+		case SUBCODE_CHAN_V:
+			std::copy_n(subchan_v, 12, outbuf);
+			break;
+		case SUBCODE_CHAN_W:
+			std::copy_n(subchan_w, 12, outbuf);
+			break;
+	}
+
+	return true;
+}
+
+uint32_t cdrom_file::get_adr_control_frame(uint32_t frame)
+{
+	uint8_t subbuf[12];
+	if (read_subcode_channel_raw(frame, subbuf, SUBCODE_CHAN_Q))
+		return util::bitswap<8>(subbuf[0], 3, 2, 1, 0, 7, 6, 5, 4);
+
+	uint32_t track = 0;
+
+	/* convert to a CHD sector offset and get track information */
+	logical_to_chd_lba(frame, track);
+
+	return get_adr_control(track);
+}
+
+uint32_t cdrom_file::get_absolute_msf(uint32_t frame)
+{
+	uint8_t subbuf[12];
+	const int max = frame + 100;
+	if (read_subcode_channel_raw(frame, subbuf, SUBCODE_CHAN_Q))
+	{
+		const uint8_t aframe = bcd_2_dec(subbuf[9]);
+
+		while (frame < max && (subbuf[0] & 0x0f) != CD_FLAG_ADR_START_TIME)
+		{
+			frame++;
+			read_subcode_channel_raw(frame, subbuf, SUBCODE_CHAN_Q);
+		}
+
+		if ((subbuf[0] & 0x0f) == CD_FLAG_ADR_START_TIME)
+		{
+			int32_t m = bcd_2_dec(subbuf[7]);
+			int32_t s = bcd_2_dec(subbuf[8]);
+			int32_t f = bcd_2_dec(subbuf[9]);
+
+			if (aframe != f)
+			{
+				// Update absolute msf to provide an accurate time when the sector requested would return a non-mode 1 Q channel
+				if (aframe <= f)
+				{
+					f = aframe;
+				}
+				else if (aframe > f)
+				{
+					f = aframe;
+					s--;
+
+					if (s < 0)
+					{
+						s = 59;
+						m--;
+					}
+
+					if (m < 0)
+					{
+						m = 99;
+					}
+				}
+			}
+
+			return (m << 16) | (s << 8) | f;
+		}
+	}
+
+	return lba_to_msf_alt(frame);
+}
+
+uint32_t cdrom_file::get_relative_msf(uint32_t frame)
+{
+	uint8_t subbuf[12];
+	const int max = frame + 100;
+	if (read_subcode_channel_raw(frame, subbuf, SUBCODE_CHAN_Q))
+	{
+		const uint8_t aframe = bcd_2_dec(subbuf[9]);
+
+		while (frame < max && (subbuf[0] & 0x0f) != CD_FLAG_ADR_START_TIME)
+		{
+			frame++;
+
+			read_subcode_channel_raw(frame, subbuf, SUBCODE_CHAN_Q);
+		}
+
+		if ((subbuf[0] & 0x0f) == CD_FLAG_ADR_START_TIME)
+		{
+			int32_t m = bcd_2_dec(subbuf[3]);
+			int32_t s = bcd_2_dec(subbuf[4]);
+			int32_t f = bcd_2_dec(subbuf[5]);
+
+			if (f != aframe)
+			{
+				// Update relative msf based on the difference from the absolute frame to provide an accurate time
+				// when the sector requested would return a non-mode 1 Q channel
+				const int32_t af = bcd_2_dec(subbuf[9]);
+				const int32_t time_diff = aframe - af;
+
+				if (f + time_diff > 0 && f + time_diff < 74)
+				{
+					f += time_diff;
+				}
+				else if (f + time_diff > 74)
+				{
+					s++;
+
+					if (s > 59)
+					{
+						s = 0;
+						m++;
+					}
+
+					if (m > 99)
+					{
+						m = 0;
+					}
+
+					f = (f + time_diff) % 75;
+				}
+				else if (f + time_diff < 0)
+				{
+					s--;
+
+					if (s < 0)
+					{
+						s = 59;
+						m--;
+					}
+
+					if (m < 0)
+					{
+						m = 99;
+					}
+
+					f = (f + time_diff + 75) % 75;
+				}
+			}
+
+			return (m << 16) | (s << 8) | f;
+		}
+	}
+
+	const uint32_t track = get_track(frame);
+	const uint32_t track_start = get_track_start(track);
+	return lba_to_msf_alt(frame - track_start);
+}
+
 /**
  * @fn  uint32_t get_track(uint32_t frame)
  *
@@ -588,8 +1070,18 @@ bool cdrom_file::read_subcode(uint32_t lbasector, void *buffer, bool phys)
  * @return  An uint32_t.
  */
 
-uint32_t cdrom_file::get_track(uint32_t frame) const
+uint32_t cdrom_file::get_track(uint32_t frame)
 {
+	uint8_t subbuf[12];
+	const int max = frame + 100;
+	while (frame < max && read_subcode_channel_raw(frame, subbuf, SUBCODE_CHAN_Q))
+	{
+		frame++;
+
+		if ((subbuf[0] & 0x0f) == CD_FLAG_ADR_START_TIME)
+			return bcd_2_dec(subbuf[1]) - 1;
+	}
+
 	uint32_t track = 0;
 
 	/* convert to a CHD sector offset and get track information */
@@ -598,8 +1090,18 @@ uint32_t cdrom_file::get_track(uint32_t frame) const
 	return track;
 }
 
-uint32_t cdrom_file::get_track_index(uint32_t frame) const
+uint32_t cdrom_file::get_track_index(uint32_t frame)
 {
+	uint8_t subbuf[12];
+	const int max = frame + 100;
+	while (frame < max && read_subcode_channel_raw(frame, subbuf, SUBCODE_CHAN_Q))
+	{
+		frame++;
+
+		if ((subbuf[0] & 0x0f) == CD_FLAG_ADR_START_TIME)
+			return bcd_2_dec(subbuf[2]);
+	}
+
 	const uint32_t track = get_track(frame);
 	const uint32_t track_start = get_track_start(track);
 	const uint32_t index_offset = frame - track_start;
@@ -905,6 +1407,7 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 	memset(&toc, 0, sizeof(toc));
 
 	toc.numsessions = 1;
+	toc.has_pregap_cap = false;
 
 	/* start with no tracks */
 	for (toc.numtrks = 0; toc.numtrks < MAX_TRACKS; toc.numtrks++)
@@ -920,6 +1423,7 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 		std::fill(std::begin(pgtype), std::end(pgtype), 0);
 		std::fill(std::begin(pgsub), std::end(pgsub), 0);
 
+
 		// fetch the metadata for this track
 		if (!chd->read_metadata(CDROM_TRACK_METADATA_TAG, toc.numtrks, metadata))
 		{
@@ -930,6 +1434,8 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 		{
 			if (sscanf(metadata.c_str(), CDROM_TRACK_METADATA2_FORMAT, &tracknum, type, subtype, &frames, &pregap, pgtype, pgsub, &postgap) != 8)
 				return chd_file::error::INVALID_DATA;
+
+			toc.has_pregap_cap = true;
 		}
 		else
 		{
@@ -946,6 +1452,7 @@ std::error_condition cdrom_file::parse_metadata(chd_file *chd, toc &toc)
 			if (sscanf(metadata.c_str(), GDROM_TRACK_METADATA_FORMAT, &tracknum, type, subtype, &frames, &padframes, &pregap, pgtype, pgsub, &postgap) != 9)
 				return chd_file::error::INVALID_DATA;
 
+			toc.has_pregap_cap = true;
 			toc.flags |= CD_FLAG_GDROM;
 		}
 
@@ -2371,7 +2878,21 @@ std::error_condition cdrom_file::parse_cue(std::string_view tocfname, toc &outto
 
 		TOKENIZE
 
-		if (!strcmp(token, "REM"))
+		if (!strcmp(token, "CATALOG"))
+		{
+			TOKENIZE
+
+			std::fill_n(outtoc.catalog, std::size(outtoc.catalog), 0);
+			strncpy(outtoc.catalog, token, std::size(outtoc.catalog));
+		}
+		else if (!strcmp(token, "ISRC"))
+		{
+			TOKENIZE
+
+			std::fill_n(outtoc.tracks[trknum].isrc, std::size(outtoc.tracks[trknum].isrc), 0);
+			strncpy(outtoc.tracks[trknum].isrc, token, std::size(outtoc.tracks[trknum].isrc));
+		}
+		else if (!strcmp(token, "REM"))
 		{
 			/* skip to actual data of REM command */
 			while (i < std::size(linebuffer) && isspace((uint8_t)linebuffer[i]))
@@ -2959,7 +3480,59 @@ std::error_condition cdrom_file::parse_toc(std::string_view tocfname, toc &outto
 
 		TOKENIZE
 
-		if ((!strcmp(token, "DATAFILE")) || (!strcmp(token, "AUDIOFILE")) || (!strcmp(token, "FILE")))
+		/*
+		Samples: https://github.com/cdrdao/cdrdao/tree/master/testtocs
+
+		Unimplemented:
+		CD_TEXT - Can't be implemented without a way to store a lead in separately in the CHD
+		SILENCE - "Adds zero audio data of specified length to the current audio track. Useful to create silent pre-gaps."
+		ZERO - "Adds zero data to data tracks. Must be used to define pre- or post-gaps between tracks of different mode."
+		FIFO - "Adds data from specified FIFO path to the current audio or data track"
+		PREGAP - "This is an alternate way to specify a pre-gap with zero audio data" and "Either PREGAP or START can be used within a track specification"
+
+		TODO:
+		DATAFILE should not support a start parameter but since it's grouped with FILE/AUDIOFILE it does in MAME's parser
+		*/
+		if (!strcmp(token, "CATALOG"))
+		{
+			TOKENIZE
+
+			std::fill_n(outtoc.catalog, std::size(outtoc.catalog), 0);
+			strncpy(outtoc.catalog, token, std::size(outtoc.catalog));
+		}
+		else if (!strcmp(token, "ISRC"))
+		{
+			TOKENIZE
+
+			std::fill_n(outtoc.tracks[trknum].isrc, std::size(outtoc.tracks[trknum].isrc), 0);
+			strncpy(outtoc.tracks[trknum].isrc, token, std::size(outtoc.tracks[trknum].isrc));
+		}
+		else if (!strcmp(token, "NO"))
+		{
+			TOKENIZE
+
+			if (!strcmp(token, "COPY"))
+				outtoc.tracks[trknum].control_flags &= ~CD_FLAG_CONTROL_DIGITAL_COPY_PERMITTED;
+			else if (!strcmp(token, "PRE_EMPHASIS"))
+				outtoc.tracks[trknum].control_flags &= ~CD_FLAG_CONTROL_PREEMPHASIS;
+		}
+		else if (!strcmp(token, "COPY"))
+		{
+			outtoc.tracks[trknum].control_flags |= CD_FLAG_CONTROL_DIGITAL_COPY_PERMITTED;
+		}
+		else if (!strcmp(token, "PRE_EMPHASIS"))
+		{
+			outtoc.tracks[trknum].control_flags |= CD_FLAG_CONTROL_PREEMPHASIS;
+		}
+		else if (!strcmp(token, "TWO_CHANNEL_AUDIO"))
+		{
+			outtoc.tracks[trknum].control_flags &= ~CD_FLAG_CONTROL_4CH;
+		}
+		else if (!strcmp(token, "FOUR_CHANNEL_AUDIO"))
+		{
+			outtoc.tracks[trknum].control_flags |= CD_FLAG_CONTROL_4CH;
+		}
+		else if ((!strcmp(token, "DATAFILE")) || (!strcmp(token, "AUDIOFILE")) || (!strcmp(token, "FILE")))
 		{
 			int f;
 
@@ -3083,4 +3656,46 @@ std::error_condition cdrom_file::parse_toc(std::string_view tocfname, toc &outto
 	outtoc.numsessions = 1;
 
 	return std::error_condition();
+}
+
+void cdrom_file::populate_toc_from_subcode()
+{
+	// Look for catalog, ISRC, and indexes
+	for (int track = 0; track < cdtoc.numtrks; track++)
+	{
+		if (cdtoc.tracks[track].subtype == CD_SUB_NONE)
+			continue;
+
+		const uint32_t start = get_track_start(track);
+		const uint32_t end = get_track_start(track+1);
+		std::vector<uint32_t> indexes;
+
+		printf("%d %08x %08x\n", track, start, end);
+
+		for (uint32_t lba = start; lba < end; lba++)
+		{
+			uint8_t subbuf[12];
+
+			if (!read_subcode_channel_raw(lba, subbuf, SUBCODE_CHAN_Q))
+				continue;
+
+			if (subchan_crc16(subbuf, 10) != get_u16be(subbuf + 10))
+				continue;
+
+			if ((subbuf[0] & 3) == CD_FLAG_ADR_CATALOG_CODE)
+			{
+				mcn2ascii(subbuf + 1, cdtoc.catalog);
+				printf("Found catalog track %d lba %08x! %s\n", track, lba, cdtoc.catalog);
+				// exit(1);
+			}
+			else if ((subbuf[0] & 3) == CD_FLAG_ADR_ISRC_CODE)
+			{
+				isrc2ascii(subbuf + 1, cdtoc.tracks[track].isrc);
+				printf("Found ISRC track %d lba %08x! %s\n", track, lba, cdtoc.tracks[track].isrc);
+				// exit(1);
+			}
+		}
+	}
+
+	// exit(1);
 }
