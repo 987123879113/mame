@@ -580,7 +580,7 @@ int drcbe_c::execute(code_handle &entry)
 			case MAKE_OPCODE_SHORT(OP_MAPVAR, 4, 0):    // MAPVAR  mapvar,value
 
 				// these opcodes should be processed at compile-time only
-				fatalerror("Unexpected opcode\n");
+				fatalerror("Unexpected opcode %08x %d %d %d\n", opcode, OPCODE_GET_SHORT(opcode) >> 2, opcode & 1, (opcode >> 1) & 1);
 
 			case MAKE_OPCODE_SHORT(OP_BREAK, 4, 0):
 				osd_break_into_debugger("break from drc");
@@ -2214,7 +2214,7 @@ int drcbe_c::execute(code_handle &entry)
 				break;
 
 			default:
-				fatalerror("Unexpected opcode!\n");
+				fatalerror("Unexpected opcode! %08x %d %d %d\n", opcode, OPCODE_GET_SHORT(opcode) >> 2, opcode & 1, (opcode >> 1) & 1);
 		}
 
 		// advance past the parameters and immediates

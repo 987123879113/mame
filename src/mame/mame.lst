@@ -29671,6 +29671,9 @@ dominobv2                       // (c) 1996 Wonwoo Systems
 @source:misc/dorachan.cpp
 dorachan                        // (c) 1980 Craul Denshi
 
+@source:misc/drctester.cpp
+drctester
+
 @source:misc/drdmania.cpp
 drdmania                        //
 

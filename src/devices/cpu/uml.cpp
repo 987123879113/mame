@@ -52,21 +52,6 @@ using namespace uml;
 //  CONSTANTS
 //**************************************************************************
 
-// opcode validation condition/flag valid bitmasks
-#define OPFLAGS_NONE    0x00
-#define OPFLAGS_C       FLAG_C
-#define OPFLAGS_Z       FLAG_Z
-#define OPFLAGS_SZ      (FLAG_S | FLAG_Z)
-#define OPFLAGS_SZC     (FLAG_S | FLAG_Z | FLAG_C)
-#define OPFLAGS_SZV     (FLAG_S | FLAG_Z | FLAG_V)
-#define OPFLAGS_SZVC    (FLAG_S | FLAG_Z | FLAG_V | FLAG_C)
-#define OPFLAGS_UZC     (FLAG_U | FLAG_Z | FLAG_C)
-#define OPFLAGS_ALL     0x1f
-#define OPFLAGS_P1      0x81
-#define OPFLAGS_P2      0x82
-#define OPFLAGS_P3      0x83
-#define OPFLAGS_P4      0x84
-
 // parameter input/output states
 #define PIO_IN          0x01
 #define PIO_OUT         0x02

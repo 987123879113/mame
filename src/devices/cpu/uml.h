@@ -50,6 +50,21 @@ namespace uml
 	constexpr u8 FLAG_S = 0x08;     // sign flag (defined for integer only)
 	constexpr u8 FLAG_U = 0x10;     // unordered flag (defined for FP only)
 
+	// opcode validation condition/flag valid bitmasks
+	constexpr u8 OPFLAGS_NONE  = 0x00;
+	constexpr u8 OPFLAGS_C     = FLAG_C;
+	constexpr u8 OPFLAGS_Z     = FLAG_Z;
+	constexpr u8 OPFLAGS_SZ    = (FLAG_S | FLAG_Z);
+	constexpr u8 OPFLAGS_SZC   = (FLAG_S | FLAG_Z | FLAG_C);
+	constexpr u8 OPFLAGS_SZV   = (FLAG_S | FLAG_Z | FLAG_V);
+	constexpr u8 OPFLAGS_SZVC  = (FLAG_S | FLAG_Z | FLAG_V | FLAG_C);
+	constexpr u8 OPFLAGS_UZC   = (FLAG_U | FLAG_Z | FLAG_C);
+	constexpr u8 OPFLAGS_ALL   = 0x1f;
+	constexpr u8 OPFLAGS_P1    = 0x81;
+	constexpr u8 OPFLAGS_P2    = 0x82;
+	constexpr u8 OPFLAGS_P3    = 0x83;
+	constexpr u8 OPFLAGS_P4    = 0x84;
+
 	// testable conditions; note that these are defined such that (condition ^ 1) is
 	// always the opposite
 	enum condition_t
@@ -397,6 +412,11 @@ namespace uml
 		constexpr u8 numparams() const { return m_numparams; }
 		const parameter &param(int index) const { assert(index < m_numparams); return m_param[index]; }
 
+		static char const *get_name(uint32_t opcode) { return s_opcode_info_table[opcode].mnemonic; }
+		static u8 const get_outflags(uint32_t opcode) { return s_opcode_info_table[opcode].outflags; }
+		static u8 const get_modflags(uint32_t opcode) { return s_opcode_info_table[opcode].modflags; }
+		static u8 const get_conditional(uint32_t opcode) { return s_opcode_info_table[opcode].condition; }
+
 		// setters
 		void set_flags(u8 flags) { m_flags = flags; }
 		void set_mapvar(int paramnum, u32 value) { assert(paramnum < m_numparams); assert(m_param[paramnum].is_mapvar()); m_param[paramnum] = value; }
@@ -575,13 +595,15 @@ namespace uml
 		// constants
 		static constexpr int MAX_PARAMS = 4;
 
-	private:
+	public:
 		// internal configuration
 		void configure(opcode_t op, u8 size, condition_t cond = COND_ALWAYS);
 		void configure(opcode_t op, u8 size, parameter p0, condition_t cond = COND_ALWAYS);
 		void configure(opcode_t op, u8 size, parameter p0, parameter p1, condition_t cond = COND_ALWAYS);
 		void configure(opcode_t op, u8 size, parameter p0, parameter p1, parameter p2, condition_t cond = COND_ALWAYS);
 		void configure(opcode_t op, u8 size, parameter p0, parameter p1, parameter p2, parameter p3, condition_t cond = COND_ALWAYS);
+
+	private:
 
 		// opcode validation and simplification
 		void validate();
