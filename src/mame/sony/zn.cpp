@@ -12,6 +12,7 @@
 
 #include "emu.h"
 #include "zn.h"
+#include "zn_bam2.h"
 
 #define VERBOSE ( 0 )
 #include "logmacro.h"
@@ -2712,6 +2713,26 @@ static INPUT_PORTS_START( bldyror2 )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( bam2 )
+	PORT_INCLUDE( zn )
+
+	PORT_MODIFY("P3")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_MODIFY("P4")
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_MODIFY("DSW")
+	PORT_DIPNAME( 0x01, 0x00, "Cabinet Type" ) PORT_DIPLOCATION("S551:1")
+	PORT_DIPSETTING(    0x01, "Generic Cab" )
+	PORT_DIPSETTING(    0x00, "Dedicated Cab" )
+	PORT_DIPNAME(0x0c, 0x0c, "Region")
+	PORT_DIPSETTING(0x00, "English")
+	PORT_DIPSETTING(0x04, "Japanese (2)")
+	PORT_DIPSETTING(0x08, "Korean")
+	PORT_DIPSETTING(0x0c, "Japanese")
+INPUT_PORTS_END
+
 /*
 
 ROM Definitions
@@ -5136,6 +5157,33 @@ ROM_START( bam2 )
 	ROM_LOAD( "et05", 0x000000, 0x000008, CRC(bb4a157c) SHA1(8ea729c3c2694bee12292b9654b86ff6a9e45f94) ) // matches mg09
 ROM_END
 
+ROM_START( bam2a )
+	PSARC95_BIOS
+
+	ROM_REGION32_LE( 0x2c00000, "bankedroms", 0 )
+	ROM_LOAD( "u19",             0x0000000, 0x200000, CRC(4d9f2337) SHA1(b156fd461d9d5141c60dbcd9ecd26b4f277b7919) )
+	ROM_LOAD( "u20",             0x0200000, 0x200000, CRC(1efb3c55) SHA1(d86e21a10fbcbcc759ba78b200dc2a10cb945b4c) )
+	ROM_LOAD( "mtr-bam-a01.u23", 0x0400000, 0x400000, CRC(5ed9e2dd) SHA1(85ac746735ec2fd89cd9082a3ab4ac6b4d9e8f4a) )
+	ROM_LOAD( "mtr-bam-a02.u24", 0x0800000, 0x400000, CRC(be335265) SHA1(7e09a166fe6d0e9e96c99fd472afb4db023ad217) )
+	ROM_LOAD( "mtr-bam-a03.u25", 0x0c00000, 0x400000, CRC(bf71791b) SHA1(b3eb791770838fc74e3535340610164166b63af8) )
+	ROM_LOAD( "mtr-bam-a04.u26", 0x1000000, 0x400000, CRC(d3aa62b5) SHA1(958b34fa2fa21c25f34972d4c288ef46e088d6e3) )
+	ROM_LOAD( "mtr-bam-a05.u27", 0x1400000, 0x400000, CRC(bd94d0ae) SHA1(97fe7b25768be2f57d8e823ec445c0ee92f07c02) )
+	ROM_LOAD( "mtr-bam-a06.u28", 0x1800000, 0x400000, CRC(b972c0b4) SHA1(e5ef170d0e71b7e02463462e1ea31c21ae890d14) )
+	ROM_LOAD( "mtr-bam-a07.u29", 0x1c00000, 0x400000, CRC(e8f716c1) SHA1(b15aafb0c9f3484a7ee41b5e6728af08d6a7bd8b) )
+	ROM_LOAD( "mtr-bam-a08.u30", 0x2000000, 0x400000, CRC(6e691ff1) SHA1(3fdcf3403e9ffd99b98e789930fc805dc2bc7692) )
+	ROM_LOAD( "mtr-bam-a09.u31", 0x2400000, 0x400000, CRC(e4bd7cec) SHA1(794d10b15a22aeed89082f4db2f3cb94aa7d807d) )
+	ROM_LOAD( "mtr-bam-a10.u32", 0x2800000, 0x400000, CRC(37fd1fa0) SHA1(afe846a817e499c405a5fd4ad83094270640faf3) )
+
+	ROM_REGION( 0x8000, "h83644", 0)
+	ROM_LOAD( "hd64f3644.u2", 0x00000, 0x8000, NO_DUMP )
+
+	DISK_REGION( "ata:0:cdrom" )
+	DISK_IMAGE("bam2cdrom", 0, SHA1(cdedc8f9eb67bed267c899d679f986bf1748bd00) )
+
+	ROM_REGION( 0x8, "cat702_2", 0 )
+	ROM_LOAD( "et05", 0x000000, 0x000008, CRC(bb4a157c) SHA1(8ea729c3c2694bee12292b9654b86ff6a9e45f94) ) // matches mg09
+ROM_END
+
 /* Atari PSX */
 
 #define TW_BIOS \
@@ -5450,7 +5498,8 @@ GAME( 2000, brvbladea, brvblade, coh1002e,    znt,      raizing_zn_state, empty_
 GAME( 2000, brvbladej, brvblade, coh1002e,    znt,      raizing_zn_state, empty_init, ROT270, "Eighting / Raizing", "Brave Blade (Japan)", MACHINE_IMPERFECT_SOUND )
 
 /* Bust a Move 2 uses the PSARC95 bios and ET series security but the top board is completely different */
-GAME( 1999, bam2,      coh1002e, bam2,        zn,       bam2_state, empty_init, ROT0, "Metro / Enix / Namco", "Bust a Move 2 - Dance Tengoku Mix (Japanese ROM ver. 1999/07/17 10:00:00)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
+GAME( 1999, bam2,      coh1002e, bam2,        bam2,     bam2_hle_hdd_state,   empty_init, ROT0, "Metro / Enix / Namco", "Bust a Move 2 - Dance Tengoku Mix (Japanese ROM ver. 1999/07/17 10:00:00)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
+GAME( 1999, bam2a,     bam2,     bam2,        bam2,     bam2_hle_cdrom_state, empty_init, ROT0, "Metro / Enix / Namco", "Bust a Move 2 - Dance Tengoku Mix (Japanese ROM ver. 1999/07/17 10:00:00) (CD-ROM)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING )
 
 /* Atlus */
 GAME( 1996, coh1001l,  0,        coh1001l,    zn,       atlus_zn_state, empty_init, ROT0, "Atlus",          "Atlus PSX",     MACHINE_IS_BIOS_ROOT )
