@@ -765,7 +765,7 @@ void drcbe_arm64::store_unordered(a64::Assembler &a) const
 
 void drcbe_arm64::get_unordered(a64::Assembler &a, const a64::Gp &reg) const
 {
-	get_shifted_bit(a, reg.x(), FLAGS_REG, 1, 4);
+	a.ubfx(reg.x(), FLAGS_REG, 4, 1);
 }
 
 void drcbe_arm64::store_carry_reg(a64::Assembler &a, const a64::Gp &reg) const
@@ -800,12 +800,6 @@ void drcbe_arm64::load_carry(a64::Assembler &a, bool inverted) const
 		a.eor(SCRATCH_REG1, SCRATCH_REG1, 1 << 29);
 
 	a.msr(a64::Predicate::SysReg::kNZCV, SCRATCH_REG1);
-}
-
-void drcbe_arm64::get_shifted_bit(a64::Assembler &a, const a64::Gp &dst, const a64::Gp &src, uint32_t bits, uint32_t shift) const
-{
-	a.lsr(dst.x(), src.x(), shift);
-	a.and_(dst.x(), dst.x(), bits);
 }
 
 void drcbe_arm64::calculate_carry_shift_left(a64::Assembler &a, const a64::Gp &reg, const a64::Gp &shift, int maxBits) const

@@ -203,8 +203,6 @@ private:
 	void get_unordered(asmjit::a64::Assembler &a, const asmjit::a64::Gp &reg) const;
 	void check_unordered_condition(asmjit::a64::Assembler &a, uml::condition_t cond, asmjit::Label condition_met, bool not_equal) const;
 
-	void get_shifted_bit(asmjit::a64::Assembler &a, const asmjit::a64::Gp &dst, const asmjit::a64::Gp &src, uint32_t bits, uint32_t shift) const;
-
 	void calculate_carry_shift_left(asmjit::a64::Assembler &a, const asmjit::a64::Gp &reg, const asmjit::a64::Gp &shift, int maxBits) const;
 	void calculate_carry_shift_left_imm(asmjit::a64::Assembler &a, const asmjit::a64::Gp &reg, const int shift, int maxBits) const;
 
