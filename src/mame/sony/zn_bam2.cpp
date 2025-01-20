@@ -56,12 +56,13 @@ MTR-BAM* - DIP42 32MBit maskROMs
 
 constexpr uint32_t DMADAC_MAX_SAMPLE_COUNT = 32768;
 
-bam2_hle_state::bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag) :
+bam2_hle_state::bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag, uint32_t file_timer) :
 	zn_state(mconfig, type, tag),
 	m_bankedroms(*this, "bankedroms"),
 	m_rombank(*this, "rombank"),
 	m_dmadac(*this, "dac%u", 0U),
-	m_ata(*this, "ata")
+	m_ata(*this, "ata"),
+	m_file_timer(file_timer)
 {
 }
 
@@ -94,6 +95,8 @@ void bam2_hle_state::machine_start()
 	save_item(NAME(m_audio_read_bytes));
 	save_item(NAME(m_audio_filesize));
 
+	save_item(NAME(m_file_timer_cnt));
+
 	m_rombank->configure_entries(0, 16, m_bankedroms->base(), 0x400000); /* banked game ROM */
 
 	m_audio_timer = timer_alloc(FUNC(bam2_hle_state::audio_playback), this);
@@ -115,6 +118,8 @@ void bam2_hle_state::machine_reset()
 	m_audio_remaining_samples = 0;
 	m_audio_read_bytes = 0;
 	m_audio_filesize = 0;
+
+	m_file_timer_cnt = 0;
 
 	m_rombank->set_entry(1);
 
@@ -174,7 +179,7 @@ void bam2_hle_state::mcu_w(offs_t offset, uint16_t data)
 
 				case 0x82:
 					// play audio
-					m_mcu_response = 4; // loops until command returns 4
+					m_file_timer_cnt = 0;
 					play_audio(m_fileid);
 					break;
 
@@ -239,6 +244,12 @@ uint16_t bam2_hle_state::mcu_r(offs_t offset, uint16_t mem_mask)
 		return 0;
 
 	case 2:
+		if (m_mcu_command == 0x82)
+		{
+			// This is a hack but it does make things sync well enough to be playable
+			m_file_timer_cnt = (m_file_timer_cnt + 1) % m_file_timer;
+			return m_file_timer_cnt == 0 ? 4 : 0;
+		}
 		return m_mcu_response;
 
 	case 3:
@@ -263,7 +274,7 @@ uint16_t bam2_hle_state::unk_r()
 // TODO: The code probably breaks if the HDD has a unit size that isn't 512
 
 bam2_hle_hdd_state::bam2_hle_hdd_state(const machine_config &mconfig, device_type type, const char *tag)
-	: bam2_hle_state(mconfig, type, tag),
+	: bam2_hle_state(mconfig, type, tag, 320'000),
 	m_image(nullptr)
 {
 }
@@ -445,36 +456,36 @@ bool bam2_hle_hdd_state::file_exists(uint32_t fileid)
 void bam2_hle_hdd_state::play_audio(uint32_t fileid)
 {
 	if (!file_exists(fileid))
-    {
+	{
 		printf("Could not play requested file %d %d\n", fileid, m_fileid);
-        return;
-    }
+		return;
+	}
 
-    m_audio_remaining_samples = m_audio_read_bytes = 0;
-    m_audio_cluster = m_file_records[fileid].cluster;
-    m_audio_filesize = m_file_records[fileid].length;
+	m_audio_remaining_samples = m_audio_read_bytes = 0;
+	m_audio_cluster = m_file_records[fileid].cluster;
+	m_audio_filesize = m_file_records[fileid].length;
 
-    if (m_media_is_hdd)
-    {
-        m_audio_filesize /= 4;
+	if (m_media_is_hdd)
+	{
+		m_audio_filesize /= 4;
 
-        // follow the clusters until we're at the mirrored BGM
-        const uint32_t clusters_per_file = m_audio_filesize / m_bytes_per_sector / m_sectors_per_cluster;
-        for (int i = 0; i < m_mirror_idx; i++)
-        {
-            for (int j = 0; j < clusters_per_file; j++)
-                m_audio_cluster = clusters[m_audio_cluster];
-        }
-    }
+		// follow the clusters until we're at the mirrored BGM
+		const uint32_t clusters_per_file = m_audio_filesize / m_bytes_per_sector / m_sectors_per_cluster;
+		for (int i = 0; i < m_mirror_idx; i++)
+		{
+			for (int j = 0; j < clusters_per_file; j++)
+				m_audio_cluster = clusters[m_audio_cluster];
+		}
+	}
 
-    for (int i = 0; i < std::size(m_dmadac); i++)
-    {
-        m_dmadac[i]->flush();
-        m_dmadac[i]->enable(1);
-    }
+	for (int i = 0; i < std::size(m_dmadac); i++)
+	{
+		m_dmadac[i]->flush();
+		m_dmadac[i]->enable(1);
+	}
 
-    m_audio_playing = true;
-    m_audio_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
+	m_audio_playing = true;
+	m_audio_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
 }
 
 TIMER_CALLBACK_MEMBER(bam2_hle_hdd_state::audio_playback)
@@ -534,7 +545,7 @@ TIMER_CALLBACK_MEMBER(bam2_hle_hdd_state::audio_playback)
 // CD-ROM
 
 bam2_hle_cdrom_state::bam2_hle_cdrom_state(const machine_config &mconfig, device_type type, const char *tag)
-	: bam2_hle_state(mconfig, type, tag),
+	: bam2_hle_state(mconfig, type, tag, 320'550),
 	m_image(nullptr)
 {
 }
@@ -734,18 +745,18 @@ void bam2_hle_cdrom_state::play_audio(uint32_t fileid)
 		return;
 	}
 
-    m_audio_remaining_samples = m_audio_read_bytes = 0;
+	m_audio_remaining_samples = m_audio_read_bytes = 0;
 	m_audio_lba = m_file_records[fileid].lba;
-    m_audio_filesize = m_file_records[fileid].length;
+	m_audio_filesize = m_file_records[fileid].length;
 
-    for (int i = 0; i < std::size(m_dmadac); i++)
-    {
-        m_dmadac[i]->flush();
-        m_dmadac[i]->enable(1);
-    }
+	for (int i = 0; i < std::size(m_dmadac); i++)
+	{
+		m_dmadac[i]->flush();
+		m_dmadac[i]->enable(1);
+	}
 
-    m_audio_playing = true;
-    m_audio_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
+	m_audio_playing = true;
+	m_audio_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
 }
 
 TIMER_CALLBACK_MEMBER(bam2_hle_cdrom_state::audio_playback)

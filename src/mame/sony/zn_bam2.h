@@ -26,7 +26,7 @@ public:
 	void bam2(machine_config &config);
 
 protected:
-	bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag);
+	bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag, uint32_t file_timer);
 
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
@@ -64,6 +64,9 @@ protected:
 	uint32_t m_audio_remaining_samples;
 	uint32_t m_audio_read_bytes;
 	uint32_t m_audio_filesize;
+
+	const uint32_t m_file_timer;
+	uint32_t m_file_timer_cnt;
 
 	emu_timer *m_audio_timer;
 };
