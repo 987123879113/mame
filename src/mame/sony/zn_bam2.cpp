@@ -488,7 +488,7 @@ TIMER_CALLBACK_MEMBER(bam2_hle_hdd_state::audio_playback)
 		return;
 	}
 
-	if (m_audio_remaining_samples < DMADAC_MAX_SAMPLE_COUNT / 2)
+	if (m_audio_remaining_samples < DMADAC_MAX_SAMPLE_COUNT / 2 && m_audio_cluster < 0x0ffffff7)
 	{
 		const int cluster_read_count = (DMADAC_MAX_SAMPLE_COUNT - m_audio_remaining_samples) * sizeof(int16_t) * std::size(m_dmadac) / m_bytes_per_sector / m_sectors_per_cluster;
 		std::vector<uint8_t> audio_buffer(m_bytes_per_sector * m_sectors_per_cluster * cluster_read_count);
@@ -506,14 +506,16 @@ TIMER_CALLBACK_MEMBER(bam2_hle_hdd_state::audio_playback)
 				offs += m_bytes_per_sector;
 			}
 
-			m_audio_cluster = clusters[m_audio_cluster];
-
 			m_audio_read_bytes += m_bytes_per_sector * m_sectors_per_cluster;
 			if (m_audio_read_bytes > m_audio_filesize)
 			{
 				m_audio_read_bytes = m_audio_filesize;
 				break;
 			}
+
+			m_audio_cluster = clusters[m_audio_cluster];
+			if (m_audio_cluster >= 0x0ffffff7)
+				break;
 		}
 
 		const uint32_t read_bytes = m_audio_read_bytes - current_read_bytes;
