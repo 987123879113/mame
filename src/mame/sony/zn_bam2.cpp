@@ -56,13 +56,12 @@ MTR-BAM* - DIP42 32MBit maskROMs
 
 constexpr uint32_t DMADAC_MAX_SAMPLE_COUNT = 32768;
 
-bam2_hle_state::bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag, uint32_t file_timer) :
+bam2_hle_state::bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag) :
 	zn_state(mconfig, type, tag),
 	m_bankedroms(*this, "bankedroms"),
 	m_rombank(*this, "rombank"),
 	m_dmadac(*this, "dac%u", 0U),
-	m_ata(*this, "ata"),
-	m_file_timer(file_timer)
+	m_ata(*this, "ata")
 {
 }
 
@@ -95,11 +94,10 @@ void bam2_hle_state::machine_start()
 	save_item(NAME(m_audio_read_bytes));
 	save_item(NAME(m_audio_filesize));
 
-	save_item(NAME(m_file_timer_cnt));
-
 	m_rombank->configure_entries(0, 16, m_bankedroms->base(), 0x400000); /* banked game ROM */
 
 	m_audio_timer = timer_alloc(FUNC(bam2_hle_state::audio_playback), this);
+	m_audio_timer_flag = timer_alloc(FUNC(bam2_hle_state::audio_playback_flag), this);
 }
 
 void bam2_hle_state::machine_reset()
@@ -118,8 +116,6 @@ void bam2_hle_state::machine_reset()
 	m_audio_remaining_samples = 0;
 	m_audio_read_bytes = 0;
 	m_audio_filesize = 0;
-
-	m_file_timer_cnt = 0;
 
 	m_rombank->set_entry(1);
 
@@ -179,7 +175,7 @@ void bam2_hle_state::mcu_w(offs_t offset, uint16_t data)
 
 				case 0x82:
 					// play audio
-					m_file_timer_cnt = 0;
+					m_audio_timer_flag->adjust(m_gpu_screen->frame_period());
 					play_audio(m_fileid);
 					break;
 
@@ -244,12 +240,6 @@ uint16_t bam2_hle_state::mcu_r(offs_t offset, uint16_t mem_mask)
 		return 0;
 
 	case 2:
-		if (m_mcu_command == 0x82)
-		{
-			// This is a hack but it does make things sync well enough to be playable
-			m_file_timer_cnt = (m_file_timer_cnt + 1) % m_file_timer;
-			return m_file_timer_cnt == 0 ? 4 : 0;
-		}
 		return m_mcu_response;
 
 	case 3:
@@ -269,12 +259,17 @@ uint16_t bam2_hle_state::unk_r()
 	return 0;
 }
 
+TIMER_CALLBACK_MEMBER(bam2_hle_state::audio_playback_flag)
+{
+	m_mcu_response |= 4;
+}
+
 ////////////////////////////////////////////////////////
 // HDD
 // TODO: The code probably breaks if the HDD has a unit size that isn't 512
 
 bam2_hle_hdd_state::bam2_hle_hdd_state(const machine_config &mconfig, device_type type, const char *tag)
-	: bam2_hle_state(mconfig, type, tag, 320'000),
+	: bam2_hle_state(mconfig, type, tag),
 	m_image(nullptr)
 {
 }
@@ -545,7 +540,7 @@ TIMER_CALLBACK_MEMBER(bam2_hle_hdd_state::audio_playback)
 // CD-ROM
 
 bam2_hle_cdrom_state::bam2_hle_cdrom_state(const machine_config &mconfig, device_type type, const char *tag)
-	: bam2_hle_state(mconfig, type, tag, 320'550),
+	: bam2_hle_state(mconfig, type, tag),
 	m_image(nullptr)
 {
 }

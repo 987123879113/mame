@@ -26,7 +26,7 @@ public:
 	void bam2(machine_config &config);
 
 protected:
-	bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag, uint32_t file_timer);
+	bam2_hle_state(const machine_config &mconfig, device_type type, const char *tag);
 
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
@@ -41,6 +41,8 @@ protected:
 
 	void unk_w(offs_t offset, uint16_t data);
 	uint16_t unk_r();
+
+	TIMER_CALLBACK_MEMBER(audio_playback_flag);
 
 	virtual TIMER_CALLBACK_MEMBER(audio_playback) = 0;
 
@@ -65,10 +67,8 @@ protected:
 	uint32_t m_audio_read_bytes;
 	uint32_t m_audio_filesize;
 
-	const uint32_t m_file_timer;
-	uint32_t m_file_timer_cnt;
-
 	emu_timer *m_audio_timer;
+	emu_timer *m_audio_timer_flag;
 };
 
 class bam2_hle_hdd_state : public bam2_hle_state
