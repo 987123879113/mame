@@ -174,10 +174,18 @@ void bam2_hle_state::mcu_w(offs_t offset, uint16_t data)
 					break;
 
 				case 0x82:
+				{
 					// play audio
-					m_audio_timer_flag->adjust(m_gpu_screen->frame_period());
+					attotime rate = m_gpu_screen->frame_period();
+
+					// The game will subtract 18 from the calculated value for the CD version, so offset it to account for that
+					if (!m_media_is_hdd)
+						rate = attotime::from_hz(rate.as_hz() - attotime::from_double(9.5).as_hz());
+
+					m_audio_timer_flag->adjust(rate*100);
 					play_audio(m_fileid);
 					break;
+				}
 
 				case 0x83:
 					// stop audio
